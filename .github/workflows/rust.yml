@@ -35,7 +35,6 @@ jobs:
       with:
         name: code-coverage-report
         path: cobertura.xml
-
     - name: Build
       run: cargo build --verbose
     - name: Run tests
