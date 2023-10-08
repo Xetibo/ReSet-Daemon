@@ -35,6 +35,8 @@ jobs:
       with:
         name: code-coverage-report
         path: cobertura.xml
+    - name: setup dbus
+      run: sudo apt install libdbus-1-dev pkg-config -y
     - name: Build
       run: cargo build --verbose
     - name: Run tests
