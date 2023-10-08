@@ -1,7 +1,9 @@
 [package]
-name = "ReSet-Daemon"
+name = "reset_daemon"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 ReSet-Lib = "0.1.0"
+dbus = "0.9.7"
+dbus-crossroads = "0.5.2"
