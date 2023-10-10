@@ -4,8 +4,8 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, AppendAll, Get, ReadAll, RefArg},
-    blocking::Connection,
+    arg::{AppendAll, Get, ReadAll},
+    blocking::{Connection, Proxy},
 };
 
 pub fn call_system_dbus_method<
@@ -21,7 +21,8 @@ pub fn call_system_dbus_method<
     thread::spawn(move || {
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy(name.as_str(), object, Duration::from_millis(1000));
-        let result: Result<O, dbus::Error> = proxy.method_call(proxy_name.as_str(), function, params);
+        let result: Result<O, dbus::Error> =
+            proxy.method_call(proxy_name.as_str(), function, params);
         result
     })
 }
@@ -58,7 +59,8 @@ pub fn call_session_dbus_method<
     thread::spawn(move || {
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy(name.as_str(), object, Duration::from_millis(1000));
-        let result: Result<O, dbus::Error> = proxy.method_call(proxy_name.as_str(), function, params);
+        let result: Result<O, dbus::Error> =
+            proxy.method_call(proxy_name.as_str(), function, params);
         result
     })
 }
