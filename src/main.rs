@@ -1,4 +1,6 @@
-use dbus::network::get_wifi_devices;
+use dbus::network::{get_wifi_devices, get_stored_connections};
+
+use crate::dbus::network::get_connection_settings;
 
 mod dbus;
 
@@ -7,8 +9,11 @@ fn main() {
     // get wifi device
     let mut devices = get_wifi_devices();
     let mut device = devices.pop().unwrap();
+    // dbg!(get_stored_connections());
+    // dbg!(device.connect_to_access_point("gurrigear"));
     // disconnect from current
     device.disconnect_from_current().unwrap();
+    
 }
 
 // // example disconnect
@@ -29,5 +34,5 @@ fn main() {
 // );
 // let res = device.add_and_connect_to_access_point(
 //     access_points.get(0).unwrap().dbus_path.clone(),
-//     "password".to_string(),
+//     "password,".to_string(),
 // );

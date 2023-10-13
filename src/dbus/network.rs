@@ -1,8 +1,8 @@
 use core::fmt;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, time::Duration, str};
 
 use dbus::{
-    arg::{PropMap, RefArg, Variant},
+    arg::{self, PropMap, RefArg, Variant},
     blocking::Connection,
     Path,
 };
@@ -205,7 +205,7 @@ pub fn get_active_connections() -> Vec<Path<'static>> {
     connections
 }
 
-pub fn get_associations_of_connection(
+pub fn get_associations_of_active_connection(
     path: Path<'static>,
 ) -> (Vec<Path<'static>>, Option<AccessPoint>) {
     let interface = "org.freedesktop.NetworkManager.Connection.Active";
@@ -228,7 +228,7 @@ pub fn get_associations_of_connection(
     (devices, access_point)
 }
 
-pub fn get_stored_connections() -> Vec<Path<'static>> {
+pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
     let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
         "org.freedesktop.NetworkManager".to_string(),
         Path::from("/org/freedesktop/NetworkManager/Settings"),
@@ -237,7 +237,18 @@ pub fn get_stored_connections() -> Vec<Path<'static>> {
         (),
     );
     let (result,) = result.unwrap();
-    result
+    let mut wifi_connections = Vec::new();
+    for connection in result {
+        let settings = get_connection_settings(connection.clone());
+        let settings = settings.get("802-11-wireless");
+        if settings.is_some() {
+            let settings = settings.unwrap();
+            let ssid : &Vec<u8> = arg::prop_cast(settings, "ssid").unwrap(); 
+            let ssid = ssid.clone();
+            wifi_connections.push((connection, ssid));
+        }
+    }
+    wifi_connections
 }
 
 pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), ConnectionError> {
@@ -260,7 +271,7 @@ impl Device {
     pub fn initialize(&mut self) {
         let connections = get_active_connections();
         for connection in connections {
-            let (devices, access_point) = get_associations_of_connection(connection.clone());
+            let (devices, access_point) = get_associations_of_active_connection(connection.clone());
             if devices.contains(&self.dbus_path) {
                 self.connection = Some(connection);
                 self.access_point = access_point;
@@ -298,6 +309,42 @@ impl Device {
         self.access_point = Some(get_access_point_properties(access_point))
     }
 
+    pub fn connect_to_access_point(&mut self, access_point: &str) -> Result<(), ConnectionError> {
+        let mut result: Option<Result<(Path<'static>,), dbus::Error>> = None;
+        let connections = get_stored_connections();
+        for (connection, ssid) in connections {
+            if str::from_utf8(&ssid).unwrap() == access_point {
+                result = Some(call_system_dbus_method::<
+                    (Path<'static>, Path<'static>, Path<'static>),
+                    (Path<'static>,),
+                >(
+                    "org.freedesktop.NetworkManager".to_string(),
+                    Path::from("/org/freedesktop/NetworkManager"),
+                    "ActivateConnection".to_string(),
+                    "org.freedesktop.NetworkManager".to_string(),
+                    (connection, self.dbus_path.clone(), Path::from("/")),
+                ));
+            }
+        }
+        if result.is_none() {
+            return Err(ConnectionError {
+                method: "connect to non-existant",
+            });
+        }
+        let result = result.unwrap();
+        if result.is_err() {
+            return Err(ConnectionError {
+                method: "connect to",
+            });
+        }
+        let (result,) = result.unwrap();
+        let connection = get_associations_of_active_connection(result.clone());
+        self.connection = Some(result);
+        self.access_point = connection.1;
+        self.connected = true;
+        Ok(())
+    }
+
     pub fn add_and_connect_to_access_point(
         &mut self,
         access_point: Path<'static>,
@@ -331,32 +378,6 @@ impl Device {
         Err(ConnectionError {
             method: "connect to",
         })
-    }
-
-    pub fn connect_to_access_point(
-        &self,
-        access_point: Path<'static>,
-    ) -> Result<(), ConnectionError> {
-        let result = call_system_dbus_method::<
-            (Path<'static>, Path<'static>, Path<'static>),
-            (Path<'static>,),
-        >(
-            "org.freedesktop.NetworkManager".to_string(),
-            Path::from("/org/freedesktop/NetworkManager"),
-            "ActivateConnection".to_string(),
-            "org.freedesktop.NetworkManager".to_string(),
-            (
-                Path::new("/").unwrap(),
-                self.dbus_path.clone(),
-                access_point,
-            ),
-        );
-        if result.is_err() {
-            return Err(ConnectionError {
-                method: "connect to",
-            });
-        }
-        Ok(())
     }
 
     pub fn disconnect_from_current(&mut self) -> Result<(), ConnectionError> {
