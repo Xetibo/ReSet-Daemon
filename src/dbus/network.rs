@@ -1,12 +1,6 @@
 use core::fmt;
 use std::{collections::HashMap, str, time::Duration};
 
-macro_rules! append_array {
-    ($m:expr, $t:ty) => {
-        $m.append1(Variant(&Array::<&$t, _>::new(&vec![Default::default()])))
-    };
-}
-
 use dbus::{
     arg::{self, Append, AppendAll, Arg, ArgType, Get, PropMap, RefArg, Variant},
     blocking::Connection,

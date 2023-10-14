@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use dbus::{
-    arg::{AppendAll, Get, ReadAll},
+    arg::{Append, AppendAll, Arg, Get, ReadAll},
     blocking::Connection,
     Path,
 };
@@ -30,6 +30,21 @@ pub fn get_system_dbus_property<I: AppendAll, O: for<'a> Get<'a> + 'static>(
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
 
     let result: Result<O, dbus::Error> = proxy.get(interface, property);
+    result
+}
+
+pub fn set_system_dbus_property<I: Arg + Append>(
+    name: &str,
+    object: Path<'static>,
+    interface: &str,
+    property: &str,
+    value: I,
+) -> Result<(), dbus::Error> {
+    let conn = Connection::new_system().unwrap();
+    let proxy = conn.with_proxy(name, object, Duration::from_millis(1000));
+    use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
+
+    let result: Result<(), dbus::Error> = proxy.set(interface, property, value);
     result
 }
 

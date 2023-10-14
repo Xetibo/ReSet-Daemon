@@ -1,22 +1,20 @@
-use dbus::reset_dbus::Daemon;
+use dbus::{bluetooth::BluetoothInterface, reset_dbus::Daemon};
 
 mod dbus;
 
 fn main() {
-    // example disconnect
-    // get wifi device
-    // let mut devices = get_wifi_devices();
-    // let mut device = devices.pop().unwrap();
-    // dbg!(get_stored_connections());
-    // dbg!(device.connect_to_access_point("gurrigear"));
-    // disconnect from current
-    // device.disconnect_from_current().unwrap();
-    let daemon = Daemon::create();
-    if daemon.is_err() {
-        return;
+    // let daemon = Daemon::create();
+    // if daemon.is_err() {
+    //     return;
+    // }
+    // let mut daemon = daemon.unwrap();
+    // daemon.run();
+    let bl = BluetoothInterface::create();
+    if bl.is_some() {
+        let bl = bl.unwrap();
+        bl.get_connections();
+        dbg!(bl);
     }
-    let mut daemon = daemon.unwrap();
-    daemon.run();
 }
 
 // // example disconnect
