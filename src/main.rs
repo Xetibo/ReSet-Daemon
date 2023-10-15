@@ -11,10 +11,17 @@ fn main() {
     // daemon.run();
     let bl = BluetoothInterface::create();
     if bl.is_some() {
-        let bl = bl.unwrap();
+        let mut bl = bl.unwrap();
         bl.get_connections();
         dbg!(bl);
+        // bl.set_bluetooth(false);
     }
+    let daemon = Daemon::create();
+    if daemon.is_err() {
+        return;
+    }
+    let mut daemon = daemon.unwrap();
+    daemon.run();
 }
 
 // // example disconnect

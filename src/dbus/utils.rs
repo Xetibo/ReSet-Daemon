@@ -12,9 +12,10 @@ pub fn call_system_dbus_method<I: AppendAll + 'static, O: ReadAll + 'static>(
     function: &str,
     proxy_name: &str,
     params: I,
+    time:   u64,
 ) -> Result<O, dbus::Error> {
     let conn = Connection::new_system().unwrap();
-    let proxy = conn.with_proxy(name, object, Duration::from_millis(1000));
+    let proxy = conn.with_proxy(name, object, Duration::from_millis(time));
     let result: Result<O, dbus::Error> = proxy.method_call(proxy_name, function, params);
     result
 }

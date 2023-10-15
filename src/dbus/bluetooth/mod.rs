@@ -1,22 +1,28 @@
-use std::{collections::HashMap, time::Duration};
+mod bluez_signals;
+
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime},
+};
 
 use dbus::{
     arg::{self, RefArg, Variant},
-    blocking::Connection,
-    Path,
+    blocking::{Connection, MakeSignal},
+    Message, Path,
 };
 
 use crate::dbus::utils::set_system_dbus_property;
+
+use self::bluez_signals::InterfacesAddedSignal;
 
 use super::utils::call_system_dbus_method;
 
 struct BConnection {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BluetoothDevice {
     rssi: i16,
     name: String,
-    path: Path<'static>,
     adapter: Path<'static>,
     trusted: bool,
     bonded: bool,
@@ -25,16 +31,18 @@ struct BluetoothDevice {
     address: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BluetoothAdapter {
     path: Path<'static>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BluetoothInterface {
     adapters: Vec<BluetoothAdapter>,
     current_adapter: BluetoothAdapter,
+    devices: HashMap<Path<'static>, BluetoothDevice>,
     enabled: bool,
+    real: bool,
 }
 
 fn get_objects() -> Result<
@@ -58,11 +66,23 @@ fn get_objects() -> Result<
         "GetManagedObjects",
         "org.freedesktop.DBus.ObjectManager",
         (),
+        1000,
     );
     res
 }
 
 impl BluetoothInterface {
+    pub fn empty() -> Self {
+        Self {
+            adapters: Vec::new(),
+            current_adapter: BluetoothAdapter {
+                path: Path::from("/"),
+            },
+            devices: HashMap::new(),
+            enabled: false,
+            real: false,
+        }
+    }
     pub fn create() -> Option<Self> {
         let mut adapters = Vec::new();
         let res = get_objects();
@@ -85,13 +105,15 @@ impl BluetoothInterface {
         let mut interface = Self {
             adapters,
             current_adapter,
+            devices: HashMap::new(),
             enabled: false,
+            real: true,
         };
-        interface.set_bluetooth(true);
+        let res = interface.set_bluetooth(true);
         Some(interface)
     }
 
-    pub fn get_connections(&self) {
+    pub fn get_connections(&mut self) {
         let res = self.start_discovery();
         if res.is_err() {
             return;
@@ -101,7 +123,6 @@ impl BluetoothInterface {
             return;
         }
         let (res,) = res.unwrap();
-        let mut devices = Vec::new();
         for (path, map) in res.iter() {
             let map = map.get("org.bluez.Device1");
             if map.is_none() {
@@ -123,29 +144,51 @@ impl BluetoothInterface {
             let address = arg::cast::<String>(&map.get("Address").unwrap().0)
                 .unwrap()
                 .clone();
-            devices.push(BluetoothDevice {
-                rssi,
-                name,
+            self.devices.insert(
                 path,
-                adapter,
-                trusted,
-                bonded,
-                paired,
-                blocked,
-                address,
-            });
+                BluetoothDevice {
+                    rssi,
+                    name,
+                    adapter,
+                    trusted,
+                    bonded,
+                    paired,
+                    blocked,
+                    address,
+                },
+            );
         }
-        dbg!(devices);
     }
 
     pub fn start_discovery(&self) -> Result<(), dbus::Error> {
-        call_system_dbus_method::<(), ()>(
+        // call_system_dbus_method::<(), ()>(
+        //     "org.bluez",
+        //     self.current_adapter.path.clone(),
+        //     "StartDiscovery",
+        //     "org.bluez.Adapter1",
+        //     (),
+        //     10000,
+        // )
+        let conn = Connection::new_system().unwrap();
+        let proxy = conn.with_proxy(
             "org.bluez",
             self.current_adapter.path.clone(),
-            "StartDiscovery",
-            "org.bluez.Adapter1",
-            (),
-        )
+            Duration::from_millis(1000),
+        );
+        let _id = proxy.match_signal(|sig: InterfacesAddedSignal, _: &Connection, _: &Message| {
+            println!("{}", sig.object);
+            true
+        });
+        let res: Result<(), dbus::Error> =
+            proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+        let now = SystemTime::now();
+        loop {
+            conn.process(Duration::from_millis(1000))?;
+            if now.elapsed().unwrap() > Duration::from_millis(5000) {
+                break;
+            }
+        }
+        Ok(())
     }
 
     pub fn stop_discovery(&self) -> Result<(), dbus::Error> {
@@ -155,6 +198,7 @@ impl BluetoothInterface {
             "StopDiscovery",
             "org.bluez",
             (),
+            1000,
         )
     }
 
@@ -170,12 +214,13 @@ impl BluetoothInterface {
         let res = set_system_dbus_property(
             "org.bluez",
             self.current_adapter.path.clone(),
-            "org.bluez",
+            "org.bluez.Adapter1",
             "Powered",
             value,
         );
         if res.is_err() {
             self.enabled = false;
+            return;
         }
         self.enabled = value;
     }

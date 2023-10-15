@@ -136,6 +136,7 @@ pub fn get_wifi_devices() -> Vec<Device> {
         "GetAllDevices",
         "org.freedesktop.NetworkManager",
         (),
+        1000,
     );
     let (result,) = result.unwrap();
     let mut devices = Vec::new();
@@ -168,6 +169,7 @@ pub fn get_connection_settings(path: Path<'static>) -> HashMap<String, PropMap> 
         "GetSettings",
         "org.freedesktop.NetworkManager.Settings.Connection",
         (),
+        1000,
     );
     let (result,): (HashMap<String, PropMap>,) = result.unwrap();
     result
@@ -187,6 +189,7 @@ pub fn set_password(path: Path<'static>, password: String) {
         "Update",
         "org.freedesktop.NetworkManager.Settings.Connection",
         (settings,),
+        1000,
     );
     result.unwrap();
 }
@@ -198,6 +201,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
         "GetSecrets",
         "org.freedesktop.NetworkManager.Settings.Connection",
         ("802-11-wireless-security".to_string(),),
+        1000,
     );
     let (result,): (HashMap<String, PropMap>,) = result.unwrap();
     dbg!(result);
@@ -276,6 +280,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         "ListConnections",
         "org.freedesktop.NetworkManager.Settings",
         (),
+        1000,
     );
     let (result,) = result.unwrap();
     let mut wifi_connections = Vec::new();
@@ -299,6 +304,7 @@ pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), Con
         "DeactivateConnection",
         "org.freedesktop.NetworkManager",
         (connection,),
+        1000,
     );
     if result.is_err() {
         return Err(ConnectionError {
@@ -328,6 +334,7 @@ impl Device {
             "GetAllAccessPoints",
             "org.freedesktop.NetworkManager.Device.Wireless",
             (),
+            1000,
         );
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
@@ -367,6 +374,7 @@ impl Device {
                 self.dbus_path.clone(),
                 Path::from("/"),
             ),
+            1000,
         );
         if result.is_err() {
             return Err(ConnectionError {
@@ -401,7 +409,12 @@ impl Device {
             Path::from("/org/freedesktop/NetworkManager"),
             "AddAndActivateConnection",
             "org.freedesktop.NetworkManager",
-            (properties, self.dbus_path.clone(), access_point.dbus_path.clone()),
+            (
+                properties,
+                self.dbus_path.clone(),
+                access_point.dbus_path.clone(),
+            ),
+            1000,
         );
         if result.is_ok() {
             let result = result.unwrap();
