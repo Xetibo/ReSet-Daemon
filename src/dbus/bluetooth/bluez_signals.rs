@@ -47,28 +47,28 @@ impl dbus::message::SignalArgs for InterfacesAddedSignal {
 }
 
 #[derive(Debug)]
-pub struct OrgFreedesktopDBusObjectManagerInterfacesRemoved {
+pub struct InterfaceRemovedSignal {
     pub object: dbus::Path<'static>,
     pub interfaces: Vec<String>,
 }
 
-impl arg::AppendAll for OrgFreedesktopDBusObjectManagerInterfacesRemoved {
+impl arg::AppendAll for InterfaceRemovedSignal {
     fn append(&self, i: &mut arg::IterAppend) {
         arg::RefArg::append(&self.object, i);
         arg::RefArg::append(&self.interfaces, i);
     }
 }
 
-impl arg::ReadAll for OrgFreedesktopDBusObjectManagerInterfacesRemoved {
+impl arg::ReadAll for InterfaceRemovedSignal {
     fn read(i: &mut arg::Iter) -> Result<Self, arg::TypeMismatchError> {
-        Ok(OrgFreedesktopDBusObjectManagerInterfacesRemoved {
+        Ok(InterfaceRemovedSignal {
             object: i.read()?,
             interfaces: i.read()?,
         })
     }
 }
 
-impl dbus::message::SignalArgs for OrgFreedesktopDBusObjectManagerInterfacesRemoved {
+impl dbus::message::SignalArgs for InterfaceRemovedSignal {
     const NAME: &'static str = "InterfacesRemoved";
     const INTERFACE: &'static str = "org.freedesktop.DBus.ObjectManager";
 }

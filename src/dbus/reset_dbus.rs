@@ -1,8 +1,19 @@
-use dbus::{blocking::Connection, Path};
-use dbus_crossroads::Crossroads;
+use std::{
+    future,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
+use dbus::{
+    blocking::Connection, channel::MatchingReceiver, message::MatchRule, nonblock::SyncConnection,
+    Path,
+};
+use dbus_crossroads::{Context, Crossroads};
+use dbus_tokio::connection::{self, IOResource};
+use tokio;
 
 use super::{
-    bluetooth::BluetoothInterface,
+    bluetooth::{BluetoothDevice, BluetoothInterface},
     network::{get_wifi_devices, AccessPoint, Device, Error},
 };
 
@@ -14,7 +25,6 @@ pub struct DaemonData {
 }
 
 pub struct Daemon {
-    pub n_connection: Connection,
     pub data: DaemonData,
 }
 
@@ -35,7 +45,6 @@ impl Daemon {
             b_interface = b_interface_opt.unwrap();
         }
         Ok(Self {
-            n_connection: Connection::new_session().unwrap(),
             data: DaemonData {
                 n_devices,
                 current_n_device,
@@ -44,12 +53,36 @@ impl Daemon {
         })
     }
 
-    pub fn run(&mut self) {
-        self.n_connection
-            .request_name("org.xetibo.ReSet", false, true, false)
+    pub async fn run(&mut self) {
+        let res = connection::new_session_sync();
+        if res.is_err() {
+            return;
+        }
+        let (resource, conn) = res.unwrap();
+
+        let _handle = tokio::spawn(async {
+            let err = resource.await;
+            panic!("Lost connection to D-Bus: {}", err);
+        });
+
+        conn.request_name("org.xetibo.ReSet", false, true, false)
+            .await
             .unwrap();
         let mut cross = Crossroads::new();
+        cross.set_async_support(Some((
+            conn.clone(),
+            Box::new(|x| {
+                tokio::spawn(x);
+            }),
+        )));
+
         let token = cross.register("org.xetibo.ReSet", |c| {
+            let bluetooth_device_added = c
+                .signal::<(Path<'static>, BluetoothDevice), _>(
+                    "BluetoothDeviceAdded",
+                    ("path", "device"),
+                )
+                .msg_fn();
             c.method(
                 "ListAccessPoints",
                 (),
@@ -98,16 +131,20 @@ impl Daemon {
                     Ok((true,))
                 },
             );
-            c.method(
+            c.method_with_cr_async(
                 "StartBluetoothSearch",
                 (),
                 ("result",),
-                move |_, d: &mut DaemonData, ()| {
-                    let res = d.b_interface.start_discovery();
+                move |ctx, cross, ()| {
+                    let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                    let ctx_ref = Arc::new(Mutex::new(ctx));
+                    let res = data.b_interface.start_discovery(ctx_ref.clone());
+                    let mut response = true;
                     if res.is_err() {
-                        return Ok((false,));
+                        response = false;
                     }
-                    Ok((true,))
+                    let mut ctx = Arc::try_unwrap(ctx_ref).unwrap().into_inner().unwrap();
+                    async move { ctx.reply(Ok((response,))) }
                 },
             );
             c.method(
@@ -125,6 +162,16 @@ impl Daemon {
         });
         cross.insert("/org/xetibo/ReSet/Network", &[token], self.data.clone());
         cross.insert("/org/xetibo/ReSet/Bluetooth", &[token], self.data.clone());
-        cross.serve(&self.n_connection).unwrap();
+
+        conn.start_receive(
+            MatchRule::new_method_call(),
+            Box::new(move |msg, conn| {
+                cross.handle_message(msg, conn).unwrap();
+                true
+            }),
+        );
+
+        future::pending::<()>().await;
+        unreachable!()
     }
 }

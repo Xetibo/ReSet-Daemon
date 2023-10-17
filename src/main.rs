@@ -1,27 +1,29 @@
 use dbus::{bluetooth::BluetoothInterface, reset_dbus::Daemon};
+use tokio;
 
 mod dbus;
 
-fn main() {
+#[tokio::main]
+pub async fn main() {
     // let daemon = Daemon::create();
     // if daemon.is_err() {
     //     return;
     // }
     // let mut daemon = daemon.unwrap();
     // daemon.run();
-    let bl = BluetoothInterface::create();
-    if bl.is_some() {
-        let mut bl = bl.unwrap();
-        bl.get_connections();
-        dbg!(bl);
+    // let bl = BluetoothInterface::create();
+    // if bl.is_some() {
+        // let mut bl = bl.unwrap();
+        // bl.get_connections();
+        // dbg!(bl);
         // bl.set_bluetooth(false);
-    }
+    // }
     let daemon = Daemon::create();
     if daemon.is_err() {
         return;
     }
     let mut daemon = daemon.unwrap();
-    daemon.run();
+    daemon.run().await;
 }
 
 // // example disconnect
