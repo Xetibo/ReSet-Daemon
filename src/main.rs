@@ -1,5 +1,4 @@
 use dbus::{bluetooth::BluetoothInterface, reset_dbus::Daemon};
-use tokio;
 
 mod dbus;
 

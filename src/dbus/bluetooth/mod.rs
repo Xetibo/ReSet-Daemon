@@ -9,7 +9,7 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, Append, Arg, ArgType, RefArg, Variant},
+    arg::{self, Append, Arg, ArgType, Get, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
     Message, Path, Signature,
@@ -26,6 +26,7 @@ struct BConnection {}
 
 #[derive(Debug, Clone)]
 pub struct BluetoothDevice {
+    path: Path<'static>,
     rssi: i16,
     name: String,
     adapter: Path<'static>,
@@ -39,9 +40,35 @@ pub struct BluetoothDevice {
 unsafe impl Send for BluetoothDevice {}
 unsafe impl Sync for BluetoothDevice {}
 
+impl<'a> Get<'a> for BluetoothDevice {
+    fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
+        let path = <Path<'static>>::get(i)?;
+        let rssi = <i16>::get(i)?;
+        let name = <String>::get(i)?;
+        let adapter = <Path<'static>>::get(i)?;
+        let trusted = <bool>::get(i)?;
+        let bonded = <bool>::get(i)?;
+        let paired = <bool>::get(i)?;
+        let blocked = <bool>::get(i)?;
+        let address = <String>::get(i)?;
+        Some(BluetoothDevice {
+            path,
+            rssi,
+            name,
+            adapter,
+            trusted,
+            bonded,
+            paired,
+            blocked,
+            address,
+        })
+    }
+}
+
 impl Append for BluetoothDevice {
     fn append_by_ref(&self, iter: &mut arg::IterAppend) {
         iter.append_struct(|i| {
+            i.append(&self.path);
             i.append(&self.rssi);
             i.append(&self.name);
             i.append(&self.adapter);
@@ -102,6 +129,7 @@ fn get_objects() -> Result<
 }
 
 pub fn convert_device(
+    path: &Path<'static>,
     map: &HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>,
 ) -> Option<BluetoothDevice> {
     let map = map.get("org.bluez.Device1");
@@ -130,6 +158,7 @@ pub fn convert_device(
         .unwrap()
         .clone();
     Some(BluetoothDevice {
+        path: path.clone(),
         rssi,
         name,
         adapter,
@@ -190,7 +219,7 @@ impl BluetoothInterface {
         }
         let (res,) = res.unwrap();
         for (path, map) in res.iter() {
-            let device = convert_device(map);
+            let device = convert_device(path, map);
             if device.is_some() {
                 let device = device.unwrap();
                 self.devices.insert(path.clone(), device);
@@ -206,10 +235,11 @@ impl BluetoothInterface {
         let mrb =
             InterfaceRemovedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
         let res = conn.add_match(mr, move |ir: InterfacesAddedSignal, _, _| {
-            let device = convert_device(&ir.interfaces);
+            let device = convert_device(&ir.object, &ir.interfaces);
             if device.is_some() {
                 let mut context = ctx.lock().unwrap();
                 let device = device.unwrap();
+                println!("{}", ir.object.clone());
                 let signal = context.make_signal("BluetoothDeviceAdded", (ir.object, device));
                 context.push_msg(signal);
             }
@@ -256,12 +286,28 @@ impl BluetoothInterface {
         )
     }
 
-    pub fn connect_to() {
-        todo!()
+    pub fn connect_to(&self, device: Path<'static>) -> Result<(), dbus::Error> {
+        let res = call_system_dbus_method::<(), ()>(
+            "org.bluez",
+            device,
+            "Connect",
+            "org.bluez.Device1",
+            (),
+            1000,
+        );
+        res
     }
 
-    pub fn disconnect() {
-        todo!()
+    pub fn disconnect(&self, device: Path<'static>) -> Result<(), dbus::Error> {
+        let res = call_system_dbus_method::<(), ()>(
+            "org.bluez",
+            device,
+            "Disconnect",
+            "org.bluez.Device1",
+            (),
+            1000,
+        );
+        res
     }
 
     pub fn set_bluetooth(&mut self, value: bool) {

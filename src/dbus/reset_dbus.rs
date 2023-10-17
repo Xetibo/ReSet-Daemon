@@ -159,6 +159,30 @@ impl Daemon {
                     Ok((true,))
                 },
             );
+            c.method(
+                "ConnectToBluethoothDevice",
+                ("device",),
+                ("result",),
+                move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                    let res = d.b_interface.connect_to(device);
+                    if res.is_err() {
+                        return Ok((false,));
+                    }
+                    Ok((true,))
+                },
+            );
+            c.method(
+                "DisconnectFromBluetoothDevice",
+                ("device",),
+                ("result",),
+                move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                    let res = d.b_interface.disconnect(device);
+                    if res.is_err() {
+                        return Ok((false,));
+                    }
+                    Ok((true,))
+                },
+            );
         });
         cross.insert("/org/xetibo/ReSet/Network", &[token], self.data.clone());
         cross.insert("/org/xetibo/ReSet/Bluetooth", &[token], self.data.clone());
