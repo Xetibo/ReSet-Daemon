@@ -1,8 +1,10 @@
 use dbus::blocking::Connection;
 use std::{any::Any, sync::Arc};
 
-mod audio;
+pub mod audio;
+pub mod bluetooth;
 pub mod network;
+pub mod reset_dbus;
 mod utils;
 
 pub trait Data: Any + Sync + Send {}
