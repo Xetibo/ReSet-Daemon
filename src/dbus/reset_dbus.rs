@@ -22,12 +22,17 @@ use super::{
 
 pub enum Request {
     ListSources,
+    SetSourceVolume(Source),
+    SetSourceMute(Source),
     ListSinks,
+    SetSinkVolume(Sink),
+    SetSinkMute(Sink),
 }
 
 pub enum Response {
     Sources(Vec<Source>),
     Sinks(Vec<Sink>),
+    BoolResponse(bool),
 }
 
 pub struct DaemonData {
@@ -239,6 +244,86 @@ pub async fn run_daemon() {
             }
             async move { ctx.reply(Ok((sources,))) }
         });
+        c.method_with_cr_async(
+            "SetSinkVolume",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (sink,): (Sink,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.sender.send(Request::SetSinkVolume(sink));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetSinkMute",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (sink,): (Sink,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.sender.send(Request::SetSinkMute(sink));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetSourceVolume",
+            ("source",),
+            ("result",),
+            move |mut ctx, cross, (source,): (Source,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.sender.send(Request::SetSourceVolume(source));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetSourceMute",
+            ("source",),
+            ("result",),
+            move |mut ctx, cross, (source,): (Source,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.sender.send(Request::SetSourceMute(source));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
     });
     cross.insert("/org/xetibo/ReSet", &[token], data);
 

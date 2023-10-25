@@ -90,10 +90,8 @@ impl Append for AccessPoint {
 
 impl<'a> Get<'a> for AccessPoint {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let ssid = <Vec<u8>>::get(i)?;
-        let strength = <u8>::get(i)?;
-        let associated_connection = <Path<'static>>::get(i)?;
-        let dbus_path = <Path<'static>>::get(i)?;
+        let (ssid, strength, associated_connection, dbus_path) =
+            <(Vec<u8>, u8, Path<'static>, Path<'static>)>::get(i)?;
         Some(AccessPoint {
             ssid,
             strength,
