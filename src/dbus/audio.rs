@@ -1,13 +1,6 @@
-use std::{
-    cell::RefCell,
-    ops::Deref,
-    rc::Rc,
-    sync::{
-        Arc,
-    },
-};
+use std::{cell::RefCell, ops::Deref, rc::Rc};
 
-use tokio::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 
 use dbus::{
     arg::{self, Append, Arg, ArgType, Get},
@@ -20,29 +13,26 @@ use pulse::{
         introspect::{SinkInfo, SourceInfo},
         Context, FlagSet,
     },
-    mainloop::{standard::IterateResult, threaded::Mainloop},
-    operation::{Operation, State},
+    mainloop::threaded::Mainloop,
     proplist::Proplist,
 };
 
-use super::reset_dbus::Message;
+use super::reset_dbus::{Request, Response};
 
 pub struct PulseServer {
-    mainloop: Arc<RefCell<Mainloop>>,
-    context: Arc<RefCell<Context>>,
-    sender: Sender<Message>,
-    receiver: Receiver<Message>,
+    mainloop: Rc<RefCell<Mainloop>>,
+    context: Rc<RefCell<Context>>,
+    sender: Sender<Response>,
+    receiver: Receiver<Request>,
 }
 
 #[derive(Debug)]
-pub struct PulseError {
-    message: &'static str,
-}
+pub struct PulseError(&'static str);
 
 pub struct Source {
     index: u32,
     name: String,
-    channels: u8,
+    channels: u16,
     volume: u32,
     muted: bool,
 }
@@ -63,7 +53,7 @@ impl<'a> Get<'a> for Source {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
         let index = <u32>::get(i)?;
         let name = <String>::get(i)?;
-        let channels = <u8>::get(i)?;
+        let channels = <u16>::get(i)?;
         let volume = <u32>::get(i)?;
         let muted = <bool>::get(i)?;
         Some(Source {
@@ -79,7 +69,7 @@ impl<'a> Get<'a> for Source {
 impl Arg for Source {
     const ARG_TYPE: arg::ArgType = ArgType::Struct;
     fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(isu)\0") }
+        unsafe { Signature::from_slice_unchecked("(usqub)\0") }
     }
 }
 
@@ -93,7 +83,7 @@ impl From<&SourceInfo<'_>> for Source {
             name = String::from(name_opt.clone().unwrap());
         }
         let index = value.index;
-        let channels = value.channel_map.len();
+        let channels = value.channel_map.len() as u16;
         let volume = value.volume.get()[0].0;
         let muted = value.mute;
         Self {
@@ -106,10 +96,11 @@ impl From<&SourceInfo<'_>> for Source {
     }
 }
 
+#[derive(Debug)]
 pub struct Sink {
     index: u32,
     name: String,
-    channels: u8,
+    channels: u16,
     volume: u32,
     muted: bool,
 }
@@ -130,7 +121,7 @@ impl<'a> Get<'a> for Sink {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
         let index = <u32>::get(i)?;
         let name = <String>::get(i)?;
-        let channels = <u8>::get(i)?;
+        let channels = <u16>::get(i)?;
         let volume = <u32>::get(i)?;
         let muted = <bool>::get(i)?;
         Some(Sink {
@@ -146,7 +137,7 @@ impl<'a> Get<'a> for Sink {
 impl Arg for Sink {
     const ARG_TYPE: arg::ArgType = ArgType::Struct;
     fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(isu)\0") }
+        unsafe { Signature::from_slice_unchecked("(usqub)\0") }
     }
 }
 
@@ -160,7 +151,7 @@ impl From<&SinkInfo<'_>> for Sink {
             name = String::from(name_opt.clone().unwrap());
         }
         let index = value.index;
-        let channels = value.channel_map.len();
+        let channels = value.channel_map.len() as u16;
         let volume = value.volume.get()[0].0;
         let muted = value.mute;
         Self {
@@ -175,26 +166,26 @@ impl From<&SinkInfo<'_>> for Sink {
 
 impl PulseServer {
     pub fn create(
-        sender: Sender<Message>,
-        receiver: Receiver<Message>,
+        sender: Sender<Response>,
+        receiver: Receiver<Request>,
     ) -> Result<Self, PulseError> {
         let mut proplist = Proplist::new().unwrap();
         proplist
             .set_str(pulse::proplist::properties::APPLICATION_NAME, "ReSet")
             .unwrap();
 
-        let mainloop = Arc::new(RefCell::new(
+        let mainloop = Rc::new(RefCell::new(
             Mainloop::new().expect("Failed to create mainloop"),
         ));
 
-        let context = Arc::new(RefCell::new(
+        let context = Rc::new(RefCell::new(
             Context::new_with_proplist(mainloop.borrow().deref(), "ReSetContext", &proplist)
                 .expect("Failed to create new context"),
         ));
 
         {
-            let ml_ref = Arc::clone(&mainloop);
-            let context_ref = Arc::clone(&context);
+            let ml_ref = Rc::clone(&mainloop);
+            let context_ref = Rc::clone(&context);
             context
                 .borrow_mut()
                 .set_state_callback(Some(Box::new(move || {
@@ -229,9 +220,7 @@ impl PulseServer {
                 pulse::context::State::Failed | pulse::context::State::Terminated => {
                     mainloop.borrow_mut().unlock();
                     mainloop.borrow_mut().stop();
-                    return Err(PulseError {
-                        message: "Could not create context.",
-                    });
+                    return Err(PulseError("Could not create context."));
                 }
                 _ => {
                     mainloop.borrow_mut().wait();
@@ -239,6 +228,7 @@ impl PulseServer {
             }
         }
         context.borrow_mut().set_state_callback(None);
+        mainloop.borrow_mut().unlock();
         return Ok(Self {
             mainloop,
             context,
@@ -247,59 +237,69 @@ impl PulseServer {
         });
     }
 
-    pub fn get_sinks(&self) -> Vec<Sink> {
-        let introspector = self.context.borrow().introspect();
-        let sinks = Rc::new(RefCell::new(Vec::new()));
-        let sinks_ref = sinks.clone();
-        let result = introspector.get_sink_info_list(move |result| match result {
-            ListResult::Item(item) => {
-                sinks_ref.borrow_mut().push(item.into());
-            }
-            ListResult::Error => {}
-            ListResult::End => {}
-        });
+    pub fn listen_to_messages(&mut self) {
         loop {
-            match result.get_state() {
-                pulse::operation::State::Done => {
-                    return sinks.take();
-                }
-                pulse::operation::State::Running => {
-                    self.mainloop.borrow_mut().wait();
-                }
-                pulse::operation::State::Cancelled => {
-                    self.mainloop.borrow_mut().unlock();
-                    self.mainloop.borrow_mut().stop();
-                    return Vec::new();
-                }
+            println!("listening");
+            let message = self.receiver.recv();
+            println!("received!");
+            if message.is_ok() {
+                self.handle_message(message.unwrap());
             }
         }
     }
 
+    pub fn handle_message(&self, message: Request) {
+        match message {
+            Request::ListSinks => self.get_sinks(),
+            Request::ListSources => self.get_sources(),
+        }
+    }
+
+    pub fn get_sinks(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let sinks = Rc::new(RefCell::new(Vec::new()));
+        let sinks_ref = sinks.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let result = introspector.get_sink_info_list(move |result| match result {
+            ListResult::Item(item) => {
+                sinks_ref.borrow_mut().push(item.into());
+            }
+            ListResult::Error => unsafe {
+                (*ml_ref.as_ptr()).signal(true);
+            },
+            ListResult::End => unsafe {
+                (*ml_ref.as_ptr()).signal(false);
+            },
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(Response::Sinks(sinks.take()));
+        self.mainloop.borrow_mut().unlock();
+    }
+
     pub fn get_sources(&self) {
+        self.mainloop.borrow_mut().lock();
         let introspector = self.context.borrow().introspect();
         let sources: Rc<RefCell<Vec<Source>>> = Rc::new(RefCell::new(Vec::new()));
         let sources_ref = sources.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
         let result = introspector.get_source_info_list(move |result| match result {
             ListResult::Item(item) => {
                 sources_ref.borrow_mut().push(item.into());
             }
-            ListResult::Error => {}
-            ListResult::End => {}
+            ListResult::Error => unsafe {
+                (*ml_ref.as_ptr()).signal(true);
+            },
+            ListResult::End => unsafe {
+                (*ml_ref.as_ptr()).signal(false);
+            },
         });
-        loop {
-            match result.get_state() {
-                pulse::operation::State::Done => {
-                    break;
-                }
-                pulse::operation::State::Running => {
-                    self.mainloop.borrow_mut().wait();
-                }
-                pulse::operation::State::Cancelled => {
-                    self.mainloop.borrow_mut().unlock();
-                    self.mainloop.borrow_mut().stop();
-                    return;
-                }
-            }
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
         }
+        let _ = self.sender.send(Response::Sources(sources.take()));
+        self.mainloop.borrow_mut().unlock();
     }
 }

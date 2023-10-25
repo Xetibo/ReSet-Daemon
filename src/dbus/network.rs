@@ -2,7 +2,7 @@ use core::fmt;
 use std::{collections::HashMap, str, time::Duration};
 
 use dbus::{
-    arg::{self, Append, AppendAll, Arg, ArgType, Get, PropMap, RefArg, Variant},
+    arg::{self, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
     blocking::Connection,
     Path, Signature,
 };

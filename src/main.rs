@@ -1,43 +1,10 @@
-use std::{rc::Rc, cell::RefCell, ops::Deref};
-
-use dbus::{bluetooth::BluetoothInterface, reset_dbus::Daemon, audio::PulseServer};
-use pulse::{self, mainloop::standard::{Mainloop, IterateResult}, context::{Context, FlagSet, introspect::SourceInfo}, proplist::Proplist, callbacks::ListResult};
-
+use dbus::reset_dbus::run_daemon;
 
 mod dbus;
 
 #[tokio::main]
 pub async fn main() {
-    // let daemon = Daemon::create();
-    // if daemon.is_err() {
-    //     return;
-    // }
-    // let mut daemon = daemon.unwrap();
-    // daemon.run();
-    // let bl = BluetoothInterface::create();
-    // if bl.is_some() {
-        // let mut bl = bl.unwrap();
-        // bl.get_connections();
-        // dbg!(bl);
-        // bl.set_bluetooth(false);
-    // }
-    let daemon = Daemon::create();
-    if daemon.is_err() {
-        return;
-    }
-    let mut daemon = daemon.unwrap();
-    daemon.run().await;
-    //     let mut bl = bl.unwrap();
-    //     bl.get_connections();
-    //     dbg!(bl);
-    //     // bl.set_bluetooth(false);
-    // }
-     // let daemon = Daemon::create();
-     // if daemon.is_err() {
-     //     return;
-     // }
-     // let mut daemon = daemon.unwrap();
-     // daemon.run();
+    run_daemon().await;
 }
 
 // // example disconnect
