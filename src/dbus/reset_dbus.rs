@@ -256,7 +256,10 @@ pub async fn run_daemon() {
                 if res.is_err() {
                     result = false;
                 } else {
-                    result = true;
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
                 }
                 async move { ctx.reply(Ok((result,))) }
             },
@@ -273,7 +276,10 @@ pub async fn run_daemon() {
                 if res.is_err() {
                     result = false;
                 } else {
-                    result = true;
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
                 }
                 async move { ctx.reply(Ok((result,))) }
             },
@@ -290,7 +296,10 @@ pub async fn run_daemon() {
                 if res.is_err() {
                     result = false;
                 } else {
-                    result = true;
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
                 }
                 async move { ctx.reply(Ok((result,))) }
             },
@@ -307,7 +316,10 @@ pub async fn run_daemon() {
                 if res.is_err() {
                     result = false;
                 } else {
-                    result = true;
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
                 }
                 async move { ctx.reply(Ok((result,))) }
             },

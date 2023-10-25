@@ -52,11 +52,7 @@ impl Append for Source {
 
 impl<'a> Get<'a> for Source {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let index = <u32>::get(i)?;
-        let name = <String>::get(i)?;
-        let channels = <u16>::get(i)?;
-        let volume = <u32>::get(i)?;
-        let muted = <bool>::get(i)?;
+        let (index, name, channels, volume, muted) = <(u32, String, u16, u32, bool)>::get(i)?;
         Some(Source {
             index,
             name,
@@ -120,11 +116,7 @@ impl Append for Sink {
 
 impl<'a> Get<'a> for Sink {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let index = <u32>::get(i)?;
-        let name = <String>::get(i)?;
-        let channels = <u16>::get(i)?;
-        let volume = <u32>::get(i)?;
-        let muted = <bool>::get(i)?;
+        let (index, name, channels, volume, muted) = <(u32, String, u16, u32, bool)>::get(i)?;
         Some(Sink {
             index,
             name,
@@ -310,54 +302,78 @@ impl PulseServer {
     }
 
     pub fn set_sink_volume(&self, sink: Sink) {
+        self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let mut channel_volume = ChannelVolumes::default();
         let ml_ref = Rc::clone(&self.mainloop);
         channel_volume.set(sink.channels as u8, Volume(sink.volume));
-        introspector.set_sink_volume_by_index(
+        let result = introspector.set_sink_volume_by_index(
             sink.index,
             &channel_volume,
             Some(Box::new(move |error| unsafe {
-                (*ml_ref.as_ptr()).signal(error);
+                (*ml_ref.as_ptr()).signal(!error);
             })),
         );
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(Response::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
     }
 
     pub fn set_sink_mute(&self, sink: Sink) {
+        self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let ml_ref = Rc::clone(&self.mainloop);
-        introspector.set_sink_mute_by_index(
+        let result = introspector.set_sink_mute_by_index(
             sink.index,
             !sink.muted,
             Some(Box::new(move |error| unsafe {
-                (*ml_ref.as_ptr()).signal(error);
+                (*ml_ref.as_ptr()).signal(!error);
             })),
         );
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(Response::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
     }
 
     pub fn set_source_volume(&self, source: Source) {
+        self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let mut channel_volume = ChannelVolumes::default();
         let ml_ref = Rc::clone(&self.mainloop);
         channel_volume.set(source.channels as u8, Volume(source.volume));
-        introspector.set_source_volume_by_index(
+        let result = introspector.set_source_volume_by_index(
             source.index,
             &channel_volume,
             Some(Box::new(move |error| unsafe {
-                (*ml_ref.as_ptr()).signal(error);
+                (*ml_ref.as_ptr()).signal(!error);
             })),
         );
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(Response::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
     }
 
     pub fn set_source_mute(&self, source: Source) {
+        self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let ml_ref = Rc::clone(&self.mainloop);
-        introspector.set_source_mute_by_index(
+        let result = introspector.set_source_mute_by_index(
             source.index,
             !source.muted,
             Some(Box::new(move |error| unsafe {
-                (*ml_ref.as_ptr()).signal(error);
+                (*ml_ref.as_ptr()).signal(!error);
             })),
         );
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(Response::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
     }
 }
