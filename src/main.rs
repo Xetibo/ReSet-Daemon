@@ -1,4 +1,8 @@
-use dbus::{bluetooth::BluetoothInterface, reset_dbus::Daemon};
+use std::{rc::Rc, cell::RefCell, ops::Deref};
+
+use dbus::{bluetooth::BluetoothInterface, reset_dbus::Daemon, audio::PulseServer};
+use pulse::{self, mainloop::standard::{Mainloop, IterateResult}, context::{Context, FlagSet, introspect::SourceInfo}, proplist::Proplist, callbacks::ListResult};
+
 
 mod dbus;
 
@@ -23,6 +27,17 @@ pub async fn main() {
     }
     let mut daemon = daemon.unwrap();
     daemon.run().await;
+    //     let mut bl = bl.unwrap();
+    //     bl.get_connections();
+    //     dbg!(bl);
+    //     // bl.set_bluetooth(false);
+    // }
+     // let daemon = Daemon::create();
+     // if daemon.is_err() {
+     //     return;
+     // }
+     // let mut daemon = daemon.unwrap();
+     // daemon.run();
 }
 
 // // example disconnect

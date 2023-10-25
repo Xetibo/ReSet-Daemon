@@ -12,16 +12,26 @@ use dbus_crossroads::{Context, Crossroads};
 use dbus_tokio::connection::{self, IOResource};
 use tokio;
 
+use super::bluetooth::{BluetoothDevice, BluetoothInterface};
+use std::sync::mpsc::{self, Receiver, Sender};
+
 use super::{
-    bluetooth::{BluetoothDevice, BluetoothInterface},
+    audio::PulseServer,
     network::{get_wifi_devices, AccessPoint, Device, Error},
 };
+
+pub enum Message {
+    ListSources,
+    ListSinks,
+}
 
 #[derive(Clone)]
 pub struct DaemonData {
     pub n_devices: Vec<Device>,
     pub current_n_device: Device,
     pub b_interface: BluetoothInterface,
+    pub sender: Sender<Message>,
+    pub receiver: Receiver<Message>,
 }
 
 pub struct Daemon {
@@ -44,11 +54,24 @@ impl Daemon {
         } else {
             b_interface = b_interface_opt.unwrap();
         }
+
+        let (dbus_sender, pulse_receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
+        let (pulse_sender, dbus_receiver): (Sender<Message>, Receiver<Message>) = mpsc::channel();
+
+        let pulse = PulseServer::create(pulse_sender, pulse_receiver);
+        if pulse.is_err() {
+            return Err(Error {
+                message: "Could not create Pulse server.",
+            });
+        }
+        let pulse = pulse.unwrap();
         Ok(Self {
             data: DaemonData {
                 n_devices,
                 current_n_device,
                 b_interface,
+                sender: dbus_sender,
+                receiver: dbus_receiver,
             },
         })
     }
