@@ -2,9 +2,7 @@ mod bluez_signals;
 
 use std::{
     collections::HashMap,
-    rc::Rc,
     sync::{Arc, Mutex},
-    thread,
     time::{Duration, SystemTime},
 };
 
@@ -12,7 +10,7 @@ use dbus::{
     arg::{self, Append, Arg, ArgType, Get, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
-    Message, Path, Signature,
+    Path, Signature,
 };
 use dbus_crossroads::Context;
 
@@ -21,8 +19,6 @@ use crate::dbus::utils::set_system_dbus_property;
 use self::bluez_signals::{InterfaceRemovedSignal, InterfacesAddedSignal};
 
 use super::utils::call_system_dbus_method;
-
-struct BConnection {}
 
 #[derive(Debug, Clone)]
 pub struct BluetoothDevice {
@@ -194,7 +190,7 @@ impl BluetoothInterface {
             if map.is_none() {
                 continue;
             }
-            let map = map.unwrap();
+            // let map = map.unwrap();
             adapters.push(BluetoothAdapter { path: path.clone() });
         }
         if adapters.len() < 1 {
@@ -208,7 +204,7 @@ impl BluetoothInterface {
             enabled: false,
             real: true,
         };
-        let res = interface.set_bluetooth(true);
+        let _ = interface.set_bluetooth(true);
         Some(interface)
     }
 
@@ -239,7 +235,6 @@ impl BluetoothInterface {
             if device.is_some() {
                 let mut context = ctx.lock().unwrap();
                 let device = device.unwrap();
-                println!("{}", ir.object.clone());
                 let signal = context.make_signal("BluetoothDeviceAdded", (ir.object, device));
                 context.push_msg(signal);
             }
@@ -267,7 +262,7 @@ impl BluetoothInterface {
             proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
         let now = SystemTime::now();
         loop {
-            let res = conn.process(Duration::from_millis(1000))?;
+            let _ = conn.process(Duration::from_millis(1000))?;
             if now.elapsed().unwrap() > Duration::from_millis(5000) {
                 break;
             }

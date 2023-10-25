@@ -239,9 +239,7 @@ impl PulseServer {
 
     pub fn listen_to_messages(&mut self) {
         loop {
-            println!("listening");
             let message = self.receiver.recv();
-            println!("received!");
             if message.is_ok() {
                 self.handle_message(message.unwrap());
             }
