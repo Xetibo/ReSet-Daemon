@@ -6,6 +6,7 @@ use dbus::{
     arg::{self, Append, Arg, ArgType, Get},
     Signature,
 };
+use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
     self,
     callbacks::ListResult,
@@ -246,10 +247,17 @@ impl PulseServer {
         }
     }
 
+    // during development, as more get added => without causing compiler errors
+    #[allow(unreachable_patterns)]
     pub fn handle_message(&self, message: Request) {
         match message {
             Request::ListSinks => self.get_sinks(),
             Request::ListSources => self.get_sources(),
+            Request::SetSinkVolume(sink) => self.set_sink_volume(sink),
+            Request::SetSinkMute(sink) => self.set_sink_mute(sink),
+            Request::SetSourceVolume(source) => self.set_source_volume(source),
+            Request::SetSourceMute(source) => self.set_source_mute(source),
+            _ => {}
         }
     }
 
@@ -299,5 +307,57 @@ impl PulseServer {
         }
         let _ = self.sender.send(Response::Sources(sources.take()));
         self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn set_sink_volume(&self, sink: Sink) {
+        let mut introspector = self.context.borrow_mut().introspect();
+        let mut channel_volume = ChannelVolumes::default();
+        let ml_ref = Rc::clone(&self.mainloop);
+        channel_volume.set(sink.channels as u8, Volume(sink.volume));
+        introspector.set_sink_volume_by_index(
+            sink.index,
+            &channel_volume,
+            Some(Box::new(move |error| unsafe {
+                (*ml_ref.as_ptr()).signal(error);
+            })),
+        );
+    }
+
+    pub fn set_sink_mute(&self, sink: Sink) {
+        let mut introspector = self.context.borrow_mut().introspect();
+        let ml_ref = Rc::clone(&self.mainloop);
+        introspector.set_sink_mute_by_index(
+            sink.index,
+            !sink.muted,
+            Some(Box::new(move |error| unsafe {
+                (*ml_ref.as_ptr()).signal(error);
+            })),
+        );
+    }
+
+    pub fn set_source_volume(&self, source: Source) {
+        let mut introspector = self.context.borrow_mut().introspect();
+        let mut channel_volume = ChannelVolumes::default();
+        let ml_ref = Rc::clone(&self.mainloop);
+        channel_volume.set(source.channels as u8, Volume(source.volume));
+        introspector.set_source_volume_by_index(
+            source.index,
+            &channel_volume,
+            Some(Box::new(move |error| unsafe {
+                (*ml_ref.as_ptr()).signal(error);
+            })),
+        );
+    }
+
+    pub fn set_source_mute(&self, source: Source) {
+        let mut introspector = self.context.borrow_mut().introspect();
+        let ml_ref = Rc::clone(&self.mainloop);
+        introspector.set_source_mute_by_index(
+            source.index,
+            !source.muted,
+            Some(Box::new(move |error| unsafe {
+                (*ml_ref.as_ptr()).signal(error);
+            })),
+        );
     }
 }
