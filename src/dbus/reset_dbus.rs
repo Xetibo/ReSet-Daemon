@@ -12,7 +12,7 @@ use tokio;
 use crate::dbus::audio::InputStream;
 
 use super::{
-    audio::{Sink, Source},
+    audio::{OutputStream, Sink, Source},
     bluetooth::{BluetoothDevice, BluetoothInterface},
 };
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -31,12 +31,20 @@ pub enum Request {
     SetSinkMute(Sink),
     SetDefaultSink(Sink),
     ListInputStreams,
+    SetSinkofInputStream(InputStream, Sink),
+    SetInputStreamVolume(InputStream),
+    SetInputStreamMute(InputStream),
+    ListOutputStreams,
+    SetSourceOfOutputStream(OutputStream, Source),
+    SetOutputStreamVolume(OutputStream),
+    SetOutputStreamMute(OutputStream),
 }
 
 pub enum Response {
     Sources(Vec<Source>),
     Sinks(Vec<Sink>),
     InputStreams(Vec<InputStream>),
+    OutputStreams(Vec<OutputStream>),
     BoolResponse(bool),
 }
 
@@ -123,11 +131,7 @@ pub async fn run_daemon() {
             "ListAccessPoints",
             (),
             ("access_points",),
-            move |_, d: &mut DaemonData, ()| {
-                let access_points = d.current_n_device.get_access_points();
-                dbg!(access_points.clone());
-                Ok((d.current_n_device.get_access_points(),))
-            },
+            move |_, d: &mut DaemonData, ()| Ok((d.current_n_device.get_access_points(),)),
         );
         c.method(
             "ConnectToKnownAccessPoint",
@@ -367,6 +371,156 @@ pub async fn run_daemon() {
                     input_streams = Vec::new();
                 }
                 async move { ctx.reply(Ok((input_streams,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetSinkofInputStream",
+            ("input_stream", "sink"),
+            ("result",),
+            move |mut ctx, cross, (input_stream, sink): (InputStream, Sink)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data
+                    .sender
+                    .send(Request::SetSinkofInputStream(input_stream, sink));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetInputStreamVolume",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (input_stream,): (InputStream,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data
+                    .sender
+                    .send(Request::SetInputStreamVolume(input_stream));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetInputStreamMute",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (input_stream,): (InputStream,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.sender.send(Request::SetInputStreamMute(input_stream));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "ListOutputStreams",
+            (),
+            ("output_streams",),
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let output_streams: Vec<OutputStream>;
+                let _ = data.sender.send(Request::ListOutputStreams);
+                let response = data.receiver.recv();
+                if response.is_ok() {
+                    output_streams = match response.unwrap() {
+                        Response::OutputStreams(s) => s,
+                        _ => Vec::new(),
+                    }
+                } else {
+                    output_streams = Vec::new();
+                }
+                async move { ctx.reply(Ok((output_streams,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetSourceOfOutputStream",
+            ("input_stream", "source"),
+            ("result",),
+            move |mut ctx, cross, (output_stream, source): (OutputStream, Source)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data
+                    .sender
+                    .send(Request::SetSourceOfOutputStream(output_stream, source));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetOutputStreamVolume",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (output_stream,): (OutputStream,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data
+                    .sender
+                    .send(Request::SetOutputStreamVolume(output_stream));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetOutputStreamMute",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (output_stream,): (OutputStream,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data
+                    .sender
+                    .send(Request::SetOutputStreamMute(output_stream));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
             },
         );
     });
