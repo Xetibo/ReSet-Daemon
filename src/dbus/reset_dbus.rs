@@ -9,6 +9,8 @@ use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use tokio;
 
+use crate::dbus::audio::InputStream;
+
 use super::{
     audio::{Sink, Source},
     bluetooth::{BluetoothDevice, BluetoothInterface},
@@ -27,11 +29,14 @@ pub enum Request {
     ListSinks,
     SetSinkVolume(Sink),
     SetSinkMute(Sink),
+    SetDefaultSink(Sink),
+    ListInputStreams,
 }
 
 pub enum Response {
     Sources(Vec<Source>),
     Sinks(Vec<Sink>),
+    InputStreams(Vec<InputStream>),
     BoolResponse(bool),
 }
 
@@ -322,6 +327,46 @@ pub async fn run_daemon() {
                     };
                 }
                 async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetDefaultSink",
+            ("sink",),
+            ("result",),
+            move |mut ctx, cross, (sink,): (Sink,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.sender.send(Request::SetDefaultSink(sink));
+                let result: bool;
+                let res = data.receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        Response::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "ListInputStreams",
+            (),
+            ("input_streams",),
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let input_streams: Vec<InputStream>;
+                let _ = data.sender.send(Request::ListInputStreams);
+                let response = data.receiver.recv();
+                if response.is_ok() {
+                    input_streams = match response.unwrap() {
+                        Response::InputStreams(s) => s,
+                        _ => Vec::new(),
+                    }
+                } else {
+                    input_streams = Vec::new();
+                }
+                async move { ctx.reply(Ok((input_streams,))) }
             },
         );
     });

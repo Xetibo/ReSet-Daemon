@@ -6,6 +6,7 @@ use dbus::{
     arg::{self, Append, Arg, ArgType, Get},
     Signature,
 };
+use pulse::context::introspect::SinkInputInfo;
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
     self,
@@ -33,6 +34,7 @@ pub struct PulseError(&'static str);
 pub struct Source {
     index: u32,
     name: String,
+    alias: String,
     channels: u16,
     volume: u32,
     muted: bool,
@@ -43,6 +45,7 @@ impl Append for Source {
         iter.append_struct(|i| {
             i.append(&self.index);
             i.append(&self.name);
+            i.append(&self.alias);
             i.append(&self.channels);
             i.append(&self.volume);
             i.append(&self.muted);
@@ -52,10 +55,12 @@ impl Append for Source {
 
 impl<'a> Get<'a> for Source {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (index, name, channels, volume, muted) = <(u32, String, u16, u32, bool)>::get(i)?;
+        let (index, name, alias, channels, volume, muted) =
+            <(u32, String, String, u16, u32, bool)>::get(i)?;
         Some(Source {
             index,
             name,
+            alias,
             channels,
             volume,
             muted,
@@ -66,18 +71,25 @@ impl<'a> Get<'a> for Source {
 impl Arg for Source {
     const ARG_TYPE: arg::ArgType = ArgType::Struct;
     fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(usqub)\0") }
+        unsafe { Signature::from_slice_unchecked("(ussqub)\0") }
     }
 }
 
 impl From<&SourceInfo<'_>> for Source {
     fn from(value: &SourceInfo<'_>) -> Self {
-        let name_opt = &value.description;
+        let name_opt = &value.name;
+        let alias_opt = &value.description;
         let name: String;
+        let alias: String;
         if name_opt.is_none() {
             name = String::from("");
         } else {
             name = String::from(name_opt.clone().unwrap());
+        }
+        if alias_opt.is_none() {
+            alias = String::from("");
+        } else {
+            alias = String::from(alias_opt.clone().unwrap());
         }
         let index = value.index;
         let channels = value.channel_map.len() as u16;
@@ -86,6 +98,7 @@ impl From<&SourceInfo<'_>> for Source {
         Self {
             index,
             name,
+            alias,
             channels,
             volume,
             muted,
@@ -97,6 +110,7 @@ impl From<&SourceInfo<'_>> for Source {
 pub struct Sink {
     index: u32,
     name: String,
+    alias: String,
     channels: u16,
     volume: u32,
     muted: bool,
@@ -107,6 +121,7 @@ impl Append for Sink {
         iter.append_struct(|i| {
             i.append(&self.index);
             i.append(&self.name);
+            i.append(&self.alias);
             i.append(&self.channels);
             i.append(&self.volume);
             i.append(&self.muted);
@@ -116,10 +131,12 @@ impl Append for Sink {
 
 impl<'a> Get<'a> for Sink {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (index, name, channels, volume, muted) = <(u32, String, u16, u32, bool)>::get(i)?;
+        let (index, name, alias, channels, volume, muted) =
+            <(u32, String, String, u16, u32, bool)>::get(i)?;
         Some(Sink {
             index,
             name,
+            alias,
             channels,
             volume,
             muted,
@@ -130,18 +147,25 @@ impl<'a> Get<'a> for Sink {
 impl Arg for Sink {
     const ARG_TYPE: arg::ArgType = ArgType::Struct;
     fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(usqub)\0") }
+        unsafe { Signature::from_slice_unchecked("(ussqub)\0") }
     }
 }
 
 impl From<&SinkInfo<'_>> for Sink {
     fn from(value: &SinkInfo<'_>) -> Self {
-        let name_opt = &value.description;
+        let name_opt = &value.name;
+        let alias_opt = &value.description;
         let name: String;
+        let alias: String;
         if name_opt.is_none() {
             name = String::from("");
         } else {
             name = String::from(name_opt.clone().unwrap());
+        }
+        if alias_opt.is_none() {
+            alias = String::from("");
+        } else {
+            alias = String::from(alias_opt.clone().unwrap());
         }
         let index = value.index;
         let channels = value.channel_map.len() as u16;
@@ -150,6 +174,76 @@ impl From<&SinkInfo<'_>> for Sink {
         Self {
             index,
             name,
+            alias,
+            channels,
+            volume,
+            muted,
+        }
+    }
+}
+
+pub struct InputStream {
+    index: u32,
+    name: String,
+    sink_index: u32,
+    channels: u16,
+    volume: u32,
+    muted: bool,
+}
+
+impl Append for InputStream {
+    fn append_by_ref(&self, iter: &mut arg::IterAppend) {
+        iter.append_struct(|i| {
+            i.append(&self.index);
+            i.append(&self.name);
+            i.append(&self.sink_index);
+            i.append(&self.channels);
+            i.append(&self.volume);
+            i.append(&self.muted);
+        });
+    }
+}
+
+impl<'a> Get<'a> for InputStream {
+    fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
+        let (index, name, sink_index, channels, volume, muted) =
+            <(u32, String, u32, u16, u32, bool)>::get(i)?;
+        Some(InputStream {
+            index,
+            name,
+            sink_index,
+            channels,
+            volume,
+            muted,
+        })
+    }
+}
+
+impl Arg for InputStream {
+    const ARG_TYPE: arg::ArgType = ArgType::Struct;
+    fn signature() -> Signature<'static> {
+        unsafe { Signature::from_slice_unchecked("(usuqub)\0") }
+    }
+}
+
+impl From<&SinkInputInfo<'_>> for InputStream {
+    fn from(value: &SinkInputInfo<'_>) -> Self {
+        let name_opt = &value.name;
+        let name: String;
+        if name_opt.is_none() {
+            name = String::from("");
+        } else {
+            name = String::from(name_opt.clone().unwrap());
+        }
+        let sink_index = value.sink;
+        let index = value.index;
+        let channels = value.channel_map.len() as u16;
+        let volume = value.volume.get()[0].0;
+        let muted = value.mute;
+        Self {
+            index,
+            name,
+            sink_index,
             channels,
             volume,
             muted,
@@ -245,8 +339,10 @@ impl PulseServer {
         match message {
             Request::ListSinks => self.get_sinks(),
             Request::ListSources => self.get_sources(),
+            Request::ListInputStreams => self.get_input_streams(),
             Request::SetSinkVolume(sink) => self.set_sink_volume(sink),
             Request::SetSinkMute(sink) => self.set_sink_mute(sink),
+            Request::SetDefaultSink(sink) => self.set_default_sink(sink),
             Request::SetSourceVolume(source) => self.set_source_volume(source),
             Request::SetSourceMute(source) => self.set_source_mute(source),
             _ => {}
@@ -374,6 +470,48 @@ impl PulseServer {
             self.mainloop.borrow_mut().wait();
         }
         let _ = self.sender.send(Response::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn set_default_sink(&self, sink: Sink) {
+        self.mainloop.borrow_mut().lock();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let result =
+            self.context
+                .borrow_mut()
+                .set_default_sink(&sink.name, move |error: bool| unsafe {
+                    (*ml_ref.as_ptr()).signal(!error);
+                });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(Response::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn get_input_streams(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let input_streams = Rc::new(RefCell::new(Vec::new()));
+        let input_stream = input_streams.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let result = introspector.get_sink_input_info_list(move |result| match result {
+            ListResult::Item(item) => {
+                input_stream.borrow_mut().push(item.into());
+            }
+            ListResult::Error => unsafe {
+                (*ml_ref.as_ptr()).signal(true);
+            },
+            ListResult::End => unsafe {
+                (*ml_ref.as_ptr()).signal(false);
+            },
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self
+            .sender
+            .send(Response::InputStreams(input_streams.take()));
         self.mainloop.borrow_mut().unlock();
     }
 }
