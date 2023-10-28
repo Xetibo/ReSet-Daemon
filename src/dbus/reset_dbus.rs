@@ -31,7 +31,7 @@ pub enum Request {
     SetSinkMute(Sink),
     SetDefaultSink(Sink),
     ListInputStreams,
-    SetSinkofInputStream(InputStream, Sink),
+    SetSinkOfInputStream(InputStream, Sink),
     SetInputStreamVolume(InputStream),
     SetInputStreamMute(InputStream),
     ListOutputStreams,
@@ -381,7 +381,7 @@ pub async fn run_daemon() {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .sender
-                    .send(Request::SetSinkofInputStream(input_stream, sink));
+                    .send(Request::SetSinkOfInputStream(input_stream, sink));
                 let result: bool;
                 let res = data.receiver.recv();
                 if res.is_err() {
