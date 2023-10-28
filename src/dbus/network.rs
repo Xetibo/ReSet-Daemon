@@ -201,8 +201,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
         ("802-11-wireless-security".to_string(),),
         1000,
     );
-    let (result,): (HashMap<String, PropMap>,) = result.unwrap();
-    dbg!(result);
+    let (_,): (HashMap<String, PropMap>,) = result.unwrap();
     // result
 }
 
