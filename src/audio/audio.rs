@@ -395,7 +395,6 @@ impl PulseServer {
                 }
             }
         }
-
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
         return Ok(Self {

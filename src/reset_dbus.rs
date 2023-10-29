@@ -12,13 +12,8 @@ use tokio;
 use crate::audio::audio::InputStream;
 
 use super::{
-<<<<<<< HEAD:src/dbus/reset_dbus.rs
-    audio::{OutputStream, Sink, Source},
-    bluetooth::{BluetoothDevice, BluetoothInterface},
-=======
-    audio::audio::{Sink, Source},
+    audio::audio::{OutputStream, Sink, Source},
     bluetooth::bluetooth::{BluetoothDevice, BluetoothInterface},
->>>>>>> 74e36d2 (feat: Add signal for AccessPoint adding/removing):src/reset_dbus.rs
 };
 use std::sync::mpsc::{self, Receiver, Sender};
 
