@@ -1,13 +1,23 @@
 use core::fmt;
-use std::{collections::HashMap, str, time::Duration};
+use std::{
+    collections::HashMap,
+    str,
+    sync::{Arc, Mutex},
+    thread,
+    time::{Duration, SystemTime},
+};
 
 use dbus::{
     arg::{self, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
     blocking::Connection,
+    message::SignalArgs,
     Path, Signature,
 };
+use dbus_crossroads::Context;
 
-use super::utils::{call_system_dbus_method, get_system_dbus_property};
+use crate::utils::{call_system_dbus_method, get_system_dbus_property};
+
+use super::network_signals::{AccessPointAdded, AccessPointRemoved};
 
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -124,6 +134,59 @@ impl Device {
             dbus_path: path,
             connected: false,
         }
+    }
+
+    pub fn start_listener(&self, ctx: Arc<Mutex<Context>>) -> Result<(), dbus::Error> {
+        let conn = Connection::new_system().unwrap();
+        let mr = AccessPointAdded::match_rule(
+            Some(&"org.freedesktop.NetworkManager".into()),
+            Some(&self.dbus_path),
+        )
+        .static_clone();
+        let mrb = AccessPointRemoved::match_rule(
+            Some(&"org.freedesktop.NetworkManager".into()),
+            Some(&self.dbus_path),
+        )
+        .static_clone();
+        let ctx_ref = ctx.clone();
+        let res = conn.add_match(mr, move |ir: AccessPointAdded, _, _| {
+            println!("access point added");
+            let mut context = ctx_ref.lock().unwrap();
+            let signal = context.make_signal(
+                "AccessPointAdded",
+                (get_access_point_properties(ir.access_point),),
+            );
+            context.push_msg(signal);
+            true
+        });
+        if res.is_err() {
+            return Err(dbus::Error::new_custom(
+                "SignalMatchFailed",
+                "Failed to match signal on NetworkManager.",
+            ));
+        }
+        let res = conn.add_match(mrb, move |ir: AccessPointRemoved, _, _| {
+            println!("access point removed");
+            let mut context = ctx.lock().unwrap();
+            let signal = context.make_signal("AccessPointRemoved", (ir.access_point,));
+            context.push_msg(signal);
+            true
+        });
+        if res.is_err() {
+            return Err(dbus::Error::new_custom(
+                "SignalMatchFailed",
+                "Failed to match signal on NetworkManager.",
+            ));
+        }
+
+        let now = SystemTime::now();
+        loop {
+            let _ = conn.process(Duration::from_millis(1000))?;
+            if now.elapsed().unwrap() > Duration::from_millis(60000) {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 

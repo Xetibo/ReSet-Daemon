@@ -1,6 +1,10 @@
-use dbus::reset_dbus::run_daemon;
+mod audio;
+mod network;
+mod bluetooth;
+mod reset_dbus;
+mod utils;
 
-mod dbus;
+use reset_dbus::run_daemon;
 
 #[tokio::main]
 pub async fn main() {

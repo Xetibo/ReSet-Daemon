@@ -9,17 +9,22 @@ use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use tokio;
 
-use crate::dbus::audio::InputStream;
+use crate::audio::audio::InputStream;
 
 use super::{
+<<<<<<< HEAD:src/dbus/reset_dbus.rs
     audio::{OutputStream, Sink, Source},
     bluetooth::{BluetoothDevice, BluetoothInterface},
+=======
+    audio::audio::{Sink, Source},
+    bluetooth::bluetooth::{BluetoothDevice, BluetoothInterface},
+>>>>>>> 74e36d2 (feat: Add signal for AccessPoint adding/removing):src/reset_dbus.rs
 };
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use super::{
-    audio::PulseServer,
-    network::{get_wifi_devices, AccessPoint, Device, Error},
+    audio::audio::PulseServer,
+    network::network::{get_wifi_devices, AccessPoint, Device, Error},
 };
 
 pub enum Request {
@@ -127,6 +132,15 @@ pub async fn run_daemon() {
                 ("path", "device"),
             )
             .msg_fn();
+        let _bluetooth_device_removed = c
+            .signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",))
+            .msg_fn();
+        let _access_point_added = c
+            .signal::<(Path<'static>,), _>("AccessPointAdded", ("access_point",))
+            .msg_fn();
+        let _access_point_removed = c
+            .signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",))
+            .msg_fn();
         c.method(
             "ListAccessPoints",
             (),
@@ -169,6 +183,22 @@ pub async fn run_daemon() {
                     return Ok((false,));
                 }
                 Ok((true,))
+            },
+        );
+        c.method_with_cr_async(
+            "StartNetworkListener",
+            (),
+            ("result",),
+            move |ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let ctx_ref = Arc::new(Mutex::new(ctx));
+                let res = data.current_n_device.start_listener(ctx_ref.clone());
+                let mut response = true;
+                if res.is_err() {
+                    response = false;
+                }
+                let mut ctx = Arc::try_unwrap(ctx_ref).unwrap().into_inner().unwrap();
+                async move { ctx.reply(Ok((response,))) }
             },
         );
         c.method_with_cr_async(

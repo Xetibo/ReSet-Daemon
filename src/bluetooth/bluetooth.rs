@@ -1,5 +1,3 @@
-mod bluez_signals;
-
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -14,11 +12,9 @@ use dbus::{
 };
 use dbus_crossroads::Context;
 
-use crate::dbus::utils::set_system_dbus_property;
+use super::bluez_signals::{InterfaceRemovedSignal, InterfacesAddedSignal};
 
-use self::bluez_signals::{InterfaceRemovedSignal, InterfacesAddedSignal};
-
-use super::utils::call_system_dbus_method;
+use crate::utils::{call_system_dbus_method, set_system_dbus_property};
 
 #[derive(Debug, Clone)]
 pub struct BluetoothDevice {
@@ -230,10 +226,11 @@ impl BluetoothInterface {
         let mr = InterfacesAddedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
         let mrb =
             InterfaceRemovedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
+        let ctx_ref = ctx.clone();
         let res = conn.add_match(mr, move |ir: InterfacesAddedSignal, _, _| {
             let device = convert_device(&ir.object, &ir.interfaces);
             if device.is_some() {
-                let mut context = ctx.lock().unwrap();
+                let mut context = ctx_ref.lock().unwrap();
                 let device = device.unwrap();
                 let signal = context.make_signal("BluetoothDeviceAdded", (ir.object, device));
                 context.push_msg(signal);
@@ -246,10 +243,10 @@ impl BluetoothInterface {
                 "Failed to match signal on bluez.",
             ));
         }
-        let res = conn.add_match(mrb, |ir: InterfacesAddedSignal, _, _| {
-            println!("Interfaces has been removed on path {}.\n\n\n", ir.object);
-            // TODO
-            // integrate this into daemon
+        let res = conn.add_match(mrb, move |ir: InterfaceRemovedSignal, _, _| {
+            let mut context = ctx.lock().unwrap();
+            let signal = context.make_signal("BluetoothDeviceRemoved", (ir.object,));
+            context.push_msg(signal);
             true
         });
         if res.is_err() {

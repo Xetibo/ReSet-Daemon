@@ -19,7 +19,7 @@ use pulse::{
     proplist::Proplist,
 };
 
-use super::reset_dbus::{Request, Response};
+use crate::reset_dbus::{Request, Response};
 
 pub struct PulseServer {
     mainloop: Rc<RefCell<Mainloop>>,
@@ -395,6 +395,7 @@ impl PulseServer {
                 }
             }
         }
+
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
         return Ok(Self {
