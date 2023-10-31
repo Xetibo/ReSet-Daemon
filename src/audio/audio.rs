@@ -191,6 +191,7 @@ impl From<&SinkInfo<'_>> for Sink {
 pub struct InputStream {
     index: u32,
     name: String,
+    application_name: String,
     sink_index: u32,
     channels: u16,
     volume: Vec<u32>,
@@ -202,6 +203,7 @@ impl Append for InputStream {
         iter.append_struct(|i| {
             i.append(&self.index);
             i.append(&self.name);
+            i.append(&self.application_name);
             i.append(&self.sink_index);
             i.append(&self.channels);
             i.append(&self.volume);
@@ -212,11 +214,12 @@ impl Append for InputStream {
 
 impl<'a> Get<'a> for InputStream {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (index, name, sink_index, channels, volume, muted) =
-            <(u32, String, u32, u16, Vec<u32>, bool)>::get(i)?;
+        let (index, name, application_name, sink_index, channels, volume, muted) =
+            <(u32, String, String, u32, u16, Vec<u32>, bool)>::get(i)?;
         Some(Self {
             index,
             name,
+            application_name,
             sink_index,
             channels,
             volume,
@@ -228,7 +231,7 @@ impl<'a> Get<'a> for InputStream {
 impl Arg for InputStream {
     const ARG_TYPE: arg::ArgType = ArgType::Struct;
     fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(usuqaub)\0") }
+        unsafe { Signature::from_slice_unchecked("(ussuqaub)\0") }
     }
 }
 
@@ -241,6 +244,10 @@ impl From<&SinkInputInfo<'_>> for InputStream {
         } else {
             name = String::from(name_opt.clone().unwrap());
         }
+        let application_name = value
+            .proplist
+            .get_str("application.name")
+            .unwrap_or_default();
         let sink_index = value.sink;
         let index = value.index;
         let channels = value.channel_map.len() as u16;
@@ -252,6 +259,7 @@ impl From<&SinkInputInfo<'_>> for InputStream {
         Self {
             index,
             name,
+            application_name,
             sink_index,
             channels,
             volume,
@@ -263,6 +271,7 @@ impl From<&SinkInputInfo<'_>> for InputStream {
 pub struct OutputStream {
     index: u32,
     name: String,
+    application_name: String,
     source_index: u32,
     channels: u16,
     volume: Vec<u32>,
@@ -274,6 +283,7 @@ impl Append for OutputStream {
         iter.append_struct(|i| {
             i.append(&self.index);
             i.append(&self.name);
+            i.append(&self.application_name);
             i.append(&self.source_index);
             i.append(&self.channels);
             i.append(&self.volume);
@@ -284,11 +294,12 @@ impl Append for OutputStream {
 
 impl<'a> Get<'a> for OutputStream {
     fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (index, name, source_index, channels, volume, muted) =
-            <(u32, String, u32, u16, Vec<u32>, bool)>::get(i)?;
+        let (index, name, application_name, source_index, channels, volume, muted) =
+            <(u32, String, String, u32, u16, Vec<u32>, bool)>::get(i)?;
         Some(Self {
             index,
             name,
+            application_name,
             source_index,
             channels,
             volume,
@@ -300,7 +311,7 @@ impl<'a> Get<'a> for OutputStream {
 impl Arg for OutputStream {
     const ARG_TYPE: arg::ArgType = ArgType::Struct;
     fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(usuqaub)\0") }
+        unsafe { Signature::from_slice_unchecked("(ussuqaub)\0") }
     }
 }
 
@@ -313,6 +324,10 @@ impl From<&SourceOutputInfo<'_>> for OutputStream {
         } else {
             name = String::from(name_opt.clone().unwrap());
         }
+        let application_name = value
+            .proplist
+            .get_str("application.name")
+            .unwrap_or_default();
         let sink_index = value.source;
         let index = value.index;
         let channels = value.channel_map.len() as u16;
@@ -324,6 +339,7 @@ impl From<&SourceOutputInfo<'_>> for OutputStream {
         Self {
             index,
             name,
+            application_name,
             source_index: sink_index,
             channels,
             volume,
@@ -422,6 +438,22 @@ impl PulseServer {
             Request::ListSources => self.get_sources(),
             Request::ListInputStreams => self.get_input_streams(),
             Request::ListOutputStreams => self.get_output_streams(),
+            Request::SetInputStreamMute(input_stream) => self.set_input_stream_mute(input_stream),
+            Request::SetInputStreamVolume(input_stream) => {
+                self.set_volume_of_input_stream(input_stream)
+            }
+            Request::SetSinkOfInputStream(inpu_stream, sink) => {
+                self.set_sink_of_input_stream(inpu_stream, sink)
+            }
+            Request::SetOutputStreamMute(output_stream) => {
+                self.set_output_stream_mute(output_stream)
+            }
+            Request::SetOutputStreamVolume(output_stream) => {
+                self.set_volume_of_output_stream(output_stream)
+            }
+            Request::SetSourceOfOutputStream(output_stream, sink) => {
+                self.set_source_of_output_stream(output_stream, sink)
+            }
             Request::SetSinkVolume(sink) => self.set_sink_volume(sink),
             Request::SetSinkMute(sink) => self.set_sink_mute(sink),
             Request::SetDefaultSink(sink) => self.set_default_sink(sink),
