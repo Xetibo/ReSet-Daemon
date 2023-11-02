@@ -1,15 +1,22 @@
 use std::{
+    cell::Cell,
+    collections::HashMap,
     future::{self},
-    sync::{Arc, Mutex},
+    sync::{atomic::AtomicBool, Arc, Mutex},
     thread,
 };
 
-use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
+use dbus::{arg::PropMap, channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use tokio;
 
-use crate::audio::audio::InputStream;
+use crate::{
+    audio::audio::InputStream,
+    network::network::{
+        get_connection_settings, set_connection_settings, start_listener, stop_listener,
+    },
+};
 
 use super::{
     audio::audio::{OutputStream, Sink, Source},
@@ -22,7 +29,18 @@ use super::{
     network::network::{get_wifi_devices, AccessPoint, Device, Error},
 };
 
-pub enum Request {
+pub enum NetworkRequest {
+    StartNetworkListener,
+    StopNetworkListener,
+}
+
+pub enum NetworkResponse {
+    AccessPointAdded(AccessPoint),
+    AccessPointRemoved(Path<'static>),
+    BoolResponse(bool),
+}
+
+pub enum AudioRequest {
     ListSources,
     SetSourceVolume(Source),
     SetSourceMute(Source),
@@ -40,7 +58,7 @@ pub enum Request {
     SetOutputStreamMute(OutputStream),
 }
 
-pub enum Response {
+pub enum AudioResponse {
     Sources(Vec<Source>),
     Sinks(Vec<Sink>),
     InputStreams(Vec<InputStream>),
@@ -52,9 +70,14 @@ pub struct DaemonData {
     pub n_devices: Vec<Device>,
     pub current_n_device: Device,
     pub b_interface: BluetoothInterface,
-    pub sender: Sender<Request>,
-    pub receiver: Receiver<Response>,
+    pub audio_sender: Sender<AudioRequest>,
+    pub audio_receiver: Receiver<AudioResponse>,
+    pub active_listener: Arc<AtomicBool>,
 }
+
+unsafe impl Send for DaemonData {}
+unsafe impl Sync for DaemonData {}
+
 impl DaemonData {
     pub async fn create() -> Result<Self, Error> {
         let mut n_devices = get_wifi_devices();
@@ -72,8 +95,10 @@ impl DaemonData {
             b_interface = b_interface_opt.unwrap();
         }
 
-        let (dbus_sender, pulse_receiver): (Sender<Request>, Receiver<Request>) = mpsc::channel();
-        let (pulse_sender, dbus_receiver): (Sender<Response>, Receiver<Response>) = mpsc::channel();
+        let (dbus_pulse_sender, pulse_receiver): (Sender<AudioRequest>, Receiver<AudioRequest>) =
+            mpsc::channel();
+        let (pulse_sender, dbus_pulse_receiver): (Sender<AudioResponse>, Receiver<AudioResponse>) =
+            mpsc::channel();
 
         thread::spawn(move || {
             let res = PulseServer::create(pulse_sender, pulse_receiver);
@@ -86,8 +111,9 @@ impl DaemonData {
             n_devices,
             current_n_device,
             b_interface,
-            sender: dbus_sender,
-            receiver: dbus_receiver,
+            audio_sender: dbus_pulse_sender,
+            audio_receiver: dbus_pulse_receiver,
+            active_listener: Arc::new(AtomicBool::new(false)),
         })
     }
 }
@@ -131,7 +157,7 @@ pub async fn run_daemon() {
             .signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",))
             .msg_fn();
         let _access_point_added = c
-            .signal::<(Path<'static>,), _>("AccessPointAdded", ("access_point",))
+            .signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",))
             .msg_fn();
         let _access_point_removed = c
             .signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",))
@@ -180,20 +206,43 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
+        c.method(
+            "GetConnectionSettings",
+            ("path",),
+            ("result",),
+            move |_, _, (path,): (Path<'static>,)| {
+                let res = get_connection_settings(path);
+                Ok((res,))
+            },
+        );
+        c.method(
+            "SetConnectionSettings",
+            ("path", "settings"),
+            ("result",),
+            move |_, _, (path, settings): (Path<'static>, HashMap<String, PropMap>)| {
+                Ok((set_connection_settings(path, settings),))
+            },
+        );
         c.method_with_cr_async(
             "StartNetworkListener",
             (),
             ("result",),
-            move |ctx, cross, ()| {
+            move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let ctx_ref = Arc::new(Mutex::new(ctx));
-                let res = data.current_n_device.start_listener(ctx_ref.clone());
-                let mut response = true;
-                if res.is_err() {
-                    response = false;
-                }
-                let mut ctx = Arc::try_unwrap(ctx_ref).unwrap().into_inner().unwrap();
-                async move { ctx.reply(Ok((response,))) }
+                let path = data.current_n_device.dbus_path.clone();
+                let active_listener = data.active_listener.clone();
+                thread::spawn(move || start_listener(path, active_listener));
+                async move { ctx.reply(Ok((true,))) }
+            },
+        );
+        c.method(
+            "StopNetworkListener",
+            (),
+            ("result",),
+            move |_, data, ()| {
+                let active_listener = data.active_listener.clone();
+                stop_listener(active_listener);
+                Ok((true,))
             },
         );
         c.method_with_cr_async(
@@ -251,11 +300,11 @@ pub async fn run_daemon() {
         c.method_with_cr_async("ListSinks", (), ("sinks",), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             let sinks: Vec<Sink>;
-            let _ = data.sender.send(Request::ListSinks);
-            let response = data.receiver.recv();
+            let _ = data.audio_sender.send(AudioRequest::ListSinks);
+            let response = data.audio_receiver.recv();
             if response.is_ok() {
                 sinks = match response.unwrap() {
-                    Response::Sinks(s) => s,
+                    AudioResponse::Sinks(s) => s,
                     _ => Vec::new(),
                 }
             } else {
@@ -266,11 +315,11 @@ pub async fn run_daemon() {
         c.method_with_cr_async("ListSources", (), ("sinks",), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             let sources: Vec<Source>;
-            let _ = data.sender.send(Request::ListSources);
-            let response = data.receiver.recv();
+            let _ = data.audio_sender.send(AudioRequest::ListSources);
+            let response = data.audio_receiver.recv();
             if response.is_ok() {
                 sources = match response.unwrap() {
-                    Response::Sources(s) => s,
+                    AudioResponse::Sources(s) => s,
                     _ => Vec::new(),
                 }
             } else {
@@ -284,14 +333,14 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (sink,): (Sink,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.sender.send(Request::SetSinkVolume(sink));
+                let _ = data.audio_sender.send(AudioRequest::SetSinkVolume(sink));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -304,14 +353,14 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (sink,): (Sink,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.sender.send(Request::SetSinkMute(sink));
+                let _ = data.audio_sender.send(AudioRequest::SetSinkMute(sink));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -324,14 +373,16 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (source,): (Source,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.sender.send(Request::SetSourceVolume(source));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetSourceVolume(source));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -344,14 +395,14 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (source,): (Source,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.sender.send(Request::SetSourceMute(source));
+                let _ = data.audio_sender.send(AudioRequest::SetSourceMute(source));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -364,14 +415,14 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (sink,): (Sink,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.sender.send(Request::SetDefaultSink(sink));
+                let _ = data.audio_sender.send(AudioRequest::SetDefaultSink(sink));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -385,11 +436,11 @@ pub async fn run_daemon() {
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let input_streams: Vec<InputStream>;
-                let _ = data.sender.send(Request::ListInputStreams);
-                let response = data.receiver.recv();
+                let _ = data.audio_sender.send(AudioRequest::ListInputStreams);
+                let response = data.audio_receiver.recv();
                 if response.is_ok() {
                     input_streams = match response.unwrap() {
-                        Response::InputStreams(s) => s,
+                        AudioResponse::InputStreams(s) => s,
                         _ => Vec::new(),
                     }
                 } else {
@@ -405,15 +456,15 @@ pub async fn run_daemon() {
             move |mut ctx, cross, (input_stream, sink): (InputStream, Sink)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
-                    .sender
-                    .send(Request::SetSinkOfInputStream(input_stream, sink));
+                    .audio_sender
+                    .send(AudioRequest::SetSinkOfInputStream(input_stream, sink));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -427,15 +478,15 @@ pub async fn run_daemon() {
             move |mut ctx, cross, (input_stream,): (InputStream,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
-                    .sender
-                    .send(Request::SetInputStreamVolume(input_stream));
+                    .audio_sender
+                    .send(AudioRequest::SetInputStreamVolume(input_stream));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -448,14 +499,16 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (input_stream,): (InputStream,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.sender.send(Request::SetInputStreamMute(input_stream));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetInputStreamMute(input_stream));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -469,11 +522,11 @@ pub async fn run_daemon() {
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let output_streams: Vec<OutputStream>;
-                let _ = data.sender.send(Request::ListOutputStreams);
-                let response = data.receiver.recv();
+                let _ = data.audio_sender.send(AudioRequest::ListOutputStreams);
+                let response = data.audio_receiver.recv();
                 if response.is_ok() {
                     output_streams = match response.unwrap() {
-                        Response::OutputStreams(s) => s,
+                        AudioResponse::OutputStreams(s) => s,
                         _ => Vec::new(),
                     }
                 } else {
@@ -489,15 +542,15 @@ pub async fn run_daemon() {
             move |mut ctx, cross, (output_stream, source): (OutputStream, Source)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
-                    .sender
-                    .send(Request::SetSourceOfOutputStream(output_stream, source));
+                    .audio_sender
+                    .send(AudioRequest::SetSourceOfOutputStream(output_stream, source));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -511,15 +564,15 @@ pub async fn run_daemon() {
             move |mut ctx, cross, (output_stream,): (OutputStream,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
-                    .sender
-                    .send(Request::SetOutputStreamVolume(output_stream));
+                    .audio_sender
+                    .send(AudioRequest::SetOutputStreamVolume(output_stream));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
@@ -533,19 +586,40 @@ pub async fn run_daemon() {
             move |mut ctx, cross, (output_stream,): (OutputStream,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
-                    .sender
-                    .send(Request::SetOutputStreamMute(output_stream));
+                    .audio_sender
+                    .send(AudioRequest::SetOutputStreamMute(output_stream));
                 let result: bool;
-                let res = data.receiver.recv();
+                let res = data.audio_receiver.recv();
                 if res.is_err() {
                     result = false;
                 } else {
                     result = match res.unwrap() {
-                        Response::BoolResponse(b) => b,
+                        AudioResponse::BoolResponse(b) => b,
                         _ => false,
                     };
                 }
                 async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        // these are for the listener, other synchroniztion methods seem to not work....
+        c.method_with_cr_async(
+            "AddAccessPointEvent",
+            ("access_point",),
+            (),
+            move |mut ctx, _, access_point: (AccessPoint,)| {
+                _access_point_added(ctx.path(), &access_point);
+                println!("added access point");
+                async move { ctx.reply(Ok(())) }
+            },
+        );
+        c.method_with_cr_async(
+            "RemoveAccessPointEvent",
+            ("access_point",),
+            (),
+            move |mut ctx, _, access_point: (Path<'static>,)| {
+                _access_point_removed(ctx.path(), &access_point);
+                println!("removed access point");
+                async move { ctx.reply(Ok(())) }
             },
         );
     });

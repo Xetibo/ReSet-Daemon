@@ -19,13 +19,13 @@ use pulse::{
     proplist::Proplist,
 };
 
-use crate::reset_dbus::{Request, Response};
+use crate::reset_dbus::{AudioRequest, AudioResponse};
 
 pub struct PulseServer {
     mainloop: Rc<RefCell<Mainloop>>,
     context: Rc<RefCell<Context>>,
-    sender: Sender<Response>,
-    receiver: Receiver<Request>,
+    sender: Sender<AudioResponse>,
+    receiver: Receiver<AudioRequest>,
 }
 
 #[derive(Debug)]
@@ -350,8 +350,8 @@ impl From<&SourceOutputInfo<'_>> for OutputStream {
 
 impl PulseServer {
     pub fn create(
-        sender: Sender<Response>,
-        receiver: Receiver<Request>,
+        sender: Sender<AudioResponse>,
+        receiver: Receiver<AudioRequest>,
     ) -> Result<Self, PulseError> {
         let mut proplist = Proplist::new().unwrap();
         proplist
@@ -432,33 +432,33 @@ impl PulseServer {
 
     // during development, as more get added => without causing compiler errors
     #[allow(unreachable_patterns)]
-    pub fn handle_message(&self, message: Request) {
+    pub fn handle_message(&self, message: AudioRequest) {
         match message {
-            Request::ListSinks => self.get_sinks(),
-            Request::ListSources => self.get_sources(),
-            Request::ListInputStreams => self.get_input_streams(),
-            Request::ListOutputStreams => self.get_output_streams(),
-            Request::SetInputStreamMute(input_stream) => self.set_input_stream_mute(input_stream),
-            Request::SetInputStreamVolume(input_stream) => {
+            AudioRequest::ListSinks => self.get_sinks(),
+            AudioRequest::ListSources => self.get_sources(),
+            AudioRequest::ListInputStreams => self.get_input_streams(),
+            AudioRequest::ListOutputStreams => self.get_output_streams(),
+            AudioRequest::SetInputStreamMute(input_stream) => self.set_input_stream_mute(input_stream),
+            AudioRequest::SetInputStreamVolume(input_stream) => {
                 self.set_volume_of_input_stream(input_stream)
             }
-            Request::SetSinkOfInputStream(inpu_stream, sink) => {
+            AudioRequest::SetSinkOfInputStream(inpu_stream, sink) => {
                 self.set_sink_of_input_stream(inpu_stream, sink)
             }
-            Request::SetOutputStreamMute(output_stream) => {
+            AudioRequest::SetOutputStreamMute(output_stream) => {
                 self.set_output_stream_mute(output_stream)
             }
-            Request::SetOutputStreamVolume(output_stream) => {
+            AudioRequest::SetOutputStreamVolume(output_stream) => {
                 self.set_volume_of_output_stream(output_stream)
             }
-            Request::SetSourceOfOutputStream(output_stream, sink) => {
+            AudioRequest::SetSourceOfOutputStream(output_stream, sink) => {
                 self.set_source_of_output_stream(output_stream, sink)
             }
-            Request::SetSinkVolume(sink) => self.set_sink_volume(sink),
-            Request::SetSinkMute(sink) => self.set_sink_mute(sink),
-            Request::SetDefaultSink(sink) => self.set_default_sink(sink),
-            Request::SetSourceVolume(source) => self.set_source_volume(source),
-            Request::SetSourceMute(source) => self.set_source_mute(source),
+            AudioRequest::SetSinkVolume(sink) => self.set_sink_volume(sink),
+            AudioRequest::SetSinkMute(sink) => self.set_sink_mute(sink),
+            AudioRequest::SetDefaultSink(sink) => self.set_default_sink(sink),
+            AudioRequest::SetSourceVolume(source) => self.set_source_volume(source),
+            AudioRequest::SetSourceMute(source) => self.set_source_mute(source),
             _ => {}
         }
     }
@@ -483,7 +483,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::Sinks(sinks.take()));
+        let _ = self.sender.send(AudioResponse::Sinks(sinks.take()));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -507,7 +507,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::Sources(sources.take()));
+        let _ = self.sender.send(AudioResponse::Sources(sources.take()));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -530,7 +530,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -548,7 +548,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -571,7 +571,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -589,7 +589,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -605,7 +605,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -631,7 +631,7 @@ impl PulseServer {
         }
         let _ = self
             .sender
-            .send(Response::InputStreams(input_streams.take()));
+            .send(AudioResponse::InputStreams(input_streams.take()));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -649,7 +649,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -672,7 +672,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -690,7 +690,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -716,7 +716,7 @@ impl PulseServer {
         }
         let _ = self
             .sender
-            .send(Response::OutputStreams(output_streams.take()));
+            .send(AudioResponse::OutputStreams(output_streams.take()));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -734,7 +734,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -757,7 +757,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -775,7 +775,7 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(Response::BoolResponse(true));
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 }
