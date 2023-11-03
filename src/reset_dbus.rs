@@ -29,17 +29,6 @@ use super::{
     network::network::{get_wifi_devices, AccessPoint, Device, Error},
 };
 
-pub enum NetworkRequest {
-    StartNetworkListener,
-    StopNetworkListener,
-}
-
-pub enum NetworkResponse {
-    AccessPointAdded(AccessPoint),
-    AccessPointRemoved(Path<'static>),
-    BoolResponse(bool),
-}
-
 pub enum AudioRequest {
     ListSources,
     SetSourceVolume(Source),
@@ -147,19 +136,16 @@ pub async fn run_daemon() {
     )));
 
     let token = cross.register("org.xetibo.ReSet", |c| {
-        let _bluetooth_device_added = c
-            .signal::<(Path<'static>, BluetoothDevice), _>(
-                "BluetoothDeviceAdded",
-                ("path", "device"),
-            )
+        let bluetooth_device_added = c
+            .signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",))
             .msg_fn();
-        let _bluetooth_device_removed = c
+        let bluetooth_device_removed = c
             .signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",))
             .msg_fn();
-        let _access_point_added = c
+        let access_point_added = c
             .signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",))
             .msg_fn();
-        let _access_point_removed = c
+        let access_point_removed = c
             .signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",))
             .msg_fn();
         c.method(
@@ -607,27 +593,27 @@ pub async fn run_daemon() {
             ("access_point",),
             (),
             move |mut ctx, _, access_point: (AccessPoint,)| {
-                _access_point_added(ctx.path(), &access_point);
+                access_point_added(ctx.path(), &access_point);
                 println!("added access point");
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "RemoveAccessPointEvent",
-            ("access_point",),
+            ("path",),
             (),
-            move |mut ctx, _, access_point: (Path<'static>,)| {
-                _access_point_removed(ctx.path(), &access_point);
+            move |mut ctx, _, path: (Path<'static>,)| {
+                access_point_removed(ctx.path(), &path);
                 println!("removed access point");
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "AddBluetoothDeviceEvent",
-            ("path", "device"),
+            ("device",),
             (),
-            move |mut ctx, _, (path, device): (Path<'static>, BluetoothDevice)| {
-                _bluetooth_device_added(ctx.path(), &(path, device));
+            move |mut ctx, _, (device,): (BluetoothDevice,)| {
+                bluetooth_device_added(ctx.path(), &(device,));
                 println!("added bluetooth device");
                 async move { ctx.reply(Ok(())) }
             },
@@ -637,8 +623,8 @@ pub async fn run_daemon() {
             ("path",),
             (),
             move |mut ctx, _, (path,): (Path<'static>,)| {
-                _bluetooth_device_removed(ctx.path(), &(path,));
-                println!("removed access point");
+                bluetooth_device_removed(ctx.path(), &(path,));
+                println!("removed bluetooth device");
                 async move { ctx.reply(Ok(())) }
             },
         );

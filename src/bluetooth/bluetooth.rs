@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
 
@@ -10,7 +9,6 @@ use dbus::{
     message::SignalArgs,
     Path, Signature,
 };
-use dbus_crossroads::Context;
 
 use super::bluez_signals::{InterfaceRemovedSignal, InterfacesAddedSignal};
 
@@ -219,7 +217,7 @@ impl BluetoothInterface {
         }
     }
 
-    pub fn start_discovery(&self,duration:  u64) -> Result<(), dbus::Error> {
+    pub fn start_discovery(&self, duration: u64) -> Result<(), dbus::Error> {
         let path = self.current_adapter.path.clone();
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
@@ -236,11 +234,8 @@ impl BluetoothInterface {
                     "/org/xetibo/ReSet",
                     Duration::from_millis(1000),
                 );
-                let _: Result<(), dbus::Error> = proxy.method_call(
-                    "org.xetibo.ReSet",
-                    "AddBluetoothDeviceEvent",
-                    (ir.object, device),
-                );
+                let _: Result<(), dbus::Error> =
+                    proxy.method_call("org.xetibo.ReSet", "AddBluetoothDeviceEvent", (device,));
             }
             true
         });
@@ -257,8 +252,11 @@ impl BluetoothInterface {
                 "/org/xetibo/ReSet",
                 Duration::from_millis(1000),
             );
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "RemoveBluetoothDeviceEvent", ((ir.object),));
+            let _: Result<(), dbus::Error> = proxy.method_call(
+                "org.xetibo.ReSet",
+                "RemoveBluetoothDeviceEvent",
+                ((ir.object),),
+            );
             true
         });
         if res.is_err() {
