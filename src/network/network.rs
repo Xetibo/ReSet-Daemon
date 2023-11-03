@@ -11,7 +11,7 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
+    arg::{self, prop_cast, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
     Path, Signature,
@@ -118,83 +118,6 @@ impl Arg for AccessPoint {
     fn signature() -> Signature<'static> {
         unsafe { Signature::from_slice_unchecked("(ayyoo)\0") }
     }
-}
-
-pub struct ConversionError {
-    message: &'static str,
-}
-
-pub enum Trust {
-    HOME,
-    WORK,
-    PUBLIC,
-}
-
-#[derive(Default)]
-pub enum Mode {
-    #[default]
-    INFRASTRUCTURE,
-    ADHOC,
-    AP,
-}
-
-impl FromStr for Mode {
-    type Err = ConversionError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "adhoc" => Ok(Mode::ADHOC),
-            "ap" => Ok(Mode::AP),
-            _ => Ok(Mode::INFRASTRUCTURE),
-        }
-    }
-}
-
-impl ToString for Mode {
-    fn to_string(&self) -> String {
-        match self {
-            Mode::ADHOC => String::from("adhoc"),
-            Mode::AP => String::from("ap"),
-            Mode::INFRASTRUCTURE => String::from("infrastructure"),
-        }
-    }
-}
-
-#[derive(Default)]
-pub enum Band {
-    #[default]
-    INFRASTRUCTURE,
-    ADHOC,
-    AP,
-}
-
-struct ConnectionSettings {
-    ssid: String,
-    mode: String,
-    band: String,
-    autoconnect: bool,
-    autoconnect_priority: i32,
-    metered: i32,
-    uuid: String,
-    trust: Trust,
-
-    altsubject: Option<Vec<String>>,
-    anonymous_identity: Option<String>,
-    ca_cert: Option<Vec<u8>>,
-    ca_cert_string: Option<String>,
-    client_cert: Option<Vec<u8>>,
-    domain_suffix: Option<String>,
-    eap: Option<Vec<String>>,
-    identity: Option<String>,
-    name: Option<String>,
-    pac_file: Option<String>,
-    password: Option<String>,
-    password_flags: Option<u32>,
-    password_raw_flags: Option<Vec<u8>>,
-    phase1_fast_provisioning: Option<String>,
-    phase1_peaplabel: Option<String>,
-    phase1_peapver: Option<String>,
-    phase2_altsubject_matches: Option<Vec<String>>,
 }
 
 #[derive(Debug)]

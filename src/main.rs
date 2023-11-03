@@ -1,3 +1,4 @@
+#![feature(trait_alias)]
 mod audio;
 mod network;
 mod bluetooth;
