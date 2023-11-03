@@ -1,13 +1,25 @@
 use core::fmt;
-use std::{collections::HashMap, str, time::Duration};
+use std::{
+    collections::HashMap,
+    str,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
+    time::Duration,
+};
 
 use dbus::{
     arg::{self, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
     blocking::Connection,
+    message::SignalArgs,
     Path, Signature,
 };
 
-use super::utils::{call_system_dbus_method, get_system_dbus_property};
+use crate::utils::{call_system_dbus_method, get_system_dbus_property};
+
+use super::network_signals::{AccessPointAdded, AccessPointRemoved};
 
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -52,7 +64,7 @@ impl DeviceType {
             _ => DeviceType::OTHER,
         }
     }
-    fn to_u32(&self) -> u32 {
+    fn _to_u32(&self) -> u32 {
         match self {
             DeviceType::UNKNOWN => 0,
             DeviceType::GENERIC => 1,
@@ -108,12 +120,25 @@ impl Arg for AccessPoint {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Device {
     pub access_point: Option<AccessPoint>,
     pub connection: Option<Path<'static>>,
     pub dbus_path: Path<'static>,
     pub connected: bool,
+    pub active_listener: AtomicBool,
+}
+
+impl Clone for Device {
+    fn clone(&self) -> Self {
+        Self {
+            access_point: self.access_point.clone(),
+            connection: self.connection.clone(),
+            dbus_path: self.dbus_path.clone(),
+            connected: self.connected.clone(),
+            active_listener: AtomicBool::new(false),
+        }
+    }
 }
 
 impl Device {
@@ -123,8 +148,76 @@ impl Device {
             connection: None,
             dbus_path: path,
             connected: false,
+            active_listener: AtomicBool::new(false),
         }
     }
+}
+pub fn start_listener(
+    path: Path<'static>,
+    active_listener: Arc<AtomicBool>,
+) -> Result<(), dbus::Error> {
+    let conn = Connection::new_system().unwrap();
+    let mr =
+        AccessPointAdded::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
+            .static_clone();
+    let mrb =
+        AccessPointRemoved::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
+            .static_clone();
+    let res = conn.add_match(mr, move |ir: AccessPointAdded, _, _| {
+        let conn = Connection::new_session().unwrap();
+        let proxy = conn.with_proxy(
+            "org.xetibo.ReSet",
+            "/org/xetibo/ReSet",
+            Duration::from_millis(1000),
+        );
+        let _: Result<(), dbus::Error> = proxy.method_call(
+            "org.xetibo.ReSet",
+            "AddAccessPointEvent",
+            (get_access_point_properties(ir.access_point),),
+        );
+        true
+    });
+    if res.is_err() {
+        return Err(dbus::Error::new_custom(
+            "SignalMatchFailed",
+            "Failed to match signal on NetworkManager.",
+        ));
+    }
+    let res = conn.add_match(mrb, move |ir: AccessPointRemoved, _, _| {
+        let conn = Connection::new_session().unwrap();
+        let proxy = conn.with_proxy(
+            "org.xetibo.ReSet",
+            "/org/xetibo/ReSet",
+            Duration::from_millis(1000),
+        );
+        let _: Result<(), dbus::Error> = proxy.method_call(
+            "org.xetibo.ReSet",
+            "RemoveAccessPointEvent",
+            (ir.access_point,),
+        );
+        true
+    });
+    if res.is_err() {
+        return Err(dbus::Error::new_custom(
+            "SignalMatchFailed",
+            "Failed to match signal on NetworkManager.",
+        ));
+    }
+    println!("started listener");
+    active_listener.store(true, Ordering::SeqCst);
+    loop {
+        let _ = conn.process(Duration::from_millis(1000))?;
+        if !active_listener.load(Ordering::SeqCst) {
+            println!("stopped listener");
+            break;
+        }
+        thread::sleep(Duration::from_millis(1000));
+    }
+    Ok(())
+}
+
+pub fn stop_listener(active_listener: Arc<AtomicBool>) {
+    active_listener.store(false, Ordering::SeqCst);
 }
 
 pub fn get_wifi_devices() -> Vec<Device> {
@@ -170,7 +263,25 @@ pub fn get_connection_settings(path: Path<'static>) -> HashMap<String, PropMap> 
         1000,
     );
     let (result,): (HashMap<String, PropMap>,) = result.unwrap();
+    for entry in result.iter() {
+        dbg!(entry);
+    }
     result
+}
+
+pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, PropMap>) -> bool {
+    let result = call_system_dbus_method::<(HashMap<String, PropMap>,), ()>(
+        "org.freedesktop.NetworkManager",
+        path,
+        "Update",
+        "org.freedesktop.NetworkManager.Settings.Connection",
+        (settings,),
+        1000,
+    );
+    if result.is_err() {
+        return false;
+    }
+    true
 }
 
 pub fn set_password(path: Path<'static>, password: String) {
