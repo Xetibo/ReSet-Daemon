@@ -198,7 +198,9 @@ pub async fn run_daemon() {
             ("result",),
             move |_, _, (path,): (Path<'static>,)| {
                 let res = get_connection_settings(path);
-                Ok((res,))
+                dbg!(crate::network::connection::Connection::convert(res));
+                Ok((true,))
+                // Ok((res,))
             },
         );
         c.method(

@@ -263,9 +263,6 @@ pub fn get_connection_settings(path: Path<'static>) -> HashMap<String, PropMap> 
         1000,
     );
     let (result,): (HashMap<String, PropMap>,) = result.unwrap();
-    for entry in result.iter() {
-        dbg!(entry);
-    }
     result
 }
 

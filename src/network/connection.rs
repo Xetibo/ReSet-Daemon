@@ -16,6 +16,7 @@ pub trait Enum: Sized {
     fn to_u32(&self) -> u32;
 }
 
+#[derive(Debug)]
 struct EnumWrapper<T>(T);
 
 impl<T> Append for EnumWrapper<T>
@@ -49,19 +50,71 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct ConversionError {
     message: &'static str,
 }
 
+#[derive(Debug)]
 pub struct Connection {
     settings: ConnectionSettings,
-    x802: X802Settings,
+    // x802: X802Settings,
     device: TypeSettings,
     ipv4: IPV4Settings,
     ipv6: IPV6Settings,
+    // TODO check if x802 is actually even necessary?
+    // TODO implement ipv4
+    // TODO implement ipv6
+    // TODO implement wifi security settings 
 }
 
-#[derive(Clone, Copy, Default)]
+impl Connection {
+    pub fn convert(map: HashMap<String, PropMap>) -> Result<Self, ConversionError> {
+        let mut settings: Option<ConnectionSettings> = None;
+        // let mut x802: Option<X802Settings> = None;
+        let mut device: Option<TypeSettings> = None;
+        let mut ipv4: Option<IPV4Settings> = None;
+        let mut ipv6: Option<IPV6Settings> = None;
+        for (category, submap) in map {
+            match category.as_str() {
+                "802-11-wireless" => {
+                    device = Some(TypeSettings::WIFI(WifiSettings::from_propmap(submap)))
+                }
+                "802-3-ethernet" => {
+                    device = Some(TypeSettings::ETHERNET(EthernetSettings::from_propmap(
+                        submap,
+                    )))
+                }
+                "vpn" => device = Some(TypeSettings::VPN(VPNSettings::from_propmap(submap))),
+                "ipv6" => ipv6 = Some(IPV6Settings::from_propmap(submap)),
+                "ipv4" => ipv4 = Some(IPV4Settings::from_propmap(submap)),
+                "connection" => settings = Some(ConnectionSettings::from_propmap(submap)),
+                // "802-1x" => x802 = Some(X802Settings::from_propmap(submap)),
+                _ => continue,
+            }
+        }
+        if settings.is_none() |device.is_none() | ipv4.is_none() | ipv6.is_none()
+        {
+            return Err(ConversionError {
+                message: "could not convert propmap",
+            });
+        }
+        let settings = settings.unwrap();
+        // let x802 = x802.unwrap();
+        let device = device.unwrap();
+        let ipv4 = ipv4.unwrap();
+        let ipv6 = ipv6.unwrap();
+        Ok(Self {
+            settings,
+            // x802,
+            device,
+            ipv4,
+            ipv6,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Default, Debug)]
 pub enum Trust {
     HOME,
     WORK,
@@ -114,7 +167,7 @@ impl Enum for Trust {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum Mode {
     #[default]
     INFRASTRUCTURE,
@@ -162,7 +215,7 @@ impl Enum for Mode {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum Band {
     _5GHZ,
     _24GHZ,
@@ -210,7 +263,7 @@ impl Enum for Band {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub enum Duplex {
     HALF,
     #[default]
@@ -253,12 +306,14 @@ impl Enum for Duplex {
     }
 }
 
+#[derive(Debug)]
 pub enum TypeSettings {
     WIFI(WifiSettings),
     ETHERNET(EthernetSettings),
     VPN(VPNSettings),
 }
 
+#[derive(Debug)]
 struct EthernetSettings {
     auto_negotiate: bool,
     duplex: EnumWrapper<Duplex>,
@@ -296,6 +351,7 @@ impl FromPropmap for EthernetSettings {
     }
 }
 
+#[derive(Debug)]
 struct VPNSettings {
     data: HashMap<String, String>,
     name: String,
@@ -358,6 +414,7 @@ impl FromPropmap for VPNSettings {
     }
 }
 
+#[derive(Debug)]
 struct WifiSettings {
     band: EnumWrapper<Band>,
     channel: u32,
@@ -370,6 +427,11 @@ struct WifiSettings {
 
 impl FromPropmap for WifiSettings {
     fn from_propmap(map: PropMap) -> Self {
+            println!("wifi debug");
+        for (key, val ) in map.iter() {
+            dbg!(key);
+            dbg!(val);
+        }
         let mode: EnumWrapper<Mode>;
         let band: EnumWrapper<Band>;
         let mode_opt: Option<&String> = prop_cast(&map, "mode");
@@ -407,6 +469,7 @@ impl FromPropmap for WifiSettings {
     }
 }
 
+#[derive(Debug)]
 struct X802Settings {
     ca_cert: Vec<u8>,
     ca_cert_string: String,
@@ -422,6 +485,11 @@ struct X802Settings {
 
 impl FromPropmap for X802Settings {
     fn from_propmap(map: PropMap) -> Self {
+            println!("x802 debug");
+        for (key, val ) in map.iter() {
+            dbg!(key);
+            dbg!(val);
+        }
         let ca_cert: Vec<u8>;
         let ca_cert_string: String;
         let client_cert: Vec<u8>;
@@ -501,22 +569,35 @@ impl FromPropmap for X802Settings {
     }
 }
 
+#[derive(Debug)]
 struct IPV4Settings {}
 
 impl FromPropmap for IPV4Settings {
     fn from_propmap(map: PropMap) -> Self {
+            println!("ipv4 debug");
+        for (key, val ) in map.iter() {
+            dbg!(key);
+            dbg!(val);
+        }
         Self {}
     }
 }
 
+#[derive(Debug)]
 struct IPV6Settings {}
 
 impl FromPropmap for IPV6Settings {
     fn from_propmap(map: PropMap) -> Self {
+            println!("ipv6 debug");
+        for (key, val ) in map.iter() {
+            dbg!(key);
+            dbg!(val);
+        }
         Self {}
     }
 }
 
+#[derive(Debug)]
 struct ConnectionSettings {
     autoconnect: bool,
     autoconnect_priority: i32,
@@ -529,6 +610,11 @@ struct ConnectionSettings {
 
 impl FromPropmap for ConnectionSettings {
     fn from_propmap(map: PropMap) -> Self {
+            println!("settings debug");
+        for (key, val ) in map.iter() {
+            dbg!(key);
+            dbg!(val);
+        }
         let autoconnect = prop_cast(&map, "autoconnect");
         let autoconnect_priority = prop_cast(&map, "autoconnect-priority");
         let uuid: String;
