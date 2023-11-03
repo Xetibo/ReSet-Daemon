@@ -247,12 +247,12 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "StartBluetoothSearch",
-            (),
+            ("duration",),
             ("result",),
-            move |ctx, cross, ()| {
+            move |ctx, cross, (duration,): (i32,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let ctx_ref = Arc::new(Mutex::new(ctx));
-                let res = data.b_interface.start_discovery(ctx_ref.clone());
+                let res = data.b_interface.start_discovery(duration as u64);
                 let mut response = true;
                 if res.is_err() {
                     response = false;
@@ -618,6 +618,26 @@ pub async fn run_daemon() {
             (),
             move |mut ctx, _, access_point: (Path<'static>,)| {
                 _access_point_removed(ctx.path(), &access_point);
+                println!("removed access point");
+                async move { ctx.reply(Ok(())) }
+            },
+        );
+        c.method_with_cr_async(
+            "AddBluetoothDeviceEvent",
+            ("path", "device"),
+            (),
+            move |mut ctx, _, (path, device): (Path<'static>, BluetoothDevice)| {
+                _bluetooth_device_added(ctx.path(), &(path, device));
+                println!("added bluetooth device");
+                async move { ctx.reply(Ok(())) }
+            },
+        );
+        c.method_with_cr_async(
+            "RemoveBluetoothDeviceEvent",
+            ("path",),
+            (),
+            move |mut ctx, _, (path,): (Path<'static>,)| {
+                _bluetooth_device_removed(ctx.path(), &(path,));
                 println!("removed access point");
                 async move { ctx.reply(Ok(())) }
             },

@@ -219,21 +219,28 @@ impl BluetoothInterface {
         }
     }
 
-    pub fn start_discovery(&self, ctx: Arc<Mutex<Context>>) -> Result<(), dbus::Error> {
+    pub fn start_discovery(&self,duration:  u64) -> Result<(), dbus::Error> {
         let path = self.current_adapter.path.clone();
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
         let mr = InterfacesAddedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
         let mrb =
             InterfaceRemovedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
-        let ctx_ref = ctx.clone();
         let res = conn.add_match(mr, move |ir: InterfacesAddedSignal, _, _| {
             let device = convert_device(&ir.object, &ir.interfaces);
             if device.is_some() {
-                let mut context = ctx_ref.lock().unwrap();
                 let device = device.unwrap();
-                let signal = context.make_signal("BluetoothDeviceAdded", (ir.object, device));
-                context.push_msg(signal);
+                let conn = Connection::new_session().unwrap();
+                let proxy = conn.with_proxy(
+                    "org.xetibo.ReSet",
+                    "/org/xetibo/ReSet",
+                    Duration::from_millis(1000),
+                );
+                let _: Result<(), dbus::Error> = proxy.method_call(
+                    "org.xetibo.ReSet",
+                    "AddBluetoothDeviceEvent",
+                    (ir.object, device),
+                );
             }
             true
         });
@@ -244,9 +251,14 @@ impl BluetoothInterface {
             ));
         }
         let res = conn.add_match(mrb, move |ir: InterfaceRemovedSignal, _, _| {
-            let mut context = ctx.lock().unwrap();
-            let signal = context.make_signal("BluetoothDeviceRemoved", (ir.object,));
-            context.push_msg(signal);
+            let conn = Connection::new_session().unwrap();
+            let proxy = conn.with_proxy(
+                "org.xetibo.ReSet",
+                "/org/xetibo/ReSet",
+                Duration::from_millis(1000),
+            );
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "RemoveBluetoothDeviceEvent", ((ir.object),));
             true
         });
         if res.is_err() {
@@ -260,7 +272,7 @@ impl BluetoothInterface {
         let now = SystemTime::now();
         loop {
             let _ = conn.process(Duration::from_millis(1000))?;
-            if now.elapsed().unwrap() > Duration::from_millis(5000) {
+            if now.elapsed().unwrap() > Duration::from_millis(duration) {
                 break;
             }
         }
