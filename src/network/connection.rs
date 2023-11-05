@@ -1,53 +1,18 @@
-use std::{collections::HashMap, path::Path, str::FromStr};
+// TODO
+// alright this entire convert then send doesn't work properly, hence offer the conversion as an
+// option after sending or receiving -> sending maps works, sending this conveluted structure does
+// not !!! -> create from and to propmap thats it
+use std::{collections::HashMap, str::FromStr};
 
-use dbus::{
-    arg::{self, prop_cast, Append, Arg, ArgType, Get, PropMap},
-    Signature,
-};
-
-pub trait LocalAppend: Append {}
+use dbus::arg::{self, prop_cast, PropMap};
 
 pub trait FromPropmap: Sized {
     fn from_propmap(map: PropMap) -> Self;
 }
 
 pub trait Enum: Sized {
-    fn from_u32(num: u32) -> Self;
-    fn to_u32(&self) -> u32;
-}
-
-#[derive(Debug)]
-struct EnumWrapper<T>(T);
-
-impl<T> Append for EnumWrapper<T>
-where
-    T: Enum,
-{
-    fn append_by_ref(&self, iter: &mut arg::IterAppend) {
-        iter.append_struct(|i| {
-            i.append(&self.0.to_u32());
-        });
-    }
-}
-
-impl<'a, T> Get<'a> for EnumWrapper<T>
-where
-    T: Enum,
-{
-    fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (num,) = <(u32,)>::get(i)?;
-        Some(EnumWrapper(T::from_u32(num)))
-    }
-}
-
-impl<T> Arg for EnumWrapper<T>
-where
-    T: Enum,
-{
-    const ARG_TYPE: arg::ArgType = ArgType::UInt32;
-    fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("u\0") }
-    }
+    fn from_i32(num: i32) -> Self;
+    fn to_i32(&self) -> i32;
 }
 
 #[derive(Debug)]
@@ -63,9 +28,7 @@ pub struct Connection {
     ipv4: IPV4Settings,
     ipv6: IPV6Settings,
     // TODO check if x802 is actually even necessary?
-    // TODO implement ipv4
-    // TODO implement ipv6
-    // TODO implement wifi security settings 
+    // TODO implement wifi security settings
 }
 
 impl Connection {
@@ -93,8 +56,7 @@ impl Connection {
                 _ => continue,
             }
         }
-        if settings.is_none() |device.is_none() | ipv4.is_none() | ipv6.is_none()
-        {
+        if settings.is_none() | device.is_none() | ipv4.is_none() | ipv6.is_none() {
             return Err(ConversionError {
                 message: "could not convert propmap",
             });
@@ -148,7 +110,7 @@ impl ToString for Trust {
 }
 
 impl Enum for Trust {
-    fn from_u32(num: u32) -> Self {
+    fn from_i32(num: i32) -> Self {
         match num {
             0 => Trust::HOME,
             1 => Trust::WORK,
@@ -157,7 +119,7 @@ impl Enum for Trust {
         }
     }
 
-    fn to_u32(&self) -> u32 {
+    fn to_i32(&self) -> i32 {
         match self {
             Trust::HOME => 0,
             Trust::WORK => 1,
@@ -167,7 +129,7 @@ impl Enum for Trust {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub enum Mode {
     #[default]
     INFRASTRUCTURE,
@@ -198,7 +160,7 @@ impl ToString for Mode {
 }
 
 impl Enum for Mode {
-    fn from_u32(num: u32) -> Self {
+    fn from_i32(num: i32) -> Self {
         match num {
             0 => Mode::INFRASTRUCTURE,
             1 => Mode::ADHOC,
@@ -206,7 +168,7 @@ impl Enum for Mode {
         }
     }
 
-    fn to_u32(&self) -> u32 {
+    fn to_i32(&self) -> i32 {
         match self {
             Mode::INFRASTRUCTURE => 0,
             Mode::ADHOC => 1,
@@ -215,7 +177,7 @@ impl Enum for Mode {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub enum Band {
     _5GHZ,
     _24GHZ,
@@ -246,7 +208,7 @@ impl ToString for Band {
 }
 
 impl Enum for Band {
-    fn from_u32(num: u32) -> Self {
+    fn from_i32(num: i32) -> Self {
         match num {
             0 => Band::_5GHZ,
             1 => Band::_24GHZ,
@@ -254,7 +216,7 @@ impl Enum for Band {
         }
     }
 
-    fn to_u32(&self) -> u32 {
+    fn to_i32(&self) -> i32 {
         match self {
             Band::_5GHZ => 0,
             Band::_24GHZ => 1,
@@ -263,7 +225,7 @@ impl Enum for Band {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub enum Duplex {
     HALF,
     #[default]
@@ -291,14 +253,14 @@ impl ToString for Duplex {
 }
 
 impl Enum for Duplex {
-    fn from_u32(num: u32) -> Self {
+    fn from_i32(num: i32) -> Self {
         match num {
             0 => Duplex::HALF,
             _ => Duplex::FULL,
         }
     }
 
-    fn to_u32(&self) -> u32 {
+    fn to_i32(&self) -> i32 {
         match self {
             Duplex::HALF => 0,
             Duplex::FULL => 1,
@@ -313,10 +275,20 @@ pub enum TypeSettings {
     VPN(VPNSettings),
 }
 
-#[derive(Debug)]
+impl ToString for TypeSettings {
+    fn to_string(&self) -> String {
+        match self {
+            TypeSettings::WIFI(_) => String::from("wifi"),
+            TypeSettings::ETHERNET(_) => String::from("ethernet"),
+            TypeSettings::VPN(_) => String::from("vpn"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct EthernetSettings {
     auto_negotiate: bool,
-    duplex: EnumWrapper<Duplex>,
+    duplex: Duplex,
     mtu: u32,
     name: String,
     speed: u32,
@@ -325,12 +297,12 @@ struct EthernetSettings {
 impl FromPropmap for EthernetSettings {
     fn from_propmap(map: PropMap) -> Self {
         let auto_negotiate: Option<&bool> = prop_cast(&map, "auto-negotiate");
-        let duplex: EnumWrapper<Duplex>;
+        let duplex: Duplex;
         let duplex_opt: Option<&String> = prop_cast(&map, "mode");
         if duplex_opt.is_none() {
-            duplex = EnumWrapper(Duplex::FULL);
+            duplex = Duplex::FULL;
         } else {
-            duplex = EnumWrapper(Duplex::from_str(duplex_opt.unwrap().as_str()).ok().unwrap());
+            duplex = Duplex::from_str(duplex_opt.unwrap().as_str()).ok().unwrap();
         }
         let mtu: Option<&u32> = prop_cast(&map, "mtu");
         let name: String;
@@ -351,7 +323,7 @@ impl FromPropmap for EthernetSettings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct VPNSettings {
     data: HashMap<String, String>,
     name: String,
@@ -414,11 +386,11 @@ impl FromPropmap for VPNSettings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct WifiSettings {
-    band: EnumWrapper<Band>,
+    band: Band,
     channel: u32,
-    mode: EnumWrapper<Mode>,
+    mode: Mode,
     mtu: u32,
     powersave: u32,
     rate: u32,
@@ -427,25 +399,25 @@ struct WifiSettings {
 
 impl FromPropmap for WifiSettings {
     fn from_propmap(map: PropMap) -> Self {
-            println!("wifi debug");
-        for (key, val ) in map.iter() {
+        println!("wifi debug");
+        for (key, val) in map.iter() {
             dbg!(key);
             dbg!(val);
         }
-        let mode: EnumWrapper<Mode>;
-        let band: EnumWrapper<Band>;
+        let mode: Mode;
+        let band: Band;
         let mode_opt: Option<&String> = prop_cast(&map, "mode");
         if mode_opt.is_none() {
-            mode = EnumWrapper(Mode::from_str("").ok().unwrap());
+            mode = Mode::from_str("").ok().unwrap();
         } else {
-            mode = EnumWrapper(Mode::from_str(mode_opt.unwrap().as_str()).ok().unwrap());
+            mode = Mode::from_str(mode_opt.unwrap().as_str()).ok().unwrap();
         }
         let channel = prop_cast(&map, "channel");
         let band_opt: Option<&String> = prop_cast(&map, "band");
         if band_opt.is_none() {
-            band = EnumWrapper(Band::from_str("").ok().unwrap());
+            band = Band::from_str("").ok().unwrap();
         } else {
-            band = EnumWrapper(Band::from_str(band_opt.unwrap().as_str()).ok().unwrap());
+            band = Band::from_str(band_opt.unwrap().as_str()).ok().unwrap();
         }
         let mtu = prop_cast(&map, "mtu");
         let powersave = prop_cast(&map, "powersave");
@@ -485,8 +457,8 @@ struct X802Settings {
 
 impl FromPropmap for X802Settings {
     fn from_propmap(map: PropMap) -> Self {
-            println!("x802 debug");
-        for (key, val ) in map.iter() {
+        println!("x802 debug");
+        for (key, val) in map.iter() {
             dbg!(key);
             dbg!(val);
         }
@@ -570,31 +542,321 @@ impl FromPropmap for X802Settings {
 }
 
 #[derive(Debug)]
-struct IPV4Settings {}
+struct Address {
+    address: String,
+    prefix_length: u32,
+}
 
-impl FromPropmap for IPV4Settings {
-    fn from_propmap(map: PropMap) -> Self {
-            println!("ipv4 debug");
-        for (key, val ) in map.iter() {
-            dbg!(key);
-            dbg!(val);
+#[derive(Debug, Default)]
+enum DNSMethod {
+    #[default]
+    AUTO,
+    MANUAL,
+    LINKLOCAL,
+    SHARED,
+    DISABLED,
+}
+
+impl FromStr for DNSMethod {
+    type Err = ConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "auto" => Ok(DNSMethod::AUTO),
+            "manual" => Ok(DNSMethod::MANUAL),
+            "link-local" => Ok(DNSMethod::LINKLOCAL),
+            "shared" => Ok(DNSMethod::SHARED),
+            _ => Ok(DNSMethod::DISABLED),
         }
-        Self {}
+    }
+}
+
+impl ToString for DNSMethod {
+    fn to_string(&self) -> String {
+        match self {
+            DNSMethod::AUTO => String::from("auto"),
+            DNSMethod::MANUAL => String::from("manual"),
+            DNSMethod::LINKLOCAL => String::from("link-local"),
+            DNSMethod::SHARED => String::from("shared"),
+            DNSMethod::DISABLED => String::from("disabled"),
+        }
+    }
+}
+
+impl Enum for DNSMethod {
+    fn from_i32(num: i32) -> Self {
+        match num {
+            0 => DNSMethod::AUTO,
+            1 => DNSMethod::MANUAL,
+            2 => DNSMethod::LINKLOCAL,
+            3 => DNSMethod::SHARED,
+            _ => DNSMethod::DISABLED,
+        }
+    }
+
+    fn to_i32(&self) -> i32 {
+        match self {
+            DNSMethod::AUTO => 0,
+            DNSMethod::MANUAL => 1,
+            DNSMethod::LINKLOCAL => 2,
+            DNSMethod::SHARED => 3,
+            DNSMethod::DISABLED => 4,
+        }
     }
 }
 
 #[derive(Debug)]
-struct IPV6Settings {}
+struct IPV4Settings {
+    address_data: Vec<Address>,
+    dns: Vec<Vec<u8>>,
+    dns_options: Vec<String>,
+    dns_priority: i32,
+    dns_search: Vec<String>,
+    gateway: String,
+    ignore_auto_dns: bool,
+    ignore_auto_dns_routes: bool,
+    may_fail: bool,
+    dns_method: DNSMethod,
+    never_default: bool,
+    route_data: Vec<Address>,
+}
 
-impl FromPropmap for IPV6Settings {
+impl FromPropmap for IPV4Settings {
     fn from_propmap(map: PropMap) -> Self {
-            println!("ipv6 debug");
-        for (key, val ) in map.iter() {
+        println!("ipv4 debug");
+        for (key, val) in map.iter() {
             dbg!(key);
             dbg!(val);
         }
-        Self {}
+        let address_data = get_addresses(&map, "address-data");
+        let dns: Vec<Vec<u8>>;
+        let dns_opt: Option<&Vec<Vec<u8>>> = prop_cast(&map, "dns");
+        if dns_opt.is_none() {
+            dns = Vec::new();
+        } else {
+            dns = dns_opt.unwrap().clone();
+        }
+        let dns_options: Vec<String>;
+        let dns_options_opt: Option<&Vec<String>> = prop_cast(&map, "dns-options");
+        if dns_options_opt.is_none() {
+            dns_options = Vec::new();
+        } else {
+            dns_options = dns_options_opt.unwrap().clone();
+        }
+        let dns_priority = *prop_cast(&map, "dns-priority").unwrap_or_else(|| &0);
+        let dns_search: Vec<String>;
+        let dns_search_opt: Option<&Vec<String>> = prop_cast(&map, "dns-search");
+        if dns_search_opt.is_none() {
+            dns_search = Vec::new();
+        } else {
+            dns_search = dns_search_opt.unwrap().clone();
+        }
+        let gateway: String;
+        let gateway_opt: Option<&String> = prop_cast(&map, "gateway");
+        if gateway_opt.is_none() {
+            gateway = String::from("");
+        } else {
+            gateway = gateway_opt.unwrap().clone();
+        }
+        let ignore_auto_dns = *prop_cast(&map, "ignore-auto-dns").unwrap_or_else(|| &false);
+        let ignore_auto_dns_routes =
+            *prop_cast(&map, "ignore-auto-dns-routes").unwrap_or_else(|| &false);
+        let may_fail = *prop_cast(&map, "may-fail").unwrap_or_else(|| &true);
+        let dns_method: DNSMethod;
+        let method_opt: Option<&String> = prop_cast(&map, "method");
+        if method_opt.is_none() {
+            dns_method = DNSMethod::DISABLED;
+        } else {
+            dns_method = DNSMethod::from_str(method_opt.unwrap().as_str()).unwrap();
+        }
+        let never_default = *prop_cast(&map, "never-default").unwrap_or_else(|| &true);
+        let route_data = get_addresses(&map, "route-data");
+        Self {
+            address_data,
+            dns,
+            dns_options,
+            dns_priority,
+            dns_search,
+            gateway,
+            ignore_auto_dns,
+            ignore_auto_dns_routes,
+            may_fail,
+            dns_method,
+            never_default,
+            route_data,
+        }
     }
+}
+
+#[derive(Debug, Default)]
+enum IPV6PrivacyMode {
+    DISABLED,
+    ENABLEDPEFERPUBLIC,
+    ENABLEDPEFERTEMPORARY,
+    #[default]
+    UNKNOWN,
+}
+
+impl FromStr for IPV6PrivacyMode {
+    type Err = ConversionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "disabled" => Ok(IPV6PrivacyMode::DISABLED),
+            "enabled-prefer-public" => Ok(IPV6PrivacyMode::ENABLEDPEFERPUBLIC),
+            "enabled-prefer-temporary" => Ok(IPV6PrivacyMode::ENABLEDPEFERTEMPORARY),
+            _ => Ok(IPV6PrivacyMode::UNKNOWN),
+        }
+    }
+}
+
+impl ToString for IPV6PrivacyMode {
+    fn to_string(&self) -> String {
+        match self {
+            IPV6PrivacyMode::UNKNOWN => String::from("unknown"),
+            IPV6PrivacyMode::DISABLED => String::from("disabled"),
+            IPV6PrivacyMode::ENABLEDPEFERPUBLIC => String::from("enabled-prefer-public"),
+            IPV6PrivacyMode::ENABLEDPEFERTEMPORARY => String::from("enabled-prefer-temporary"),
+        }
+    }
+}
+
+impl Enum for IPV6PrivacyMode {
+    fn from_i32(num: i32) -> Self {
+        match num {
+            -1 => IPV6PrivacyMode::UNKNOWN,
+            0 => IPV6PrivacyMode::DISABLED,
+            1 => IPV6PrivacyMode::ENABLEDPEFERPUBLIC,
+            _ => IPV6PrivacyMode::ENABLEDPEFERTEMPORARY,
+        }
+    }
+
+    fn to_i32(&self) -> i32 {
+        match self {
+            IPV6PrivacyMode::UNKNOWN => -1,
+            IPV6PrivacyMode::DISABLED => 0,
+            IPV6PrivacyMode::ENABLEDPEFERPUBLIC => 1,
+            IPV6PrivacyMode::ENABLEDPEFERTEMPORARY => 2,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct IPV6Settings {
+    address_data: Vec<Address>,
+    dns: Vec<Vec<u8>>,
+    dns_options: Vec<String>,
+    dns_priority: i32,
+    dns_search: Vec<String>,
+    gateway: String,
+    ignore_auto_dns: bool,
+    ignore_auto_dns_routes: bool,
+    ipv6_privacy: IPV6PrivacyMode,
+    may_fail: bool,
+    dns_method: DNSMethod,
+    never_default: bool,
+    route_data: Vec<Address>,
+}
+
+impl FromPropmap for IPV6Settings {
+    fn from_propmap(map: PropMap) -> Self {
+        println!("ipv6 debug");
+        for (key, val) in map.iter() {
+            dbg!(key);
+            dbg!(val);
+        }
+        let address_data = get_addresses(&map, "address-data");
+        let dns: Vec<Vec<u8>>;
+        let dns_opt: Option<&Vec<Vec<u8>>> = prop_cast(&map, "dns");
+        if dns_opt.is_none() {
+            dns = Vec::new();
+        } else {
+            dns = dns_opt.unwrap().clone();
+        }
+        let dns_options: Vec<String>;
+        let dns_options_opt: Option<&Vec<String>> = prop_cast(&map, "dns-options");
+        if dns_options_opt.is_none() {
+            dns_options = Vec::new();
+        } else {
+            dns_options = dns_options_opt.unwrap().clone();
+        }
+        let dns_priority = *prop_cast(&map, "dns-priority").unwrap_or_else(|| &0);
+        let dns_search: Vec<String>;
+        let dns_search_opt: Option<&Vec<String>> = prop_cast(&map, "dns-search");
+        if dns_search_opt.is_none() {
+            dns_search = Vec::new();
+        } else {
+            dns_search = dns_search_opt.unwrap().clone();
+        }
+        let gateway: String;
+        let gateway_opt: Option<&String> = prop_cast(&map, "gateway");
+        if gateway_opt.is_none() {
+            gateway = String::from("");
+        } else {
+            gateway = gateway_opt.unwrap().clone();
+        }
+        let ignore_auto_dns = *prop_cast(&map, "ignore-auto-dns").unwrap_or_else(|| &false);
+        let ignore_auto_dns_routes =
+            *prop_cast(&map, "ignore-auto-dns-routes").unwrap_or_else(|| &false);
+        let ipv6_privacy =
+            IPV6PrivacyMode::from_i32(*prop_cast(&map, "ip6-privacy").unwrap_or_else(|| &-1));
+        let may_fail = *prop_cast(&map, "may-fail").unwrap_or_else(|| &true);
+        let dns_method: DNSMethod;
+        let method_opt: Option<&String> = prop_cast(&map, "method");
+        if method_opt.is_none() {
+            dns_method = DNSMethod::DISABLED;
+        } else {
+            dns_method = DNSMethod::from_str(method_opt.unwrap().as_str()).unwrap();
+        }
+        let never_default = *prop_cast(&map, "never-default").unwrap_or_else(|| &true);
+        let route_data = get_addresses(&map, "route-data");
+        Self {
+            address_data,
+            dns,
+            dns_options,
+            dns_priority,
+            dns_search,
+            gateway,
+            ignore_auto_dns,
+            ignore_auto_dns_routes,
+            ipv6_privacy,
+            may_fail,
+            dns_method,
+            never_default,
+            route_data,
+        }
+    }
+}
+
+fn get_addresses(map: &PropMap, address_type: &'static str) -> Vec<Address> {
+    let mut address_data: Vec<Address> = Vec::new();
+    let address_data_opt: Option<&Vec<PropMap>> = prop_cast(map, address_type);
+    if address_data_opt.is_some() {
+        for entry in address_data_opt.unwrap() {
+            let address: String;
+            let prefix_length: u32;
+            let address_opt = entry.get("address");
+            let prefix_length_opt = entry.get("prefix");
+            if address_data_opt.is_none() {
+                address = String::from("");
+            } else {
+                address = arg::cast::<String>(address_opt.unwrap()).unwrap().clone();
+            }
+            if prefix_length_opt.is_none() {
+                prefix_length = 0;
+            } else {
+                prefix_length = arg::cast::<u32>(prefix_length_opt.unwrap())
+                    .unwrap()
+                    .clone();
+            }
+
+            address_data.push(Address {
+                address,
+                prefix_length,
+            })
+        }
+    }
+    address_data
 }
 
 #[derive(Debug)]
@@ -605,13 +867,13 @@ struct ConnectionSettings {
     name: String,
     device_type: String,
     uuid: String,
-    zone: EnumWrapper<Trust>,
+    zone: Trust,
 }
 
 impl FromPropmap for ConnectionSettings {
     fn from_propmap(map: PropMap) -> Self {
-            println!("settings debug");
-        for (key, val ) in map.iter() {
+        println!("settings debug");
+        for (key, val) in map.iter() {
             dbg!(key);
             dbg!(val);
         }
@@ -621,12 +883,12 @@ impl FromPropmap for ConnectionSettings {
         let name: String;
         let device_type: String;
         let metered = prop_cast(&map, "metered");
-        let zone: EnumWrapper<Trust>;
+        let zone: Trust;
         let zone_opt: Option<&String> = prop_cast(&map, "trust");
         if zone_opt.is_none() {
-            zone = EnumWrapper(Trust::from_str("").ok().unwrap());
+            zone = Trust::from_str("").ok().unwrap();
         } else {
-            zone = EnumWrapper(Trust::from_str(zone_opt.unwrap().as_str()).ok().unwrap());
+            zone = Trust::from_str(zone_opt.unwrap().as_str()).ok().unwrap();
         }
 
         let uuid_opt: Option<&String> = prop_cast(&map, "uuid");
