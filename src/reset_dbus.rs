@@ -1,5 +1,4 @@
 use std::{
-    cell::Cell,
     collections::HashMap,
     future::{self},
     sync::{atomic::AtomicBool, Arc, Mutex},
@@ -14,7 +13,8 @@ use tokio;
 use crate::{
     audio::audio::InputStream,
     network::network::{
-        get_connection_settings, set_connection_settings, start_listener, stop_listener,
+        get_connection_settings, list_connections, set_connection_settings, start_listener,
+        stop_listener,
     },
 };
 
@@ -192,13 +192,22 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
+        c.method("ListConnections", (), ("result",), move |_, _, ()| {
+            let res = list_connections();
+            Ok((res,))
+        });
         c.method(
             "GetConnectionSettings",
             ("path",),
             ("result",),
             move |_, _, (path,): (Path<'static>,)| {
                 let res = get_connection_settings(path);
-                Ok((res,))
+                if res.is_err() {
+                    return Err(dbus::MethodErr::invalid_arg(
+                        "Could not get settings for this connection.",
+                    ));
+                }
+                Ok(res.unwrap())
             },
         );
         c.method(

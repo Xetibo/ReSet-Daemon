@@ -1,7 +1,7 @@
 use core::fmt;
 use std::{
     collections::HashMap,
-    str,
+    str::{self, FromStr},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -11,7 +11,7 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
+    arg::{self, prop_cast, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
     Path, Signature,
@@ -253,7 +253,30 @@ pub fn get_device_type(path: String) -> DeviceType {
     DeviceType::from_u32(result)
 }
 
-pub fn get_connection_settings(path: Path<'static>) -> HashMap<String, PropMap> {
+pub fn list_connections() -> Vec<Path<'static>> {
+    let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
+        "org.freedesktop.NetworkManager",
+        "/org/freedesktop/NetworkManager/Settings".into(),
+        "ListConnections",
+        "org.freedesktop.NetworkManager.Settings",
+        (),
+        1000,
+    );
+    let (result,): (Vec<Path<'static>>,) = result.unwrap();
+    result
+}
+
+pub fn get_connection_settings(
+    path: Path<'static>,
+) -> Result<
+    (
+        HashMap<
+            std::string::String,
+            HashMap<std::string::String, dbus::arg::Variant<Box<dyn RefArg>>>,
+        >,
+    ),
+    dbus::Error,
+> {
     let result = call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
         path,
@@ -262,10 +285,6 @@ pub fn get_connection_settings(path: Path<'static>) -> HashMap<String, PropMap> 
         (),
         1000,
     );
-    let (result,): (HashMap<String, PropMap>,) = result.unwrap();
-    for entry in result.iter() {
-        dbg!(entry);
-    }
     result
 }
 
@@ -287,7 +306,11 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
 pub fn set_password(path: Path<'static>, password: String) {
     // yes this will be encrypted later
     let password = Box::new(password) as Box<dyn RefArg>;
-    let mut settings = get_connection_settings(path.clone());
+    let res = get_connection_settings(path.clone());
+    if res.is_err() {
+        return;
+    }
+    let (mut settings,) = res.unwrap();
     settings
         .get_mut("802-11-wireless-security")
         .unwrap()
@@ -393,7 +416,11 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
     let (result,) = result.unwrap();
     let mut wifi_connections = Vec::new();
     for connection in result {
-        let settings = get_connection_settings(connection.clone());
+        let res = get_connection_settings(connection.clone());
+        if res.is_err() {
+            continue;
+        }
+        let (settings,) = res.unwrap();
         let settings = settings.get("802-11-wireless");
         if settings.is_some() {
             let settings = settings.unwrap();
