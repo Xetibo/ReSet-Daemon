@@ -1,13 +1,10 @@
-// TODO
-// alright this entire convert then send doesn't work properly, hence offer the conversion as an
-// option after sending or receiving -> sending maps works, sending this conveluted structure does
-// not !!! -> create from and to propmap thats it
 use std::{collections::HashMap, str::FromStr};
 
-use dbus::arg::{self, prop_cast, PropMap};
+use dbus::arg::{self, prop_cast, PropMap, Variant};
 
-pub trait FromPropmap: Sized {
+pub trait PropMapConvert: Sized {
     fn from_propmap(map: PropMap) -> Self;
+    fn to_propmap(&self, map: &mut PropMap);
 }
 
 pub trait Enum: Sized {
@@ -32,7 +29,7 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn convert(map: HashMap<String, PropMap>) -> Result<Self, ConversionError> {
+    pub fn convert_from_propmap(map: HashMap<String, PropMap>) -> Result<Self, ConversionError> {
         let mut settings: Option<ConnectionSettings> = None;
         // let mut x802: Option<X802Settings> = None;
         let mut device: Option<TypeSettings> = None;
@@ -73,6 +70,19 @@ impl Connection {
             ipv4,
             ipv6,
         })
+    }
+
+    pub fn convert_to_propmap(&self) -> PropMap {
+        let mut map = PropMap::new();
+        self.settings.to_propmap(&mut map);
+        match &self.device {
+            TypeSettings::WIFI(wifi) => wifi.to_propmap(&mut map),
+            TypeSettings::ETHERNET(ethernet) => ethernet.to_propmap(&mut map),
+            TypeSettings::VPN(vpn) => vpn.to_propmap(&mut map),
+        }
+        self.ipv4.to_propmap(&mut map);
+        self.ipv6.to_propmap(&mut map);
+        map
     }
 }
 
@@ -294,7 +304,7 @@ struct EthernetSettings {
     speed: u32,
 }
 
-impl FromPropmap for EthernetSettings {
+impl PropMapConvert for EthernetSettings {
     fn from_propmap(map: PropMap) -> Self {
         let auto_negotiate: Option<&bool> = prop_cast(&map, "auto-negotiate");
         let duplex: Duplex;
@@ -321,6 +331,17 @@ impl FromPropmap for EthernetSettings {
             speed: *speed.unwrap_or_else(|| &0),
         }
     }
+
+    fn to_propmap(&self, map: &mut PropMap) {
+        map.insert(
+            "auto-negotiate".into(),
+            Variant(Box::new(self.auto_negotiate)),
+        );
+        map.insert("duplex".into(), Variant(Box::new(self.duplex.to_i32())));
+        map.insert("mtu".into(), Variant(Box::new(self.mtu)));
+        map.insert("name".into(), Variant(Box::new(self.name.clone())));
+        map.insert("speed".into(), Variant(Box::new(self.speed)));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -334,7 +355,7 @@ struct VPNSettings {
     user_name: String,
 }
 
-impl FromPropmap for VPNSettings {
+impl PropMapConvert for VPNSettings {
     fn from_propmap(map: PropMap) -> Self {
         let data: HashMap<String, String>;
         let name: String;
@@ -384,6 +405,22 @@ impl FromPropmap for VPNSettings {
             user_name,
         }
     }
+
+    fn to_propmap(&self, map: &mut PropMap) {
+        map.insert("data".into(), Variant(Box::new(self.data.clone())));
+        map.insert("name".into(), Variant(Box::new(self.name.clone())));
+        map.insert("persistent".into(), Variant(Box::new(self.persistent)));
+        map.insert("secrets".into(), Variant(Box::new(self.secrets.clone())));
+        map.insert(
+            "service-type".into(),
+            Variant(Box::new(self.service_type.clone())),
+        );
+        map.insert("timeout".into(), Variant(Box::new(self.timeout)));
+        map.insert(
+            "user-name".into(),
+            Variant(Box::new(self.user_name.clone())),
+        );
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -397,7 +434,7 @@ struct WifiSettings {
     ssid: Vec<u8>,
 }
 
-impl FromPropmap for WifiSettings {
+impl PropMapConvert for WifiSettings {
     fn from_propmap(map: PropMap) -> Self {
         println!("wifi debug");
         for (key, val) in map.iter() {
@@ -439,6 +476,16 @@ impl FromPropmap for WifiSettings {
             ssid,
         }
     }
+
+    fn to_propmap(&self, map: &mut PropMap) {
+        map.insert("band".into(), Variant(Box::new(self.band.to_i32())));
+        map.insert("channel".into(), Variant(Box::new(self.channel)));
+        map.insert("mode".into(), Variant(Box::new(self.mode.to_i32())));
+        map.insert("mtu".into(), Variant(Box::new(self.mtu)));
+        map.insert("powersave".into(), Variant(Box::new(self.powersave)));
+        map.insert("rate".into(), Variant(Box::new(self.rate)));
+        map.insert("ssid".into(), Variant(Box::new(self.ssid.clone())));
+    }
 }
 
 #[derive(Debug)]
@@ -455,96 +502,108 @@ struct X802Settings {
     password_raw_flags: Vec<u8>,
 }
 
-impl FromPropmap for X802Settings {
-    fn from_propmap(map: PropMap) -> Self {
-        println!("x802 debug");
-        for (key, val) in map.iter() {
-            dbg!(key);
-            dbg!(val);
-        }
-        let ca_cert: Vec<u8>;
-        let ca_cert_string: String;
-        let client_cert: Vec<u8>;
-        let domain_suffix: String;
-        let eap: Vec<String>;
-        let identity: String;
-        let pac_file: String;
-        let password: String;
-        let password_raw_flags: Vec<u8>;
-        let password_flags = prop_cast(&map, "password-flags");
-        let ca_cert_opt: Option<&Vec<u8>> = prop_cast(&map, "ca-cert");
-        if ca_cert_opt.is_none() {
-            ca_cert = Vec::new();
-        } else {
-            ca_cert = ca_cert_opt.unwrap().clone();
-        }
-        let ca_cert_string_opt: Option<&String> = prop_cast(&map, "ca-cert-string");
-        if ca_cert_string_opt.is_none() {
-            ca_cert_string = String::new();
-        } else {
-            ca_cert_string = ca_cert_string_opt.unwrap().clone();
-        }
-        let client_cert_opt: Option<&Vec<u8>> = prop_cast(&map, "client-cert");
-        if client_cert_opt.is_none() {
-            client_cert = Vec::new();
-        } else {
-            client_cert = client_cert_opt.unwrap().clone();
-        }
-        let domain_suffix_opt: Option<&String> = prop_cast(&map, "domain-suffix");
-        if domain_suffix_opt.is_none() {
-            domain_suffix = String::from("");
-        } else {
-            domain_suffix = domain_suffix_opt.unwrap().clone();
-        }
-        let eap_opt: Option<&Vec<String>> = prop_cast(&map, "eap");
-        if eap_opt.is_none() {
-            eap = Vec::new();
-        } else {
-            eap = eap_opt.unwrap().clone();
-        }
-        let identity_opt: Option<&String> = prop_cast(&map, "identity");
-        if identity_opt.is_none() {
-            identity = String::from("");
-        } else {
-            identity = identity_opt.unwrap().clone();
-        }
-        let pac_file_opt: Option<&String> = prop_cast(&map, "pac-file");
-        if pac_file_opt.is_none() {
-            pac_file = String::from("");
-        } else {
-            pac_file = pac_file_opt.unwrap().clone();
-        }
-        let password_opt: Option<&String> = prop_cast(&map, "password");
-        if password_opt.is_none() {
-            password = String::from("");
-        } else {
-            password = password_opt.unwrap().clone();
-        }
-        let password_raw_flags_opt: Option<&Vec<u8>> = prop_cast(&map, "password-raw-flags");
-        if password_raw_flags_opt.is_none() {
-            password_raw_flags = Vec::new();
-        } else {
-            password_raw_flags = password_raw_flags_opt.unwrap().clone();
-        }
-        Self {
-            ca_cert,
-            ca_cert_string,
-            client_cert,
-            domain_suffix,
-            eap,
-            identity,
-            pac_file,
-            password,
-            password_flags: *password_flags.unwrap_or_else(|| &0),
-            password_raw_flags,
-        }
-    }
-}
+// impl PropMapConvert for X802Settings {
+//     fn from_propmap(map: PropMap) -> Self {
+//         println!("x802 debug");
+//         for (key, val) in map.iter() {
+//             dbg!(key);
+//             dbg!(val);
+//         }
+//         let ca_cert: Vec<u8>;
+//         let ca_cert_string: String;
+//         let client_cert: Vec<u8>;
+//         let domain_suffix: String;
+//         let eap: Vec<String>;
+//         let identity: String;
+//         let pac_file: String;
+//         let password: String;
+//         let password_raw_flags: Vec<u8>;
+//         let password_flags = prop_cast(&map, "password-flags");
+//         let ca_cert_opt: Option<&Vec<u8>> = prop_cast(&map, "ca-cert");
+//         if ca_cert_opt.is_none() {
+//             ca_cert = Vec::new();
+//         } else {
+//             ca_cert = ca_cert_opt.unwrap().clone();
+//         }
+//         let ca_cert_string_opt: Option<&String> = prop_cast(&map, "ca-cert-string");
+//         if ca_cert_string_opt.is_none() {
+//             ca_cert_string = String::new();
+//         } else {
+//             ca_cert_string = ca_cert_string_opt.unwrap().clone();
+//         }
+//         let client_cert_opt: Option<&Vec<u8>> = prop_cast(&map, "client-cert");
+//         if client_cert_opt.is_none() {
+//             client_cert = Vec::new();
+//         } else {
+//             client_cert = client_cert_opt.unwrap().clone();
+//         }
+//         let domain_suffix_opt: Option<&String> = prop_cast(&map, "domain-suffix");
+//         if domain_suffix_opt.is_none() {
+//             domain_suffix = String::from("");
+//         } else {
+//             domain_suffix = domain_suffix_opt.unwrap().clone();
+//         }
+//         let eap_opt: Option<&Vec<String>> = prop_cast(&map, "eap");
+//         if eap_opt.is_none() {
+//             eap = Vec::new();
+//         } else {
+//             eap = eap_opt.unwrap().clone();
+//         }
+//         let identity_opt: Option<&String> = prop_cast(&map, "identity");
+//         if identity_opt.is_none() {
+//             identity = String::from("");
+//         } else {
+//             identity = identity_opt.unwrap().clone();
+//         }
+//         let pac_file_opt: Option<&String> = prop_cast(&map, "pac-file");
+//         if pac_file_opt.is_none() {
+//             pac_file = String::from("");
+//         } else {
+//             pac_file = pac_file_opt.unwrap().clone();
+//         }
+//         let password_opt: Option<&String> = prop_cast(&map, "password");
+//         if password_opt.is_none() {
+//             password = String::from("");
+//         } else {
+//             password = password_opt.unwrap().clone();
+//         }
+//         let password_raw_flags_opt: Option<&Vec<u8>> = prop_cast(&map, "password-raw-flags");
+//         if password_raw_flags_opt.is_none() {
+//             password_raw_flags = Vec::new();
+//         } else {
+//             password_raw_flags = password_raw_flags_opt.unwrap().clone();
+//         }
+//         Self {
+//             ca_cert,
+//             ca_cert_string,
+//             client_cert,
+//             domain_suffix,
+//             eap,
+//             identity,
+//             pac_file,
+//             password,
+//             password_flags: *password_flags.unwrap_or_else(|| &0),
+//             password_raw_flags,
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 struct Address {
     address: String,
     prefix_length: u32,
+}
+
+impl Address {
+    pub fn to_map(&self) -> PropMap {
+        let mut map = PropMap::new();
+        map.insert("address".into(), Variant(Box::new(self.address.clone())));
+        map.insert(
+            "prefix-length".into(),
+            Variant(Box::new(self.prefix_length)),
+        );
+        map
+    }
 }
 
 #[derive(Debug, Default)]
@@ -621,7 +680,7 @@ struct IPV4Settings {
     route_data: Vec<Address>,
 }
 
-impl FromPropmap for IPV4Settings {
+impl PropMapConvert for IPV4Settings {
     fn from_propmap(map: PropMap) -> Self {
         println!("ipv4 debug");
         for (key, val) in map.iter() {
@@ -685,6 +744,47 @@ impl FromPropmap for IPV4Settings {
             never_default,
             route_data,
         }
+    }
+
+    fn to_propmap(&self, map: &mut PropMap) {
+        let mut addresses = Vec::new();
+        for address in self.address_data.iter() {
+            addresses.push(address.to_map());
+        }
+        map.insert("address-data".into(), Variant(Box::new(addresses)));
+        map.insert("dns".into(), Variant(Box::new(self.dns.clone())));
+        map.insert(
+            "dns-options".into(),
+            Variant(Box::new(self.dns_options.clone())),
+        );
+        map.insert("dns-priority".into(), Variant(Box::new(self.dns_priority)));
+        map.insert(
+            "dns-search".into(),
+            Variant(Box::new(self.dns_search.clone())),
+        );
+        map.insert("gateway".into(), Variant(Box::new(self.gateway.clone())));
+        map.insert(
+            "ignore-auto-dns".into(),
+            Variant(Box::new(self.ignore_auto_dns)),
+        );
+        map.insert(
+            "ignore-auto-dns-routes".into(),
+            Variant(Box::new(self.ignore_auto_dns_routes)),
+        );
+        map.insert("may-fail".into(), Variant(Box::new(self.may_fail)));
+        map.insert(
+            "dns-method".into(),
+            Variant(Box::new(self.dns_method.to_i32())),
+        );
+        map.insert(
+            "never-default".into(),
+            Variant(Box::new(self.never_default)),
+        );
+        let mut data = Vec::new();
+        for address in self.address_data.iter() {
+            data.push(address.to_map());
+        }
+        map.insert("route-data".into(), Variant(Box::new(data)));
     }
 }
 
@@ -758,7 +858,7 @@ struct IPV6Settings {
     route_data: Vec<Address>,
 }
 
-impl FromPropmap for IPV6Settings {
+impl PropMapConvert for IPV6Settings {
     fn from_propmap(map: PropMap) -> Self {
         println!("ipv6 debug");
         for (key, val) in map.iter() {
@@ -826,6 +926,51 @@ impl FromPropmap for IPV6Settings {
             route_data,
         }
     }
+
+    fn to_propmap(&self, map: &mut PropMap) {
+        let mut addresses = Vec::new();
+        for address in self.address_data.iter() {
+            addresses.push(address.to_map());
+        }
+        map.insert("address-data".into(), Variant(Box::new(addresses)));
+        map.insert("dns".into(), Variant(Box::new(self.dns.clone())));
+        map.insert(
+            "dns-options".into(),
+            Variant(Box::new(self.dns_options.clone())),
+        );
+        map.insert("dns-priority".into(), Variant(Box::new(self.dns_priority)));
+        map.insert(
+            "dns-search".into(),
+            Variant(Box::new(self.dns_search.clone())),
+        );
+        map.insert("gateway".into(), Variant(Box::new(self.gateway.clone())));
+        map.insert(
+            "ignore-auto-dns".into(),
+            Variant(Box::new(self.ignore_auto_dns)),
+        );
+        map.insert(
+            "ignore-auto-dns-routes".into(),
+            Variant(Box::new(self.ignore_auto_dns_routes)),
+        );
+        map.insert(
+            "ipv6-privacy".into(),
+            Variant(Box::new(self.ipv6_privacy.to_i32())),
+        );
+        map.insert("may-fail".into(), Variant(Box::new(self.may_fail)));
+        map.insert(
+            "dns-method".into(),
+            Variant(Box::new(self.dns_method.to_i32())),
+        );
+        map.insert(
+            "never-default".into(),
+            Variant(Box::new(self.never_default)),
+        );
+        let mut data = Vec::new();
+        for address in self.address_data.iter() {
+            data.push(address.to_map());
+        }
+        map.insert("route-data".into(), Variant(Box::new(data)));
+    }
 }
 
 fn get_addresses(map: &PropMap, address_type: &'static str) -> Vec<Address> {
@@ -870,7 +1015,7 @@ struct ConnectionSettings {
     zone: Trust,
 }
 
-impl FromPropmap for ConnectionSettings {
+impl PropMapConvert for ConnectionSettings {
     fn from_propmap(map: PropMap) -> Self {
         println!("settings debug");
         for (key, val) in map.iter() {
@@ -918,5 +1063,21 @@ impl FromPropmap for ConnectionSettings {
             uuid,
             zone,
         }
+    }
+
+    fn to_propmap(&self, map: &mut PropMap) {
+        map.insert("autoconnect".into(), Variant(Box::new(self.autoconnect)));
+        map.insert(
+            "autoconnect-priority".into(),
+            Variant(Box::new(self.autoconnect_priority)),
+        );
+        map.insert("metered".into(), Variant(Box::new(self.metered)));
+        map.insert("name".into(), Variant(Box::new(self.name.clone())));
+        map.insert(
+            "device-type".into(),
+            Variant(Box::new(self.device_type.clone())),
+        );
+        map.insert("uuid".into(), Variant(Box::new(self.uuid.clone())));
+        map.insert("zone".into(), Variant(Box::new(self.zone.to_i32())));
     }
 }
