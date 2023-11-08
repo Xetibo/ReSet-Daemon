@@ -1,7 +1,5 @@
-use core::fmt;
 use std::{
     collections::HashMap,
-    str::{self, FromStr},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -11,114 +9,17 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, prop_cast, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
+    arg::{self, PropMap, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
-    Path, Signature,
+    Path,
+};
+use ReSet_Lib::network::{
+    network::{AccessPoint, ConnectionError, DeviceType},
+    network_signals::{AccessPointAdded, AccessPointRemoved},
 };
 
 use crate::utils::{call_system_dbus_method, get_system_dbus_property};
-
-use super::network_signals::{AccessPointAdded, AccessPointRemoved};
-
-#[derive(Debug, Clone)]
-pub struct Error {
-    pub message: &'static str,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ConnectionError {
-    method: &'static str,
-}
-
-impl fmt::Display for ConnectionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Could not {} Access Point.", self.method)
-    }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum DeviceType {
-    UNKNOWN,
-    GENERIC = 1,
-    WIFI = 2,
-    BT = 5,
-    DUMMY = 22,
-    OTHER,
-}
-
-impl DeviceType {
-    fn from_u32(num: u32) -> Self {
-        match num {
-            0 => DeviceType::UNKNOWN,
-            1 => DeviceType::GENERIC,
-            2 => DeviceType::WIFI,
-            5 => DeviceType::BT,
-            22 => DeviceType::DUMMY,
-            _ => DeviceType::OTHER,
-        }
-    }
-    fn _to_u32(&self) -> u32 {
-        match self {
-            DeviceType::UNKNOWN => 0,
-            DeviceType::GENERIC => 1,
-            DeviceType::WIFI => 2,
-            DeviceType::BT => 5,
-            DeviceType::DUMMY => 22,
-            DeviceType::OTHER => 90,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AccessPoint {
-    pub ssid: Vec<u8>,
-    pub strength: u8,
-    pub associated_connection: Path<'static>,
-    pub dbus_path: Path<'static>,
-}
-
-impl Append for AccessPoint {
-    fn append_by_ref(&self, iter: &mut arg::IterAppend) {
-        iter.append_struct(|i| {
-            let sig = unsafe { Signature::from_slice_unchecked("y\0") };
-            i.append_array(&sig, |i| {
-                for byte in self.ssid.iter() {
-                    i.append(byte);
-                }
-            });
-            i.append(&self.strength);
-            i.append(&self.associated_connection);
-            i.append(&self.dbus_path);
-        });
-    }
-}
-
-impl<'a> Get<'a> for AccessPoint {
-    fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (ssid, strength, associated_connection, dbus_path) =
-            <(Vec<u8>, u8, Path<'static>, Path<'static>)>::get(i)?;
-        Some(AccessPoint {
-            ssid,
-            strength,
-            associated_connection,
-            dbus_path,
-        })
-    }
-}
-
-impl Arg for AccessPoint {
-    const ARG_TYPE: arg::ArgType = ArgType::Struct;
-    fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(ayyoo)\0") }
-    }
-}
 
 #[derive(Debug)]
 pub struct Device {
@@ -305,6 +206,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
 
 pub fn set_password(path: Path<'static>, password: String) {
     // yes this will be encrypted later
+    // TODO encrypt
     let password = Box::new(password) as Box<dyn RefArg>;
     let res = get_connection_settings(path.clone());
     if res.is_err() {
@@ -473,8 +375,14 @@ impl Device {
         );
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
+        let mut known_points = HashMap::new();
         for label in result {
-            access_points.push(get_access_point_properties(label));
+            let access_point = get_access_point_properties(label);
+            if known_points.get(&access_point.ssid).is_some() {
+                continue;
+            }
+            known_points.insert(access_point.ssid.clone(), 0);
+            access_points.push(access_point);
         }
         access_points
     }
