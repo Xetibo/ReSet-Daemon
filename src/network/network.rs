@@ -1,7 +1,5 @@
-use core::fmt;
 use std::{
     collections::HashMap,
-    str::{self, FromStr},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -11,118 +9,21 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, prop_cast, Append, Arg, ArgType, Get, PropMap, RefArg, Variant},
+    arg::{self, PropMap, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
-    Path, Signature,
+    Path,
+};
+use ReSet_Lib::network::{
+    network::{AccessPoint, ConnectionError, DeviceType},
+    network_signals::{AccessPointAdded, AccessPointRemoved},
 };
 
 use crate::utils::{call_system_dbus_method, get_system_dbus_property};
 
-use super::network_signals::{AccessPointAdded, AccessPointRemoved};
-
-#[derive(Debug, Clone)]
-pub struct Error {
-    pub message: &'static str,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ConnectionError {
-    method: &'static str,
-}
-
-impl fmt::Display for ConnectionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Could not {} Access Point.", self.method)
-    }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum DeviceType {
-    UNKNOWN,
-    GENERIC = 1,
-    WIFI = 2,
-    BT = 5,
-    DUMMY = 22,
-    OTHER,
-}
-
-impl DeviceType {
-    fn from_u32(num: u32) -> Self {
-        match num {
-            0 => DeviceType::UNKNOWN,
-            1 => DeviceType::GENERIC,
-            2 => DeviceType::WIFI,
-            5 => DeviceType::BT,
-            22 => DeviceType::DUMMY,
-            _ => DeviceType::OTHER,
-        }
-    }
-    fn _to_u32(&self) -> u32 {
-        match self {
-            DeviceType::UNKNOWN => 0,
-            DeviceType::GENERIC => 1,
-            DeviceType::WIFI => 2,
-            DeviceType::BT => 5,
-            DeviceType::DUMMY => 22,
-            DeviceType::OTHER => 90,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AccessPoint {
-    pub ssid: Vec<u8>,
-    pub strength: u8,
-    pub associated_connection: Path<'static>,
-    pub dbus_path: Path<'static>,
-}
-
-impl Append for AccessPoint {
-    fn append_by_ref(&self, iter: &mut arg::IterAppend) {
-        iter.append_struct(|i| {
-            let sig = unsafe { Signature::from_slice_unchecked("y\0") };
-            i.append_array(&sig, |i| {
-                for byte in self.ssid.iter() {
-                    i.append(byte);
-                }
-            });
-            i.append(&self.strength);
-            i.append(&self.associated_connection);
-            i.append(&self.dbus_path);
-        });
-    }
-}
-
-impl<'a> Get<'a> for AccessPoint {
-    fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let (ssid, strength, associated_connection, dbus_path) =
-            <(Vec<u8>, u8, Path<'static>, Path<'static>)>::get(i)?;
-        Some(AccessPoint {
-            ssid,
-            strength,
-            associated_connection,
-            dbus_path,
-        })
-    }
-}
-
-impl Arg for AccessPoint {
-    const ARG_TYPE: arg::ArgType = ArgType::Struct;
-    fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(ayyoo)\0") }
-    }
-}
-
 #[derive(Debug)]
 pub struct Device {
-    pub access_point: Option<AccessPoint>,
+    pub access_point: Path<'static>,
     pub connection: Option<Path<'static>>,
     pub dbus_path: Path<'static>,
     pub connected: bool,
@@ -144,7 +45,7 @@ impl Clone for Device {
 impl Device {
     pub fn from_path(path: Path<'static>) -> Self {
         Self {
-            access_point: None,
+            access_point: Path::from("/"),
             connection: None,
             dbus_path: path,
             connected: false,
@@ -173,7 +74,7 @@ pub fn start_listener(
         let _: Result<(), dbus::Error> = proxy.method_call(
             "org.xetibo.ReSet",
             "AddAccessPointEvent",
-            (get_access_point_properties(ir.access_point),),
+            (get_access_point_properties(None, ir.access_point),),
         );
         true
     });
@@ -305,6 +206,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
 
 pub fn set_password(path: Path<'static>, password: String) {
     // yes this will be encrypted later
+    // TODO encrypt
     let password = Box::new(password) as Box<dyn RefArg>;
     let res = get_connection_settings(path.clone());
     if res.is_err() {
@@ -339,7 +241,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
     // result
 }
 
-pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
+pub fn get_access_point_properties(device: Option<&Device>, path: Path<'static>) -> AccessPoint {
     let interface = "org.freedesktop.NetworkManager.AccessPoint";
     let conn = Connection::new_system().unwrap();
     let proxy = conn.with_proxy(
@@ -360,11 +262,19 @@ pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
     if associated_connection.is_none() {
         associated_connection = Some(Path::from("/"));
     }
+    let connected: bool;
+    if device.is_none() {
+        connected = false;
+    } else {
+        connected = true;
+    }
     AccessPoint {
         ssid,
         strength,
         associated_connection: associated_connection.unwrap(),
         dbus_path: path,
+        connected,
+        stored: false,
     }
 }
 
@@ -397,7 +307,7 @@ pub fn get_associations_of_active_connection(
     let connection_type: String = proxy.get(interface, "Type").unwrap();
     let access_point: Option<AccessPoint>;
     if connection_type == "802-11-wireless" {
-        access_point = Some(get_access_point_properties(access_point_prop));
+        access_point = Some(get_access_point_properties(None, access_point_prop));
     } else {
         access_point = None;
     }
@@ -454,9 +364,15 @@ impl Device {
         let connections = get_active_connections();
         for connection in connections {
             let (devices, access_point) = get_associations_of_active_connection(connection.clone());
+            let path: Path<'static>;
+            if access_point.is_some() {
+                path = access_point.unwrap().dbus_path;
+            } else {
+                path = Path::from("/");
+            }
             if devices.contains(&self.dbus_path) {
                 self.connection = Some(connection);
-                self.access_point = access_point;
+                self.access_point = path;
                 self.connected = true;
             }
         }
@@ -473,8 +389,14 @@ impl Device {
         );
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
+        let mut known_points = HashMap::new();
         for label in result {
-            access_points.push(get_access_point_properties(label));
+            let access_point = get_access_point_properties(Some(&self), label);
+            if known_points.get(&access_point.ssid).is_some() {
+                continue;
+            }
+            known_points.insert(access_point.ssid.clone(), 0);
+            access_points.push(access_point);
         }
         access_points
     }
@@ -489,7 +411,7 @@ impl Device {
         );
         use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
         let access_point: Path<'static> = proxy.get(interface, "ActiveAccessPoint").unwrap();
-        self.access_point = Some(get_access_point_properties(access_point))
+        self.access_point = get_access_point_properties(Some(&self), access_point).dbus_path;
     }
 
     pub fn connect_to_access_point(
@@ -518,8 +440,14 @@ impl Device {
         }
         let (result,) = result.unwrap();
         let connection = get_associations_of_active_connection(result.clone());
+        let path: Path<'static>;
+        if connection.1.is_some() {
+            path = connection.1.unwrap().dbus_path;
+        } else {
+            path = Path::from("/");
+        }
         self.connection = Some(result);
-        self.access_point = connection.1;
+        self.access_point = path;
         self.connected = true;
         Ok(())
     }
@@ -555,7 +483,7 @@ impl Device {
             let result = result.unwrap();
             (self.connection, self.access_point) = (
                 Some(result.1),
-                Some(get_access_point_properties(access_point.dbus_path)),
+                get_access_point_properties(Some(&self), access_point.dbus_path).dbus_path,
             );
             return Ok(());
         }
@@ -573,7 +501,7 @@ impl Device {
                 });
             }
             self.connected = false;
-            self.access_point = None;
+            self.access_point = Path::from("/");
             self.connection = None;
         }
         Ok(())
