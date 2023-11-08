@@ -151,7 +151,11 @@ pub async fn run_daemon() {
             "ListAccessPoints",
             (),
             ("access_points",),
-            move |_, d: &mut DaemonData, ()| Ok((d.current_n_device.get_access_points(),)),
+            move |_, d: &mut DaemonData, ()| {
+                let access_points = d.current_n_device.get_access_points();
+                dbg!(access_points.clone());
+                Ok((access_points,))
+            },
         );
         c.method(
             "ConnectToKnownAccessPoint",

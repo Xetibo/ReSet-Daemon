@@ -74,7 +74,7 @@ pub fn start_listener(
         let _: Result<(), dbus::Error> = proxy.method_call(
             "org.xetibo.ReSet",
             "AddAccessPointEvent",
-            (get_access_point_properties(None, ir.access_point),),
+            (get_access_point_properties(false, ir.access_point),),
         );
         true
     });
@@ -241,7 +241,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
     // result
 }
 
-pub fn get_access_point_properties(device: Option<&Device>, path: Path<'static>) -> AccessPoint {
+pub fn get_access_point_properties(connected: bool, path: Path<'static>) -> AccessPoint {
     let interface = "org.freedesktop.NetworkManager.AccessPoint";
     let conn = Connection::new_system().unwrap();
     let proxy = conn.with_proxy(
@@ -250,8 +250,8 @@ pub fn get_access_point_properties(device: Option<&Device>, path: Path<'static>)
         Duration::from_millis(1000),
     );
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
-    let ssid: Vec<u8> = proxy.get(interface, "Ssid").unwrap();
-    let strength: u8 = proxy.get(interface, "Strength").unwrap();
+    let ssid: Vec<u8> = proxy.get(interface, "Ssid").unwrap_or_else(|_| Vec::new());
+    let strength: u8 = proxy.get(interface, "Strength").unwrap_or_else(|_| 130);
     let mut associated_connection: Option<Path<'static>> = None;
     let connections = get_stored_connections();
     for (connection, connection_ssid) in connections {
@@ -261,12 +261,6 @@ pub fn get_access_point_properties(device: Option<&Device>, path: Path<'static>)
     }
     if associated_connection.is_none() {
         associated_connection = Some(Path::from("/"));
-    }
-    let connected: bool;
-    if device.is_none() {
-        connected = false;
-    } else {
-        connected = true;
     }
     AccessPoint {
         ssid,
@@ -307,7 +301,7 @@ pub fn get_associations_of_active_connection(
     let connection_type: String = proxy.get(interface, "Type").unwrap();
     let access_point: Option<AccessPoint>;
     if connection_type == "802-11-wireless" {
-        access_point = Some(get_access_point_properties(None, access_point_prop));
+        access_point = Some(get_access_point_properties(true, access_point_prop));
     } else {
         access_point = None;
     }
@@ -391,7 +385,7 @@ impl Device {
         let mut access_points = Vec::new();
         let mut known_points = HashMap::new();
         for label in result {
-            let access_point = get_access_point_properties(Some(&self), label);
+            let access_point = get_access_point_properties(false, label);
             if known_points.get(&access_point.ssid).is_some() {
                 continue;
             }
@@ -411,7 +405,7 @@ impl Device {
         );
         use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
         let access_point: Path<'static> = proxy.get(interface, "ActiveAccessPoint").unwrap();
-        self.access_point = get_access_point_properties(Some(&self), access_point).dbus_path;
+        self.access_point = get_access_point_properties(true, access_point).dbus_path;
     }
 
     pub fn connect_to_access_point(
@@ -483,7 +477,7 @@ impl Device {
             let result = result.unwrap();
             (self.connection, self.access_point) = (
                 Some(result.1),
-                get_access_point_properties(Some(&self), access_point.dbus_path).dbus_path,
+                get_access_point_properties(true, access_point.dbus_path).dbus_path,
             );
             return Ok(());
         }
