@@ -11,7 +11,7 @@ use dbus::{
 };
 use ReSet_Lib::bluetooth::{
     bluetooth::BluetoothDevice,
-    bluetooth_signals::{InterfaceRemovedSignal, InterfacesAddedSignal},
+    bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
 };
 
 use crate::utils::{call_system_dbus_method, set_system_dbus_property};
@@ -159,10 +159,10 @@ impl BluetoothInterface {
         let path = self.current_adapter.path.clone();
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
-        let mr = InterfacesAddedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
+        let mr = BluetoothDeviceAdded::match_rule(Some(&"org.bluez".into()), None).static_clone();
         let mrb =
-            InterfaceRemovedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
-        let res = conn.add_match(mr, move |ir: InterfacesAddedSignal, _, _| {
+            BluetoothDeviceRemoved::match_rule(Some(&"org.bluez".into()), None).static_clone();
+        let res = conn.add_match(mr, move |ir: BluetoothDeviceAdded, _, _| {
             let device = convert_device(&ir.object, &ir.interfaces);
             if device.is_some() {
                 let device = device.unwrap();
@@ -183,7 +183,7 @@ impl BluetoothInterface {
                 "Failed to match signal on bluez.",
             ));
         }
-        let res = conn.add_match(mrb, move |ir: InterfaceRemovedSignal, _, _| {
+        let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
             let conn = Connection::new_session().unwrap();
             let proxy = conn.with_proxy(
                 "org.xetibo.ReSet",
