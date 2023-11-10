@@ -4,79 +4,17 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, Append, Arg, ArgType, Get, RefArg, Variant},
+    arg::{self, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
-    Path, Signature,
+    Path,
+};
+use ReSet_Lib::bluetooth::{
+    bluetooth::BluetoothDevice,
+    bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
 };
 
-use super::bluez_signals::{InterfaceRemovedSignal, InterfacesAddedSignal};
-
 use crate::utils::{call_system_dbus_method, set_system_dbus_property};
-
-#[derive(Debug, Clone)]
-pub struct BluetoothDevice {
-    path: Path<'static>,
-    rssi: i16,
-    name: String,
-    adapter: Path<'static>,
-    trusted: bool,
-    bonded: bool,
-    paired: bool,
-    blocked: bool,
-    address: String,
-}
-
-unsafe impl Send for BluetoothDevice {}
-unsafe impl Sync for BluetoothDevice {}
-
-impl<'a> Get<'a> for BluetoothDevice {
-    fn get(i: &mut arg::Iter<'a>) -> Option<Self> {
-        let path = <Path<'static>>::get(i)?;
-        let rssi = <i16>::get(i)?;
-        let name = <String>::get(i)?;
-        let adapter = <Path<'static>>::get(i)?;
-        let trusted = <bool>::get(i)?;
-        let bonded = <bool>::get(i)?;
-        let paired = <bool>::get(i)?;
-        let blocked = <bool>::get(i)?;
-        let address = <String>::get(i)?;
-        Some(BluetoothDevice {
-            path,
-            rssi,
-            name,
-            adapter,
-            trusted,
-            bonded,
-            paired,
-            blocked,
-            address,
-        })
-    }
-}
-
-impl Append for BluetoothDevice {
-    fn append_by_ref(&self, iter: &mut arg::IterAppend) {
-        iter.append_struct(|i| {
-            i.append(&self.path);
-            i.append(&self.rssi);
-            i.append(&self.name);
-            i.append(&self.adapter);
-            i.append(&self.trusted);
-            i.append(&self.bonded);
-            i.append(&self.paired);
-            i.append(&self.blocked);
-            i.append(&self.address);
-        });
-    }
-}
-
-impl Arg for BluetoothDevice {
-    const ARG_TYPE: arg::ArgType = ArgType::Struct;
-    fn signature() -> Signature<'static> {
-        unsafe { Signature::from_slice_unchecked("(nsobbbbs)\0") }
-    }
-}
 
 #[derive(Debug, Clone)]
 struct BluetoothAdapter {
@@ -221,10 +159,10 @@ impl BluetoothInterface {
         let path = self.current_adapter.path.clone();
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
-        let mr = InterfacesAddedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
+        let mr = BluetoothDeviceAdded::match_rule(Some(&"org.bluez".into()), None).static_clone();
         let mrb =
-            InterfaceRemovedSignal::match_rule(Some(&"org.bluez".into()), None).static_clone();
-        let res = conn.add_match(mr, move |ir: InterfacesAddedSignal, _, _| {
+            BluetoothDeviceRemoved::match_rule(Some(&"org.bluez".into()), None).static_clone();
+        let res = conn.add_match(mr, move |ir: BluetoothDeviceAdded, _, _| {
             let device = convert_device(&ir.object, &ir.interfaces);
             if device.is_some() {
                 let device = device.unwrap();
@@ -245,7 +183,7 @@ impl BluetoothInterface {
                 "Failed to match signal on bluez.",
             ));
         }
-        let res = conn.add_match(mrb, move |ir: InterfaceRemovedSignal, _, _| {
+        let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
             let conn = Connection::new_session().unwrap();
             let proxy = conn.with_proxy(
                 "org.xetibo.ReSet",

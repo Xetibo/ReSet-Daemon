@@ -9,24 +9,23 @@ use dbus::{arg::PropMap, channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use tokio;
-
-use crate::{
-    audio::audio::InputStream,
-    network::network::{
-        get_connection_settings, list_connections, set_connection_settings, start_listener,
-        stop_listener,
-    },
+use ReSet_Lib::{
+    audio::audio::{InputStream, OutputStream, Sink, Source},
+    bluetooth::bluetooth::BluetoothDevice,
+    network::network::{AccessPoint, Error},
 };
 
-use super::{
-    audio::audio::{OutputStream, Sink, Source},
-    bluetooth::bluetooth::{BluetoothDevice, BluetoothInterface},
+use crate::network::network::{
+    get_connection_settings, list_connections, set_connection_settings, start_listener,
+    stop_listener,
 };
+
+use super::bluetooth::bluetooth::BluetoothInterface;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use super::{
     audio::audio::PulseServer,
-    network::network::{get_wifi_devices, AccessPoint, Device, Error},
+    network::network::{get_wifi_devices, Device},
 };
 
 pub enum AudioRequest {
@@ -152,7 +151,11 @@ pub async fn run_daemon() {
             "ListAccessPoints",
             (),
             ("access_points",),
-            move |_, d: &mut DaemonData, ()| Ok((d.current_n_device.get_access_points(),)),
+            move |_, d: &mut DaemonData, ()| {
+                let access_points = d.current_n_device.get_access_points();
+                dbg!(access_points.clone());
+                Ok((access_points,))
+            },
         );
         c.method(
             "ConnectToKnownAccessPoint",
