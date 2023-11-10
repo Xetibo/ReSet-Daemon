@@ -1,3 +1,7 @@
+mod audio;
+mod network;
+mod bluetooth;
+
 use std::{
     collections::HashMap,
     future::{self},
@@ -15,18 +19,16 @@ use ReSet_Lib::{
     network::network::{AccessPoint, Error},
 };
 
-use crate::network::network::{
-    get_connection_settings, list_connections, set_connection_settings, start_listener,
-    stop_listener,
-};
+// use crate::network::network::{
+    // get_connection_settings, list_connections, set_connection_settings, start_listener,
+    // stop_listener,
+// };
 
-use super::bluetooth::bluetooth::BluetoothInterface;
+// use bluetooth::bluetooth::BluetoothInterface;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use super::{
-    audio::audio::PulseServer,
-    network::network::{get_wifi_devices, Device},
-};
+use crate::{network::network::{Device, get_wifi_devices, list_connections, get_connection_settings, set_connection_settings, start_listener, stop_listener}, bluetooth::bluetooth::BluetoothInterface, audio::audio::PulseServer};
+
 
 pub enum AudioRequest {
     ListSources,

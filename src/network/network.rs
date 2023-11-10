@@ -14,12 +14,11 @@ use dbus::{
     message::SignalArgs,
     Path,
 };
-use ReSet_Lib::network::{
+use ReSet_Lib::{network::{
     network::{AccessPoint, ConnectionError, DeviceType},
     network_signals::{AccessPointAdded, AccessPointRemoved},
-};
+}, utils::{call_system_dbus_method, get_system_dbus_property}};
 
-use crate::utils::{call_system_dbus_method, get_system_dbus_property};
 
 #[derive(Debug)]
 pub struct Device {

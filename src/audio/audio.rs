@@ -12,7 +12,7 @@ use pulse::{
 };
 use ReSet_Lib::audio::audio::{InputStream, OutputStream, Sink, Source};
 
-use crate::reset_dbus::{AudioRequest, AudioResponse};
+use crate::{AudioRequest, AudioResponse};
 
 pub struct PulseServer {
     mainloop: Rc<RefCell<Mainloop>>,
