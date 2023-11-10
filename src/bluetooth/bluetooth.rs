@@ -9,12 +9,11 @@ use dbus::{
     message::SignalArgs,
     Path,
 };
-use ReSet_Lib::bluetooth::{
+use ReSet_Lib::{bluetooth::{
     bluetooth::BluetoothDevice,
     bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
-};
+}, utils::{call_system_dbus_method, set_system_dbus_property}};
 
-use crate::utils::{call_system_dbus_method, set_system_dbus_property};
 
 #[derive(Debug, Clone)]
 struct BluetoothAdapter {
