@@ -23,7 +23,7 @@ use crate::utils::{call_system_dbus_method, get_system_dbus_property};
 
 #[derive(Debug)]
 pub struct Device {
-    pub access_point: Path<'static>,
+    pub access_point: Option<AccessPoint>,
     pub connection: Option<Path<'static>>,
     pub dbus_path: Path<'static>,
     pub connected: bool,
@@ -45,7 +45,7 @@ impl Clone for Device {
 impl Device {
     pub fn from_path(path: Path<'static>) -> Self {
         Self {
-            access_point: Path::from("/"),
+            access_point: None,
             connection: None,
             dbus_path: path,
             connected: false,
@@ -254,9 +254,12 @@ pub fn get_access_point_properties(connected: bool, path: Path<'static>) -> Acce
     let strength: u8 = proxy.get(interface, "Strength").unwrap_or_else(|_| 130);
     let mut associated_connection: Option<Path<'static>> = None;
     let connections = get_stored_connections();
+    let mut stored: bool = false;
     for (connection, connection_ssid) in connections {
         if ssid == connection_ssid {
             associated_connection = Some(connection);
+            stored = true;
+            break;
         }
     }
     if associated_connection.is_none() {
@@ -268,7 +271,7 @@ pub fn get_access_point_properties(connected: bool, path: Path<'static>) -> Acce
         associated_connection: associated_connection.unwrap(),
         dbus_path: path,
         connected,
-        stored: false,
+        stored,
     }
 }
 
@@ -358,15 +361,9 @@ impl Device {
         let connections = get_active_connections();
         for connection in connections {
             let (devices, access_point) = get_associations_of_active_connection(connection.clone());
-            let path: Path<'static>;
-            if access_point.is_some() {
-                path = access_point.unwrap().dbus_path;
-            } else {
-                path = Path::from("/");
-            }
             if devices.contains(&self.dbus_path) {
                 self.connection = Some(connection);
-                self.access_point = path;
+                self.access_point = access_point;
                 self.connected = true;
             }
         }
@@ -384,6 +381,11 @@ impl Device {
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
         let mut known_points = HashMap::new();
+        if self.access_point.is_some() {
+            let connected_access_point = self.access_point.clone().unwrap();
+            known_points.insert(connected_access_point.ssid.clone(), 0);
+            access_points.push(connected_access_point);
+        }
         for label in result {
             let access_point = get_access_point_properties(false, label);
             if known_points.get(&access_point.ssid).is_some() {
@@ -405,7 +407,7 @@ impl Device {
         );
         use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
         let access_point: Path<'static> = proxy.get(interface, "ActiveAccessPoint").unwrap();
-        self.access_point = get_access_point_properties(true, access_point).dbus_path;
+        self.access_point = Some(get_access_point_properties(true, access_point));
     }
 
     pub fn connect_to_access_point(
@@ -434,14 +436,8 @@ impl Device {
         }
         let (result,) = result.unwrap();
         let connection = get_associations_of_active_connection(result.clone());
-        let path: Path<'static>;
-        if connection.1.is_some() {
-            path = connection.1.unwrap().dbus_path;
-        } else {
-            path = Path::from("/");
-        }
         self.connection = Some(result);
-        self.access_point = path;
+        self.access_point = connection.1;
         self.connected = true;
         Ok(())
     }
@@ -477,7 +473,7 @@ impl Device {
             let result = result.unwrap();
             (self.connection, self.access_point) = (
                 Some(result.1),
-                get_access_point_properties(true, access_point.dbus_path).dbus_path,
+                Some(get_access_point_properties(true, access_point.dbus_path)),
             );
             return Ok(());
         }
@@ -495,7 +491,7 @@ impl Device {
                 });
             }
             self.connected = false;
-            self.access_point = Path::from("/");
+            self.access_point = None;
             self.connection = None;
         }
         Ok(())
