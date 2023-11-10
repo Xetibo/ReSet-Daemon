@@ -1,10 +1,10 @@
 mod audio;
 mod network;
 mod bluetooth;
-mod reset_dbus;
+mod lib;
 mod utils;
 
-use reset_dbus::run_daemon;
+use lib::run_daemon;
 
 #[tokio::main]
 pub async fn main() {
