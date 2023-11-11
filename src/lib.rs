@@ -150,12 +150,19 @@ pub async fn run_daemon() {
             .signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",))
             .msg_fn();
         c.method(
+            "Check",
+            (),
+            ("result",),
+            move |_, _ , ()| {
+                Ok((true,))
+            },
+        );
+        c.method(
             "ListAccessPoints",
             (),
             ("access_points",),
             move |_, d: &mut DaemonData, ()| {
                 let access_points = d.current_n_device.get_access_points();
-                dbg!(access_points.clone());
                 Ok((access_points,))
             },
         );
