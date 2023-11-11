@@ -489,21 +489,28 @@ impl Device {
         );
         if result.is_ok() {
             let (path, connection) = result.unwrap();
-            thread::sleep(Duration::from_millis(2000));
-            let res = get_system_dbus_property::<(), u32>(
-                "org.freedesktop.NetworkManager",
-                connection.clone(),
-                "org.freedesktop.NetworkManager.Connection.Active",
-                "State",
-            );
-            if res.is_err() {
-                dbg!(res);
+            let mut result = 1;
+            while result == 1 {
+                let res = get_system_dbus_property::<(), u32>(
+                    "org.freedesktop.NetworkManager",
+                    connection.clone(),
+                    "org.freedesktop.NetworkManager.Connection.Active",
+                    "State",
+                );
+                if res.is_err() {
+                    dbg!(res);
+                    return Err(ConnectionError {
+                        method: "Password was wrong",
+                    });
+                }
+                result = res.unwrap();
+            }
+            if result != 2 {
+                dbg!(result);
                 return Err(ConnectionError {
                     method: "Password was wrong",
                 });
             }
-            let res = res.unwrap();
-            dbg!(res);
             (self.connection, self.access_point) = (
                 Some(connection),
                 Some(get_access_point_properties(true, path)),
