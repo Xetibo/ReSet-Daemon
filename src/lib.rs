@@ -1,6 +1,6 @@
 mod audio;
-mod network;
 mod bluetooth;
+mod network;
 
 use std::{
     collections::HashMap,
@@ -17,18 +17,25 @@ use ReSet_Lib::{
     audio::audio::{InputStream, OutputStream, Sink, Source},
     bluetooth::bluetooth::BluetoothDevice,
     network::network::{AccessPoint, Error},
+    utils::call_system_dbus_method,
 };
 
 // use crate::network::network::{
-    // get_connection_settings, list_connections, set_connection_settings, start_listener,
-    // stop_listener,
+// get_connection_settings, list_connections, set_connection_settings, start_listener,
+// stop_listener,
 // };
 
 // use bluetooth::bluetooth::BluetoothInterface;
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use crate::{network::network::{Device, get_wifi_devices, list_connections, get_connection_settings, set_connection_settings, start_listener, stop_listener}, bluetooth::bluetooth::BluetoothInterface, audio::audio::PulseServer};
-
+use crate::{
+    audio::audio::PulseServer,
+    bluetooth::bluetooth::BluetoothInterface,
+    network::network::{
+        get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
+        set_connection_settings, start_listener, stop_listener, Device,
+    },
+};
 
 pub enum AudioRequest {
     ListSources,
@@ -149,14 +156,7 @@ pub async fn run_daemon() {
         let access_point_removed = c
             .signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",))
             .msg_fn();
-        c.method(
-            "Check",
-            (),
-            ("result",),
-            move |_, _ , ()| {
-                Ok((true,))
-            },
-        );
+        c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
         c.method(
             "ListAccessPoints",
             (),
@@ -208,6 +208,10 @@ pub async fn run_daemon() {
             let res = list_connections();
             Ok((res,))
         });
+        c.method("ListStoredConnections", (), ("result",), move |_, _, ()| {
+            let res = get_stored_connections();
+            Ok((res,))
+        });
         c.method(
             "GetConnectionSettings",
             ("path",),
@@ -228,6 +232,26 @@ pub async fn run_daemon() {
             ("result",),
             move |_, _, (path, settings): (Path<'static>, HashMap<String, PropMap>)| {
                 Ok((set_connection_settings(path, settings),))
+            },
+        );
+        c.method(
+            "DeleteConnection",
+            ("path",),
+            ("result",),
+            move |_, _, (path,): (Path<'static>,)| {
+                println!("called delete");
+                let res = call_system_dbus_method::<(), ()>(
+                    "org.freedesktop.NetworkManager",
+                    path,
+                    "Delete",
+                    "org.freedesktop.NetworkManager.Settings.Connection",
+                    (),
+                    1000,
+                );
+                if res.is_err() {
+                    return Ok((false,));
+                }
+                Ok((true,))
             },
         );
         c.method_with_cr_async(

@@ -343,6 +343,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
             wifi_connections.push((connection, ssid));
         }
     }
+    dbg!(wifi_connections.clone());
     wifi_connections
 }
 
