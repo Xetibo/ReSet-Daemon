@@ -638,7 +638,8 @@ pub async fn run_daemon() {
             ("access_point",),
             (),
             move |mut ctx, _, access_point: (AccessPoint,)| {
-                access_point_added(ctx.path(), &access_point);
+                let access_point = access_point_added(ctx.path(), &access_point);
+                ctx.push_msg(access_point);
                 println!("added access point");
                 async move { ctx.reply(Ok(())) }
             },
@@ -648,7 +649,8 @@ pub async fn run_daemon() {
             ("path",),
             (),
             move |mut ctx, _, path: (Path<'static>,)| {
-                access_point_removed(ctx.path(), &path);
+                let path = access_point_removed(ctx.path(), &path);
+                ctx.push_msg(path);
                 println!("removed access point");
                 async move { ctx.reply(Ok(())) }
             },
@@ -658,7 +660,8 @@ pub async fn run_daemon() {
             ("device",),
             (),
             move |mut ctx, _, (device,): (BluetoothDevice,)| {
-                bluetooth_device_added(ctx.path(), &(device,));
+                let device = bluetooth_device_added(ctx.path(), &(device,));
+                ctx.push_msg(device);
                 println!("added bluetooth device");
                 async move { ctx.reply(Ok(())) }
             },
@@ -668,7 +671,8 @@ pub async fn run_daemon() {
             ("path",),
             (),
             move |mut ctx, _, (path,): (Path<'static>,)| {
-                bluetooth_device_removed(ctx.path(), &(path,));
+                let path = bluetooth_device_removed(ctx.path(), &(path,));
+                ctx.push_msg(path);
                 println!("removed bluetooth device");
                 async move { ctx.reply(Ok(())) }
             },
