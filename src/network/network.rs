@@ -12,13 +12,45 @@ use dbus::{
     arg::{self, PropMap, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
-    Path,
+    Message, Path,
 };
-use ReSet_Lib::{network::{
-    network::{AccessPoint, ConnectionError, DeviceType},
-    network_signals::{AccessPointAdded, AccessPointRemoved},
-}, utils::{call_system_dbus_method, get_system_dbus_property}};
+use ReSet_Lib::{
+    network::{
+        network::{AccessPoint, ConnectionError, DeviceType},
+        network_signals::{AccessPointAdded, AccessPointRemoved},
+    },
+    utils::{call_system_dbus_method, get_system_dbus_property},
+};
 
+#[derive(Debug)]
+pub struct AccessPointChanged {
+    pub interface: String,
+    pub map: PropMap,
+    pub invalid: Vec<String>,
+}
+
+impl arg::AppendAll for AccessPointChanged {
+    fn append(&self, i: &mut arg::IterAppend) {
+        arg::RefArg::append(&self.interface, i);
+        arg::RefArg::append(&self.map, i);
+        arg::RefArg::append(&self.invalid, i);
+    }
+}
+
+impl arg::ReadAll for AccessPointChanged {
+    fn read(i: &mut arg::Iter) -> Result<Self, arg::TypeMismatchError> {
+        Ok(AccessPointChanged {
+            interface: i.read()?,
+            map: i.read()?,
+            invalid: i.read()?,
+        })
+    }
+}
+
+impl dbus::message::SignalArgs for AccessPointChanged {
+    const NAME: &'static str = "PropertiesChanged";
+    const INTERFACE: &'static str = "org.freedesktop.DBus.Properties.PropertiesChanged";
+}
 
 #[derive(Debug)]
 pub struct Device {
@@ -53,6 +85,7 @@ impl Device {
     }
 }
 pub fn start_listener(
+    access_points: Vec<AccessPoint>,
     path: Path<'static>,
     active_listener: Arc<AtomicBool>,
 ) -> Result<(), dbus::Error> {
@@ -63,7 +96,63 @@ pub fn start_listener(
     let mrb =
         AccessPointRemoved::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
             .static_clone();
-    let res = conn.add_match(mr, move |ir: AccessPointAdded, _, _| {
+    // for access_point in access_points {
+    let access_point_changed = AccessPointChanged::match_rule(
+        Some(&"org.freedesktop.NetworkManager.AccessPoint".into()),
+        // Some(&access_point.dbus_path),
+        None,
+    )
+    .static_clone();
+    let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
+        println!("got some changed event");
+        dbg!(ir.interface.clone());
+        match ir.interface.as_str() {
+            "org.freedesktop.NetworkManager.AccessPoint" => {
+                let conn = Connection::new_session().unwrap();
+                let proxy = conn.with_proxy(
+                    "org.xetibo.ReSet",
+                    "/org/xetibo/ReSet",
+                    Duration::from_millis(1000),
+                );
+                let _: Result<(), dbus::Error> =
+                    proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
+            }
+            _ => (),
+        }
+        true
+    });
+    if res.is_err() {
+        return Err(dbus::Error::new_custom(
+            "SignalMatchFailed",
+            "Failed to match signal on NetworkManager.",
+        ));
+    }
+    // }
+    let res = conn.add_match(mr, move |ir: AccessPointAdded, conn, _| {
+        // let access_point_changed = AccessPointChanged::match_rule(
+        //     Some(&"org.freedesktop.NetworkManager.AccessPoint".into()),
+        //     Some(&ir.access_point.clone()),
+        // )
+        // .static_clone();
+        // let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
+        //     match ir.interface.as_str() {
+        //         "org.freedesktop.NetworkManager.AccessPoint" => {
+        //             let conn = Connection::new_session().unwrap();
+        //             let proxy = conn.with_proxy(
+        //                 "org.xetibo.ReSet",
+        //                 "/org/xetibo/ReSet",
+        //                 Duration::from_millis(1000),
+        //             );
+        //             let _: Result<(), dbus::Error> =
+        //                 proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
+        //         }
+        //         _ => (),
+        //     }
+        //     true
+        // });
+        // if res.is_err() {
+        //     return false;
+        // }
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy(
             "org.xetibo.ReSet",
@@ -83,7 +172,8 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    let res = conn.add_match(mrb, move |ir: AccessPointRemoved, _, _| {
+    let res = conn.add_match(mrb, move |ir: AccessPointRemoved, conn, _| {
+        // conn.remove_match(id)
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy(
             "org.xetibo.ReSet",
@@ -93,7 +183,7 @@ pub fn start_listener(
         let _: Result<(), dbus::Error> = proxy.method_call(
             "org.xetibo.ReSet",
             "RemoveAccessPointEvent",
-            (ir.access_point,),
+            (get_access_point_properties(false, ir.access_point),),
         );
         true
     });
@@ -298,9 +388,15 @@ pub fn get_associations_of_active_connection(
         Duration::from_millis(1000),
     );
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
-    let devices: Vec<Path<'static>> = proxy.get(interface, "Devices").unwrap();
-    let access_point_prop: Path<'static> = proxy.get(interface, "SpecificObject").unwrap();
-    let connection_type: String = proxy.get(interface, "Type").unwrap();
+    let devices: Vec<Path<'static>> = proxy
+        .get(interface, "Devices")
+        .unwrap_or_else(|_| Vec::new());
+    let access_point_prop: Path<'static> = proxy
+        .get(interface, "SpecificObject")
+        .unwrap_or_else(|_| Path::from("/"));
+    let connection_type: String = proxy
+        .get(interface, "Type")
+        .unwrap_or_else(|_| String::from(""));
     let access_point: Option<AccessPoint>;
     if connection_type == "802-11-wireless" {
         access_point = Some(get_access_point_properties(true, access_point_prop));
@@ -335,6 +431,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
             wifi_connections.push((connection, ssid));
         }
     }
+    dbg!(wifi_connections.clone());
     wifi_connections
 }
 
@@ -434,6 +531,17 @@ impl Device {
             });
         }
         let (result,) = result.unwrap();
+        let res = get_system_dbus_property::<(), (u32,)>(
+            "org.freedesktop.NetworkManager",
+            result.clone(),
+            "org.freedesktop.NetworkManager.Connection.Active",
+            "state",
+        );
+        if res.is_err() {
+            return Err(ConnectionError {
+                method: "connect to",
+            });
+        }
         let connection = get_associations_of_active_connection(result.clone());
         self.connection = Some(result);
         self.access_point = connection.1;
@@ -453,26 +561,48 @@ impl Device {
             .get_mut("802-11-wireless-security")
             .unwrap()
             .insert("psk".to_string(), Variant(password));
-        let result = call_system_dbus_method::<
-            (HashMap<String, PropMap>, Path<'static>, Path<'static>),
-            (Path<'static>, Path<'static>),
-        >(
+        let conn = Connection::new_system().unwrap();
+        let proxy = conn.with_proxy(
             "org.freedesktop.NetworkManager",
             Path::from("/org/freedesktop/NetworkManager"),
-            "AddAndActivateConnection",
+            Duration::from_millis(1000),
+        );
+        let result: Result<(Path<'static>, Path<'static>), dbus::Error> = proxy.method_call(
             "org.freedesktop.NetworkManager",
+            "AddAndActivateConnection",
             (
                 properties,
                 self.dbus_path.clone(),
                 access_point.dbus_path.clone(),
             ),
-            1000,
         );
         if result.is_ok() {
-            let result = result.unwrap();
+            let (path, connection) = result.unwrap();
+            let mut result = 1;
+            while result == 1 {
+                let res = get_system_dbus_property::<(), u32>(
+                    "org.freedesktop.NetworkManager",
+                    connection.clone(),
+                    "org.freedesktop.NetworkManager.Connection.Active",
+                    "State",
+                );
+                if res.is_err() {
+                    dbg!(res);
+                    return Err(ConnectionError {
+                        method: "Password was wrong",
+                    });
+                }
+                result = res.unwrap();
+            }
+            if result != 2 {
+                dbg!(result);
+                return Err(ConnectionError {
+                    method: "Password was wrong",
+                });
+            }
             (self.connection, self.access_point) = (
-                Some(result.1),
-                Some(get_access_point_properties(true, access_point.dbus_path)),
+                Some(connection),
+                Some(get_access_point_properties(true, path)),
             );
             return Ok(());
         }
@@ -495,4 +625,31 @@ impl Device {
         }
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub struct ConnectionStatusChanged {
+    pub state: u32,
+    pub reason: u32,
+}
+
+impl arg::AppendAll for ConnectionStatusChanged {
+    fn append(&self, i: &mut arg::IterAppend) {
+        arg::RefArg::append(&self.state, i);
+        arg::RefArg::append(&self.reason, i);
+    }
+}
+
+impl arg::ReadAll for ConnectionStatusChanged {
+    fn read(i: &mut arg::Iter) -> Result<Self, arg::TypeMismatchError> {
+        Ok(ConnectionStatusChanged {
+            state: i.read()?,
+            reason: i.read()?,
+        })
+    }
+}
+
+impl dbus::message::SignalArgs for ConnectionStatusChanged {
+    const NAME: &'static str = "StateChanged";
+    const INTERFACE: &'static str = "org.freedesktop.NetworkManager.Connection.Active";
 }
