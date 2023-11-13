@@ -119,10 +119,10 @@ impl PulseServer {
                             ListResult::Item(sink) => {
                                 handle_sink_events(Sink::from(sink), operation);
                             }
-                            ListResult::End => unsafe {
+                            ListResult::Error => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(true);
                             },
-                            ListResult::Error => unsafe {
+                            ListResult::End => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(false);
                             },
                         });
@@ -132,10 +132,10 @@ impl PulseServer {
                             ListResult::Item(source) => {
                                 handle_source_events(Source::from(source), operation);
                             }
-                            ListResult::End => unsafe {
+                            ListResult::Error => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(true);
                             },
-                            ListResult::Error => unsafe {
+                            ListResult::End => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(false);
                             },
                         });
@@ -148,10 +148,10 @@ impl PulseServer {
                                     operation,
                                 );
                             }
-                            ListResult::End => unsafe {
+                            ListResult::Error => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(true);
                             },
-                            ListResult::Error => unsafe {
+                            ListResult::End => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(false);
                             },
                         });
@@ -164,10 +164,10 @@ impl PulseServer {
                                     operation,
                                 );
                             }
-                            ListResult::End => unsafe {
+                            ListResult::Error => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(true);
                             },
-                            ListResult::Error => unsafe {
+                            ListResult::End => unsafe {
                                 (*mainloop_ref_response.as_ptr()).signal(false);
                             },
                         });
@@ -242,12 +242,19 @@ impl PulseServer {
         let sink_name = Rc::new(RefCell::new(String::from("")));
         let sink_name_ref = sink_name.clone();
         let ml_ref = Rc::clone(&self.mainloop);
-        introspector.get_server_info(move |result| {
+        let ml_ref_info = Rc::clone(&self.mainloop);
+        let result = introspector.get_server_info(move |result| {
             if result.default_sink_name.is_some() {
                 let mut borrow = sink_name_ref.borrow_mut();
                 *borrow = String::from(result.default_sink_name.clone().unwrap());
+                unsafe {
+                    (*ml_ref_info.as_ptr()).signal(false);
+                }
             }
         });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
         let result =
             introspector.get_sink_info_by_name(
                 sink_name.take().as_str(),
@@ -280,12 +287,19 @@ impl PulseServer {
         let source_name = Rc::new(RefCell::new(String::from("")));
         let source_name_ref = source_name.clone();
         let ml_ref = Rc::clone(&self.mainloop);
-        introspector.get_server_info(move |result| {
+        let ml_ref_info = Rc::clone(&self.mainloop);
+        let result = introspector.get_server_info(move |result| {
             if result.default_source_name.is_some() {
                 let mut borrow = source_name_ref.borrow_mut();
                 *borrow = String::from(result.default_sink_name.clone().unwrap());
+                unsafe {
+                    (*ml_ref_info.as_ptr()).signal(false);
+                }
             }
         });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
         let result =
             introspector.get_source_info_by_name(source_name.take().as_str(), move |result| {
                 match result {
