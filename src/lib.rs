@@ -17,7 +17,7 @@ use ReSet_Lib::{
     audio::audio::{InputStream, OutputStream, Sink, Source},
     bluetooth::bluetooth::BluetoothDevice,
     network::network::{AccessPoint, Error},
-    utils::call_system_dbus_method,
+    utils::{call_system_dbus_method, get_system_dbus_property},
 };
 
 // use crate::network::network::{
@@ -198,6 +198,72 @@ pub async fn run_daemon() {
             move |_, d: &mut DaemonData, ()| {
                 let access_points = d.current_n_device.get_access_points();
                 Ok((access_points,))
+            },
+        );
+        c.method(
+            "GetCurrentNetworkDevice",
+            (),
+            ("path", "name"),
+            move |_, d: &mut DaemonData, ()| {
+                let name = get_system_dbus_property::<(), String>(
+                    "org.freedesktop.NetworkManager",
+                    d.current_n_device.dbus_path.clone(),
+                    "org.freedesktop.NetworkManager.Device",
+                    "Interface",
+                );
+                Ok((
+                    d.current_n_device.dbus_path.clone(),
+                    name.unwrap_or_else(|_| String::from("")),
+                ))
+            },
+        );
+        c.method(
+            "GetAllNetworkDevices",
+            (),
+            ("devices",),
+            move |_, d: &mut DaemonData, ()| {
+                let mut devices = Vec::new();
+                let device_paths = get_wifi_devices();
+                for device in device_paths {
+                    let name = get_system_dbus_property::<(), String>(
+                        "org.freedesktop.NetworkManager",
+                        device.dbus_path.clone(),
+                        "org.freedesktop.NetworkManager.Device",
+                        "Interface",
+                    );
+                    devices.push((device.dbus_path, name.unwrap_or_else(|_| String::from(""))));
+                }
+                let name = get_system_dbus_property::<(), String>(
+                    "org.freedesktop.NetworkManager",
+                    d.current_n_device.dbus_path.clone(),
+                    "org.freedesktop.NetworkManager.Device",
+                    "Interface",
+                );
+                devices.push((
+                    d.current_n_device.dbus_path.clone(),
+                    name.unwrap_or_else(|_| String::from("")),
+                ));
+                Ok((devices,))
+            },
+        );
+        c.method(
+            "SetNetworkDevice",
+            ("path",),
+            ("result",),
+            move |_, d: &mut DaemonData, (path,): (Path<'static>,)| {
+                let mut res = false;
+                let mut iter = 0;
+                for device in d.n_devices.iter() {
+                    if device.dbus_path == path {
+                        res = true;
+                    }
+                    iter += 1;
+                }
+                if res {
+                    d.n_devices.push(d.current_n_device.clone());
+                    d.current_n_device = d.n_devices.remove(iter);
+                }
+                Ok((res,))
             },
         );
         c.method(
