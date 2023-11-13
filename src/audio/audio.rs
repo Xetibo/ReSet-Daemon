@@ -1,7 +1,10 @@
+use std::time::Duration;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
 use std::sync::mpsc::{Receiver, Sender};
 
+use dbus::blocking::Connection;
+use pulse::context::subscribe::{InterestMaskSet, Operation};
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
     self,
@@ -65,6 +68,7 @@ impl PulseServer {
             .borrow_mut()
             .connect(None, FlagSet::NOFLAGS, None)
             .expect("Failed to connect context");
+        println!("done");
 
         mainloop.borrow_mut().lock();
         mainloop
@@ -87,6 +91,96 @@ impl PulseServer {
                 }
             }
         }
+
+        println!("setup mask");
+        let mut mask = InterestMaskSet::empty();
+        mask.insert(InterestMaskSet::SINK);
+        mask.insert(InterestMaskSet::SOURCE);
+        mask.insert(InterestMaskSet::SINK_INPUT);
+        mask.insert(InterestMaskSet::SOURCE_OUTPUT);
+        dbg!(mask.clone());
+
+        println!("setup subscription");
+        context.borrow_mut().subscribe(mask, |_| {});
+
+        let mainloop_ref = Rc::clone(&mainloop);
+        let context_ref = Rc::clone(&context);
+        println!("setup callback");
+        context.borrow_mut().set_subscribe_callback(Some(Box::new(
+            move |facility, operation, index| {
+                let mainloop_ref_response = Rc::clone(&mainloop_ref);
+                mainloop_ref.borrow_mut().lock();
+                let introspector = context_ref.borrow_mut().introspect();
+                let operation = operation.unwrap();
+                let facility = facility.unwrap();
+                match facility {
+                    pulse::context::subscribe::Facility::Sink => {
+                        introspector.get_sink_info_by_index(index, move |result| match result {
+                            ListResult::Item(sink) => {
+                                handle_sink_events(Sink::from(sink), operation);
+                            }
+                            ListResult::End => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(true);
+                            },
+                            ListResult::Error => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(false);
+                            },
+                        });
+                    }
+                    pulse::context::subscribe::Facility::Source => {
+                        introspector.get_source_info_by_index(index, move |result| match result {
+                            ListResult::Item(source) => {
+                                handle_source_events(Source::from(source), operation);
+                            }
+                            ListResult::End => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(true);
+                            },
+                            ListResult::Error => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(false);
+                            },
+                        });
+                    }
+                    pulse::context::subscribe::Facility::SinkInput => {
+                        introspector.get_sink_input_info(index, move |result| match result {
+                            ListResult::Item(input_stream) => {
+                                handle_input_stream_events(
+                                    InputStream::from(input_stream),
+                                    operation,
+                                );
+                            }
+                            ListResult::End => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(true);
+                            },
+                            ListResult::Error => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(false);
+                            },
+                        });
+                    }
+                    pulse::context::subscribe::Facility::SourceOutput => {
+                        introspector.get_source_output_info(index, move |result| match result {
+                            ListResult::Item(output_stream) => {
+                                handle_output_stream_events(
+                                    OutputStream::from(output_stream),
+                                    operation,
+                                );
+                            }
+                            ListResult::End => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(true);
+                            },
+                            ListResult::Error => unsafe {
+                                (*mainloop_ref_response.as_ptr()).signal(false);
+                            },
+                        });
+                    }
+                    _ => (),
+                }
+                dbg!(facility);
+                dbg!(operation);
+                dbg!(index);
+                // unsafe { (*ml_ref.as_ptr()).signal(false) }
+            },
+        )));
+
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
         return Ok(Self {
@@ -137,6 +231,7 @@ impl PulseServer {
             AudioRequest::SetDefaultSink(sink) => self.set_default_sink(sink),
             AudioRequest::SetSourceVolume(source) => self.set_source_volume(source),
             AudioRequest::SetSourceMute(source) => self.set_source_mute(source),
+            AudioRequest::SetDefaultSource(source) => self.set_default_source(source),
             _ => {}
         }
     }
@@ -278,6 +373,22 @@ impl PulseServer {
             self.context
                 .borrow_mut()
                 .set_default_sink(&sink.name, move |error: bool| unsafe {
+                    (*ml_ref.as_ptr()).signal(!error);
+                });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn set_default_source(&self, source: Source) {
+        self.mainloop.borrow_mut().lock();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let result =
+            self.context
+                .borrow_mut()
+                .set_default_source(&source.name, move |error: bool| unsafe {
                     (*ml_ref.as_ptr()).signal(!error);
                 });
         while result.get_state() != pulse::operation::State::Done {
@@ -455,5 +566,109 @@ impl PulseServer {
         }
         let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
+    }
+}
+
+fn handle_sink_events(sink: Sink, operation: Operation) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    match operation {
+        Operation::New => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "AddSinkEvent", (sink,));
+        }
+        Operation::Changed => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "ChangedSinkEvent", (sink,));
+        }
+        Operation::Removed => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "RemoveSinkEvent", (sink,));
+        }
+    }
+}
+
+fn handle_source_events(source: Source, operation: Operation) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    match operation {
+        Operation::New => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "AddSourceEvent", (source,));
+        }
+        Operation::Changed => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "ChangedSourceEvent", (source,));
+        }
+        Operation::Removed => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "RemoveSourceEvent", (source,));
+        }
+    }
+}
+
+fn handle_input_stream_events(input_stream: InputStream, operation: Operation) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    match operation {
+        Operation::New => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "AddInputStreamEvent", (input_stream,));
+        }
+        Operation::Changed => {
+            let _: Result<(), dbus::Error> = proxy.method_call(
+                "org.xetibo.ReSet",
+                "ChangedInputStreamEvent",
+                (input_stream,),
+            );
+        }
+        Operation::Removed => {
+            let _: Result<(), dbus::Error> = proxy.method_call(
+                "org.xetibo.ReSet",
+                "RemoveInputStreamEvent",
+                (input_stream,),
+            );
+        }
+    }
+}
+
+fn handle_output_stream_events(output_stream: OutputStream, operation: Operation) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    match operation {
+        Operation::New => {
+            let _: Result<(), dbus::Error> =
+                proxy.method_call("org.xetibo.ReSet", "AddOutputStreamEvent", (output_stream,));
+        }
+        Operation::Changed => {
+            let _: Result<(), dbus::Error> = proxy.method_call(
+                "org.xetibo.ReSet",
+                "ChangedOutputStreamEvent",
+                (output_stream,),
+            );
+        }
+        Operation::Removed => {
+            let _: Result<(), dbus::Error> = proxy.method_call(
+                "org.xetibo.ReSet",
+                "RemoveOutputStreamEvent",
+                (output_stream,),
+            );
+        }
     }
 }
