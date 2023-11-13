@@ -74,7 +74,7 @@ impl Clone for Device {
 }
 
 impl Device {
-    pub fn from_path(path: Path<'static>) -> Self {
+    pub fn new(path: Path<'static>) -> Self {
         Self {
             access_point: None,
             connection: None,
@@ -224,7 +224,7 @@ pub fn get_wifi_devices() -> Vec<Device> {
     for path in result {
         let device_type = get_device_type(path.to_string());
         if device_type == DeviceType::WIFI {
-            let mut device = Device::from_path(path);
+            let mut device = Device::new(path);
             device.initialize();
             devices.push(device);
         }

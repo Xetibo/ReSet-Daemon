@@ -174,10 +174,6 @@ impl PulseServer {
                     }
                     _ => (),
                 }
-                dbg!(facility);
-                dbg!(operation);
-                dbg!(index);
-                // unsafe { (*ml_ref.as_ptr()).signal(false) }
             },
         )));
 
@@ -205,7 +201,9 @@ impl PulseServer {
     pub fn handle_message(&self, message: AudioRequest) {
         match message {
             AudioRequest::ListSinks => self.get_sinks(),
+            AudioRequest::GetDefaultSink => self.get_default_sink(),
             AudioRequest::ListSources => self.get_sources(),
+            AudioRequest::GetDefaultSource => self.get_default_source(),
             AudioRequest::ListInputStreams => self.get_input_streams(),
             AudioRequest::ListOutputStreams => self.get_output_streams(),
             AudioRequest::SetInputStreamMute(input_stream) => {
@@ -234,6 +232,81 @@ impl PulseServer {
             AudioRequest::SetDefaultSource(source) => self.set_default_source(source),
             _ => {}
         }
+    }
+
+    pub fn get_default_sink(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let sink = Rc::new(RefCell::new(Vec::new()));
+        let sink_ref = sink.clone();
+        let sink_name = Rc::new(RefCell::new(String::from("")));
+        let sink_name_ref = sink_name.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        introspector.get_server_info(move |result| {
+            if result.default_sink_name.is_some() {
+                let mut borrow = sink_name_ref.borrow_mut();
+                *borrow = String::from(result.default_sink_name.clone().unwrap());
+            }
+        });
+        let result =
+            introspector.get_sink_info_by_name(
+                sink_name.take().as_str(),
+                move |result| match result {
+                    ListResult::Item(item) => {
+                        sink_ref.borrow_mut().push(item.into());
+                    }
+                    ListResult::Error => unsafe {
+                        (*ml_ref.as_ptr()).signal(true);
+                    },
+                    ListResult::End => unsafe {
+                        (*ml_ref.as_ptr()).signal(false);
+                    },
+                },
+            );
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self
+            .sender
+            .send(AudioResponse::DefaultSink(sink.take().pop().unwrap()));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn get_default_source(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let source = Rc::new(RefCell::new(Vec::new()));
+        let source_ref = source.clone();
+        let source_name = Rc::new(RefCell::new(String::from("")));
+        let source_name_ref = source_name.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        introspector.get_server_info(move |result| {
+            if result.default_source_name.is_some() {
+                let mut borrow = source_name_ref.borrow_mut();
+                *borrow = String::from(result.default_sink_name.clone().unwrap());
+            }
+        });
+        let result =
+            introspector.get_source_info_by_name(source_name.take().as_str(), move |result| {
+                match result {
+                    ListResult::Item(item) => {
+                        source_ref.borrow_mut().push(item.into());
+                    }
+                    ListResult::Error => unsafe {
+                        (*ml_ref.as_ptr()).signal(true);
+                    },
+                    ListResult::End => unsafe {
+                        (*ml_ref.as_ptr()).signal(false);
+                    },
+                }
+            });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self
+            .sender
+            .send(AudioResponse::DefaultSource(source.take().pop().unwrap()));
+        self.mainloop.borrow_mut().unlock();
     }
 
     pub fn get_sinks(&self) {
