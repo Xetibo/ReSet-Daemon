@@ -3,8 +3,6 @@ mod bluetooth;
 mod network;
 
 use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
     collections::HashMap,
     future::{self},
     sync::{atomic::AtomicBool, Arc, Mutex},

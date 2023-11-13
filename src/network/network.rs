@@ -12,7 +12,7 @@ use dbus::{
     arg::{self, PropMap, RefArg, Variant},
     blocking::Connection,
     message::SignalArgs,
-    Message, Path,
+    Path,
 };
 use ReSet_Lib::{
     network::{
