@@ -154,7 +154,10 @@ pub async fn run_daemon() {
             .signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",))
             .msg_fn();
         let access_point_removed = c
-            .signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",))
+            .signal::<(AccessPoint,), _>("AccessPointRemoved", ("access_point",))
+            .msg_fn();
+        let access_point_changed = c
+            .signal::<(PropMap,), _>("AccessPointChanged", ("map",))
             .msg_fn();
         c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
         c.method(
@@ -262,7 +265,8 @@ pub async fn run_daemon() {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let path = data.current_n_device.dbus_path.clone();
                 let active_listener = data.active_listener.clone();
-                thread::spawn(move || start_listener(path, active_listener));
+                let access_points = data.current_n_device.get_access_points();
+                thread::spawn(move || start_listener(access_points, path, active_listener));
                 async move { ctx.reply(Ok((true,))) }
             },
         );
@@ -273,6 +277,7 @@ pub async fn run_daemon() {
             move |_, data, ()| {
                 let active_listener = data.active_listener.clone();
                 stop_listener(active_listener);
+                println!("stopped network listener");
                 Ok((true,))
             },
         );
@@ -648,10 +653,21 @@ pub async fn run_daemon() {
             "RemoveAccessPointEvent",
             ("path",),
             (),
-            move |mut ctx, _, path: (Path<'static>,)| {
-                let path = access_point_removed(ctx.path(), &path);
-                ctx.push_msg(path);
+            move |mut ctx, _, access_point: (AccessPoint,)| {
+                let access_point = access_point_removed(ctx.path(), &access_point);
+                ctx.push_msg(access_point);
                 println!("removed access point");
+                async move { ctx.reply(Ok(())) }
+            },
+        );
+        c.method_with_cr_async(
+            "ChangeAccessPointEvent",
+            ("path",),
+            (),
+            move |mut ctx, _, map: (PropMap,)| {
+                let map = access_point_changed(ctx.path(), &map);
+                ctx.push_msg(map);
+                println!("changed access point");
                 async move { ctx.reply(Ok(())) }
             },
         );

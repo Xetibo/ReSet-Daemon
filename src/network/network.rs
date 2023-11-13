@@ -23,6 +23,36 @@ use ReSet_Lib::{
 };
 
 #[derive(Debug)]
+pub struct AccessPointChanged {
+    pub interface: String,
+    pub map: PropMap,
+    pub invalid: Vec<String>,
+}
+
+impl arg::AppendAll for AccessPointChanged {
+    fn append(&self, i: &mut arg::IterAppend) {
+        arg::RefArg::append(&self.interface, i);
+        arg::RefArg::append(&self.map, i);
+        arg::RefArg::append(&self.invalid, i);
+    }
+}
+
+impl arg::ReadAll for AccessPointChanged {
+    fn read(i: &mut arg::Iter) -> Result<Self, arg::TypeMismatchError> {
+        Ok(AccessPointChanged {
+            interface: i.read()?,
+            map: i.read()?,
+            invalid: i.read()?,
+        })
+    }
+}
+
+impl dbus::message::SignalArgs for AccessPointChanged {
+    const NAME: &'static str = "PropertiesChanged";
+    const INTERFACE: &'static str = "org.freedesktop.DBus.Properties.PropertiesChanged";
+}
+
+#[derive(Debug)]
 pub struct Device {
     pub access_point: Option<AccessPoint>,
     pub connection: Option<Path<'static>>,
@@ -55,6 +85,7 @@ impl Device {
     }
 }
 pub fn start_listener(
+    access_points: Vec<AccessPoint>,
     path: Path<'static>,
     active_listener: Arc<AtomicBool>,
 ) -> Result<(), dbus::Error> {
@@ -65,7 +96,63 @@ pub fn start_listener(
     let mrb =
         AccessPointRemoved::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
             .static_clone();
-    let res = conn.add_match(mr, move |ir: AccessPointAdded, _, _| {
+    // for access_point in access_points {
+    let access_point_changed = AccessPointChanged::match_rule(
+        Some(&"org.freedesktop.NetworkManager.AccessPoint".into()),
+        // Some(&access_point.dbus_path),
+        None,
+    )
+    .static_clone();
+    let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
+        println!("got some changed event");
+        dbg!(ir.interface.clone());
+        match ir.interface.as_str() {
+            "org.freedesktop.NetworkManager.AccessPoint" => {
+                let conn = Connection::new_session().unwrap();
+                let proxy = conn.with_proxy(
+                    "org.xetibo.ReSet",
+                    "/org/xetibo/ReSet",
+                    Duration::from_millis(1000),
+                );
+                let _: Result<(), dbus::Error> =
+                    proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
+            }
+            _ => (),
+        }
+        true
+    });
+    if res.is_err() {
+        return Err(dbus::Error::new_custom(
+            "SignalMatchFailed",
+            "Failed to match signal on NetworkManager.",
+        ));
+    }
+    // }
+    let res = conn.add_match(mr, move |ir: AccessPointAdded, conn, _| {
+        // let access_point_changed = AccessPointChanged::match_rule(
+        //     Some(&"org.freedesktop.NetworkManager.AccessPoint".into()),
+        //     Some(&ir.access_point.clone()),
+        // )
+        // .static_clone();
+        // let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
+        //     match ir.interface.as_str() {
+        //         "org.freedesktop.NetworkManager.AccessPoint" => {
+        //             let conn = Connection::new_session().unwrap();
+        //             let proxy = conn.with_proxy(
+        //                 "org.xetibo.ReSet",
+        //                 "/org/xetibo/ReSet",
+        //                 Duration::from_millis(1000),
+        //             );
+        //             let _: Result<(), dbus::Error> =
+        //                 proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
+        //         }
+        //         _ => (),
+        //     }
+        //     true
+        // });
+        // if res.is_err() {
+        //     return false;
+        // }
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy(
             "org.xetibo.ReSet",
@@ -85,7 +172,8 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    let res = conn.add_match(mrb, move |ir: AccessPointRemoved, _, _| {
+    let res = conn.add_match(mrb, move |ir: AccessPointRemoved, conn, _| {
+        // conn.remove_match(id)
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy(
             "org.xetibo.ReSet",
@@ -95,7 +183,7 @@ pub fn start_listener(
         let _: Result<(), dbus::Error> = proxy.method_call(
             "org.xetibo.ReSet",
             "RemoveAccessPointEvent",
-            (ir.access_point,),
+            (get_access_point_properties(false, ir.access_point),),
         );
         true
     });
