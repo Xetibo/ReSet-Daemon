@@ -3,6 +3,8 @@ mod bluetooth;
 mod network;
 
 use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
     collections::HashMap,
     future::{self},
     sync::{atomic::AtomicBool, Arc, Mutex},
@@ -39,10 +41,12 @@ use crate::{
 
 pub enum AudioRequest {
     ListSources,
+    GetDefaultSource,
     SetSourceVolume(Source),
     SetSourceMute(Source),
     SetDefaultSource(Source),
     ListSinks,
+    GetDefaultSink,
     SetSinkVolume(Sink),
     SetSinkMute(Sink),
     SetDefaultSink(Sink),
@@ -57,6 +61,8 @@ pub enum AudioRequest {
 }
 
 pub enum AudioResponse {
+    DefaultSink(Sink),
+    DefaultSource(Source),
     Sources(Vec<Source>),
     Sinks(Vec<Sink>),
     InputStreams(Vec<InputStream>),
@@ -430,6 +436,58 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
+        c.method_with_cr_async(
+            "GetDefaultSink",
+            (),
+            ("default_sink",),
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let sink: Option<Sink>;
+                let _ = data.audio_sender.send(AudioRequest::GetDefaultSink);
+                let response = data.audio_receiver.recv();
+                if response.is_ok() {
+                    sink = match response.unwrap() {
+                        AudioResponse::DefaultSink(s) => Some(s),
+                        _ => None,
+                    }
+                } else {
+                    sink = None;
+                }
+                let response: Result<(Sink,), dbus::MethodErr>;
+                if sink.is_none() {
+                    response = Err(dbus::MethodErr::failed("Could not get default sink"));
+                } else {
+                    response = Ok((sink.unwrap(),));
+                }
+                async move { ctx.reply(response) }
+            },
+        );
+        c.method_with_cr_async(
+            "GetDefaultSource",
+            (),
+            ("default_source",),
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let source: Option<Source>;
+                let _ = data.audio_sender.send(AudioRequest::GetDefaultSource);
+                let response = data.audio_receiver.recv();
+                if response.is_ok() {
+                    source = match response.unwrap() {
+                        AudioResponse::DefaultSource(s) => Some(s),
+                        _ => None,
+                    }
+                } else {
+                    source = None;
+                }
+                let response: Result<(Source,), dbus::MethodErr>;
+                if source.is_none() {
+                    response = Err(dbus::MethodErr::failed("Could not get default sink"));
+                } else {
+                    response = Ok((source.unwrap(),));
+                }
+                async move { ctx.reply(response) }
+            },
+        );
         c.method_with_cr_async("ListSinks", (), ("sinks",), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             let sinks: Vec<Sink>;
@@ -549,6 +607,28 @@ pub async fn run_daemon() {
             move |mut ctx, cross, (sink,): (Sink,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data.audio_sender.send(AudioRequest::SetDefaultSink(sink));
+                let result: bool;
+                let res = data.audio_receiver.recv();
+                if res.is_err() {
+                    result = false;
+                } else {
+                    result = match res.unwrap() {
+                        AudioResponse::BoolResponse(b) => b,
+                        _ => false,
+                    };
+                }
+                async move { ctx.reply(Ok((result,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "SetDefaultSource",
+            ("source",),
+            ("result",),
+            move |mut ctx, cross, (source,): (Source,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetDefaultSource(source));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
