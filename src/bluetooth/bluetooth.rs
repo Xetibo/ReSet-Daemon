@@ -121,7 +121,6 @@ impl BluetoothInterface {
             if map.is_none() {
                 continue;
             }
-            // let map = map.unwrap();
             adapters.push(BluetoothAdapter { path: path.clone() });
         }
         if adapters.len() < 1 {

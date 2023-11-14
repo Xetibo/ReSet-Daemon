@@ -40,22 +40,22 @@ use crate::{
 pub enum AudioRequest {
     ListSources,
     GetDefaultSource,
-    SetSourceVolume(Source),
-    SetSourceMute(Source),
+    SetSourceVolume((u32, u16, u32)),
+    SetSourceMute((u32, bool)),
     SetDefaultSource(Source),
     ListSinks,
     GetDefaultSink,
-    SetSinkVolume(Sink),
-    SetSinkMute(Sink),
+    SetSinkVolume((u32, u16, u32)),
+    SetSinkMute((u32, bool)),
     SetDefaultSink(Sink),
     ListInputStreams,
     SetSinkOfInputStream(InputStream, Sink),
-    SetInputStreamVolume(InputStream),
-    SetInputStreamMute(InputStream),
+    SetInputStreamVolume((u32, u16, u32)),
+    SetInputStreamMute((u32, bool)),
     ListOutputStreams,
     SetSourceOfOutputStream(OutputStream, Source),
-    SetOutputStreamVolume(OutputStream),
-    SetOutputStreamMute(OutputStream),
+    SetOutputStreamVolume((u32, u16, u32)),
+    SetOutputStreamMute((u32, bool)),
 }
 
 pub enum AudioResponse {
@@ -518,11 +518,13 @@ pub async fn run_daemon() {
         });
         c.method_with_cr_async(
             "SetSinkVolume",
-            ("sink",),
+            ("index", "channels", "volume"),
             ("result",),
-            move |mut ctx, cross, (sink,): (Sink,)| {
+            move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.audio_sender.send(AudioRequest::SetSinkVolume(sink));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetSinkVolume((index, channels, volume)));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -538,11 +540,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetSinkMute",
-            ("sink",),
+            ("index", "muted"),
             ("result",),
-            move |mut ctx, cross, (sink,): (Sink,)| {
+            move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.audio_sender.send(AudioRequest::SetSinkMute(sink));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetSinkMute((index, muted)));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -558,13 +562,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetSourceVolume",
-            ("source",),
+            ("index", "channels", "volume"),
             ("result",),
-            move |mut ctx, cross, (source,): (Source,)| {
+            move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
-                    .send(AudioRequest::SetSourceVolume(source));
+                    .send(AudioRequest::SetSourceVolume((index, channels, volume)));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -580,11 +584,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetSourceMute",
-            ("source",),
+            ("index", "muted"),
             ("result",),
-            move |mut ctx, cross, (source,): (Source,)| {
+            move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.audio_sender.send(AudioRequest::SetSourceMute(source));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetSourceMute((index, muted)));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -684,13 +690,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetInputStreamVolume",
-            ("sink",),
+            ("index", "channels", "volume"),
             ("result",),
-            move |mut ctx, cross, (input_stream,): (InputStream,)| {
+            move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data
-                    .audio_sender
-                    .send(AudioRequest::SetInputStreamVolume(input_stream));
+                let _ = data.audio_sender.send(AudioRequest::SetInputStreamVolume((
+                    index, channels, volume,
+                )));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -706,13 +712,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetInputStreamMute",
-            ("sink",),
+            ("input_stream_index", "muted"),
             ("result",),
-            move |mut ctx, cross, (input_stream,): (InputStream,)| {
+            move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
-                    .send(AudioRequest::SetInputStreamMute(input_stream));
+                    .send(AudioRequest::SetInputStreamMute((index, muted)));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -772,13 +778,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetOutputStreamVolume",
-            ("output_stream",),
+            ("index", "channels", "volume"),
             ("result",),
-            move |mut ctx, cross, (output_stream,): (OutputStream,)| {
+            move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data
-                    .audio_sender
-                    .send(AudioRequest::SetOutputStreamVolume(output_stream));
+                let _ = data.audio_sender.send(AudioRequest::SetOutputStreamVolume((
+                    index, channels, volume,
+                )));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -794,13 +800,13 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetOutputStreamMute",
-            ("sink",),
+            ("index", "muted"),
             ("result",),
-            move |mut ctx, cross, (output_stream,): (OutputStream,)| {
+            move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
-                    .send(AudioRequest::SetOutputStreamMute(output_stream));
+                    .send(AudioRequest::SetOutputStreamMute((index, muted)));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
