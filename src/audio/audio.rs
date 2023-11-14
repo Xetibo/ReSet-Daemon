@@ -109,7 +109,6 @@ impl PulseServer {
         context.borrow_mut().set_subscribe_callback(Some(Box::new(
             move |facility, operation, index| {
                 let mainloop_ref_response = Rc::clone(&mainloop_ref);
-                mainloop_ref.borrow_mut().lock();
                 let introspector = context_ref.borrow_mut().introspect();
                 let operation = operation.unwrap();
                 let facility = facility.unwrap();
@@ -531,12 +530,16 @@ impl PulseServer {
 
     pub fn set_volume_of_input_stream(&self, input_stream: InputStream) {
         self.mainloop.borrow_mut().lock();
+        let ml_ref = Rc::clone(&self.mainloop);
         let mut introspector = self.context.borrow_mut().introspect();
         let mut channel_volume = ChannelVolumes::default();
+        channel_volume.set_len(input_stream.channels as u8);
         let channel_volume_slice = channel_volume.get_mut();
-        let ml_ref = Rc::clone(&self.mainloop);
         for i in 0..input_stream.channels as usize {
-            unsafe { channel_volume_slice[i] = Volume(*input_stream.volume.get_unchecked(i)) }
+            unsafe { 
+                println!("loop start");
+                channel_volume_slice[i] = Volume(*input_stream.volume.get_unchecked(i)) }
+                println!("loop end");
         }
         let result = introspector.set_sink_input_volume(
             input_stream.index,
