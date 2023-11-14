@@ -479,7 +479,7 @@ pub async fn run_daemon() {
                 }
                 let response: Result<(Source,), dbus::MethodErr>;
                 if source.is_none() {
-                    response = Err(dbus::MethodErr::failed("Could not get default sink"));
+                    response = Err(dbus::MethodErr::failed("Could not get default source"));
                 } else {
                     response = Ok((source.unwrap(),));
                 }
@@ -732,18 +732,20 @@ pub async fn run_daemon() {
             ("output_streams",),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let output_streams: Vec<OutputStream>;
                 let _ = data.audio_sender.send(AudioRequest::ListOutputStreams);
                 let response = data.audio_receiver.recv();
-                if response.is_ok() {
-                    output_streams = match response.unwrap() {
-                        AudioResponse::OutputStreams(s) => s,
-                        _ => Vec::new(),
+                async move {
+                    let output_streams: Vec<OutputStream>;
+                    if response.is_ok() {
+                        output_streams = match response.unwrap() {
+                            AudioResponse::OutputStreams(s) => s,
+                            _ => Vec::new(),
+                        }
+                    } else {
+                        output_streams = Vec::new();
                     }
-                } else {
-                    output_streams = Vec::new();
+                    ctx.reply(Ok((output_streams,)))
                 }
-                async move { ctx.reply(Ok((output_streams,))) }
             },
         );
         c.method_with_cr_async(
@@ -770,7 +772,7 @@ pub async fn run_daemon() {
         );
         c.method_with_cr_async(
             "SetOutputStreamVolume",
-            ("sink",),
+            ("output_stream",),
             ("result",),
             move |mut ctx, cross, (output_stream,): (OutputStream,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();

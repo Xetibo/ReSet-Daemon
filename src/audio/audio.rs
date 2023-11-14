@@ -254,6 +254,11 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
+        if sink_name.borrow().is_empty() {
+            let _ = self.sender.send(AudioResponse::BoolResponse(false));
+            self.mainloop.borrow_mut().unlock();
+            return;
+        }
         let result =
             introspector.get_sink_info_by_name(
                 sink_name.take().as_str(),
@@ -290,7 +295,7 @@ impl PulseServer {
         let result = introspector.get_server_info(move |result| {
             if result.default_source_name.is_some() {
                 let mut borrow = source_name_ref.borrow_mut();
-                *borrow = String::from(result.default_sink_name.clone().unwrap());
+                *borrow = String::from(result.default_source_name.clone().unwrap());
                 unsafe {
                     (*ml_ref_info.as_ptr()).signal(false);
                 }
@@ -298,6 +303,11 @@ impl PulseServer {
         });
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
+        }
+        if source_name.borrow().is_empty() {
+            let _ = self.sender.send(AudioResponse::BoolResponse(false));
+            self.mainloop.borrow_mut().unlock();
+            return;
         }
         let result =
             introspector.get_source_info_by_name(source_name.take().as_str(), move |result| {
@@ -374,6 +384,7 @@ impl PulseServer {
         self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let mut channel_volume = ChannelVolumes::default();
+        channel_volume.set_len(sink.channels as u8);
         let channel_volume_slice = channel_volume.get_mut();
         let ml_ref = Rc::clone(&self.mainloop);
         for i in 0..sink.channels as usize {
@@ -415,6 +426,7 @@ impl PulseServer {
         self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let mut channel_volume = ChannelVolumes::default();
+        channel_volume.set_len(source.channels as u8);
         let channel_volume_slice = channel_volume.get_mut();
         let ml_ref = Rc::clone(&self.mainloop);
         for i in 0..source.channels as usize {
@@ -536,10 +548,7 @@ impl PulseServer {
         channel_volume.set_len(input_stream.channels as u8);
         let channel_volume_slice = channel_volume.get_mut();
         for i in 0..input_stream.channels as usize {
-            unsafe { 
-                println!("loop start");
-                channel_volume_slice[i] = Volume(*input_stream.volume.get_unchecked(i)) }
-                println!("loop end");
+            unsafe { channel_volume_slice[i] = Volume(*input_stream.volume.get_unchecked(i)) }
         }
         let result = introspector.set_sink_input_volume(
             input_stream.index,
@@ -621,6 +630,7 @@ impl PulseServer {
         self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let mut channel_volume = ChannelVolumes::default();
+        channel_volume.set_len(output_stream.channels as u8);
         let channel_volume_slice = channel_volume.get_mut();
         let ml_ref = Rc::clone(&self.mainloop);
         for i in 0..output_stream.channels as usize {
