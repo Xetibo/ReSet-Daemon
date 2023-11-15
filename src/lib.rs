@@ -165,13 +165,13 @@ pub async fn run_daemon() {
             .signal::<(PropMap,), _>("AccessPointChanged", ("map",))
             .msg_fn();
         let sink_added = c.signal::<(Sink,), _>("SinkAdded", ("sink",)).msg_fn();
-        let sink_removed = c.signal::<(Sink,), _>("SinkRemoved", ("sink",)).msg_fn();
+        let sink_removed = c.signal::<(u32,), _>("SinkRemoved", ("sink",)).msg_fn();
         let sink_changed = c.signal::<(Sink,), _>("SinkChanged", ("sink",)).msg_fn();
         let source_added = c
             .signal::<(Source,), _>("SourceAdded", ("source",))
             .msg_fn();
         let source_removed = c
-            .signal::<(Source,), _>("SourceRemoved", ("source",))
+            .signal::<(u32,), _>("SourceRemoved", ("source",))
             .msg_fn();
         let source_changed = c
             .signal::<(Source,), _>("SourceChanged", ("source",))
@@ -180,7 +180,7 @@ pub async fn run_daemon() {
             .signal::<(InputStream,), _>("InputStreamAdded", ("input_stream",))
             .msg_fn();
         let input_stream_removed = c
-            .signal::<(InputStream,), _>("InputStreamRemoved", ("input_stream",))
+            .signal::<(u32,), _>("InputStreamRemoved", ("input_stream",))
             .msg_fn();
         let input_stream_changed = c
             .signal::<(InputStream,), _>("InputStreamChanged", ("input_stream",))
@@ -189,7 +189,7 @@ pub async fn run_daemon() {
             .signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",))
             .msg_fn();
         let output_stream_removed = c
-            .signal::<(OutputStream,), _>("OutputStreamRemoved", ("output_stream",))
+            .signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",))
             .msg_fn();
         let output_stream_changed = c
             .signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",))
@@ -694,9 +694,9 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.audio_sender.send(AudioRequest::SetInputStreamVolume(
-                    index, channels, volume,
-                ));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetInputStreamVolume(index, channels, volume));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -782,9 +782,9 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.audio_sender.send(AudioRequest::SetOutputStreamVolume(
-                    index, channels, volume,
-                ));
+                let _ = data
+                    .audio_sender
+                    .send(AudioRequest::SetOutputStreamVolume(index, channels, volume));
                 let result: bool;
                 let res = data.audio_receiver.recv();
                 if res.is_err() {
@@ -891,7 +891,7 @@ pub async fn run_daemon() {
             "RemoveSinkEvent",
             ("sink",),
             (),
-            move |mut ctx, _, (sink,): (Sink,)| {
+            move |mut ctx, _, (sink,): (u32,)| {
                 let sink = sink_removed(ctx.path(), &(sink,));
                 ctx.push_msg(sink);
                 println!("removed sink");
@@ -924,7 +924,7 @@ pub async fn run_daemon() {
             "RemoveSourceEvent",
             ("source",),
             (),
-            move |mut ctx, _, (source,): (Source,)| {
+            move |mut ctx, _, (source,): (u32,)| {
                 let source = source_removed(ctx.path(), &(source,));
                 ctx.push_msg(source);
                 println!("removed source");
@@ -957,7 +957,7 @@ pub async fn run_daemon() {
             "RemoveInputStreamEvent",
             ("input_stream",),
             (),
-            move |mut ctx, _, (input_stream,): (InputStream,)| {
+            move |mut ctx, _, (input_stream,): (u32,)| {
                 let input_stream = input_stream_removed(ctx.path(), &(input_stream,));
                 ctx.push_msg(input_stream);
                 println!("removed input stream");
@@ -965,10 +965,11 @@ pub async fn run_daemon() {
             },
         );
         c.method_with_cr_async(
-            "ChangedInputStream",
+            "ChangedInputStreamEvent",
             ("input_stream",),
             (),
             move |mut ctx, _, (input_stream,): (InputStream,)| {
+                dbg!(input_stream.clone());
                 let input_stream = input_stream_changed(ctx.path(), &(input_stream,));
                 ctx.push_msg(input_stream);
                 println!("changed input stream");
@@ -990,7 +991,7 @@ pub async fn run_daemon() {
             "RemoveOutputStreamEvent",
             ("output_stream",),
             (),
-            move |mut ctx, _, (output_stream,): (OutputStream,)| {
+            move |mut ctx, _, (output_stream,): (u32,)| {
                 let output_stream = output_stream_removed(ctx.path(), &(output_stream,));
                 ctx.push_msg(output_stream);
                 println!("removed output stream");

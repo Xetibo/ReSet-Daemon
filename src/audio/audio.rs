@@ -107,9 +107,12 @@ impl PulseServer {
                 let facility = facility.unwrap();
                 match facility {
                     pulse::context::subscribe::Facility::Sink => {
-                        println!("sink changed");
                         introspector.get_sink_info_by_index(index, move |result| match result {
                             ListResult::Item(sink) => {
+                                if operation == Operation::Removed {
+                                    handle_sink_removed(index);
+                                    return;
+                                }
                                 handle_sink_events(Sink::from(sink), operation);
                                 return;
                             }
@@ -118,7 +121,10 @@ impl PulseServer {
                         });
                     }
                     pulse::context::subscribe::Facility::Source => {
-                        println!("source changed");
+                        if operation == Operation::Removed {
+                            handle_source_removed(index);
+                            return;
+                        }
                         introspector.get_source_info_by_index(index, move |result| match result {
                             ListResult::Item(source) => {
                                 handle_source_events(Source::from(source), operation);
@@ -129,9 +135,13 @@ impl PulseServer {
                         });
                     }
                     pulse::context::subscribe::Facility::SinkInput => {
-                        println!("inputstream changed");
+                        if operation == Operation::Removed {
+                            handle_input_stream_removed(index);
+                            return;
+                        }
                         introspector.get_sink_input_info(index, move |result| match result {
                             ListResult::Item(input_stream) => {
+                                dbg!(input_stream.clone());
                                 handle_input_stream_events(
                                     InputStream::from(input_stream),
                                     operation,
@@ -143,9 +153,12 @@ impl PulseServer {
                         });
                     }
                     pulse::context::subscribe::Facility::SourceOutput => {
-                        println!("outputstream changed");
                         introspector.get_source_output_info(index, move |result| match result {
                             ListResult::Item(output_stream) => {
+                                if operation == Operation::Removed {
+                                    handle_output_stream_removed(index);
+                                    return;
+                                }
                                 handle_output_stream_events(
                                     OutputStream::from(output_stream),
                                     operation,
@@ -672,6 +685,17 @@ fn handle_sink_events(sink: Sink, operation: Operation) {
     }
 }
 
+fn handle_sink_removed(index: u32) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    let _: Result<(), dbus::Error> =
+        proxy.method_call("org.xetibo.ReSet", "RemoveSinkEvent", (index,));
+}
+
 fn handle_source_events(source: Source, operation: Operation) {
     let conn = Connection::new_session().unwrap();
     let proxy = conn.with_proxy(
@@ -695,6 +719,17 @@ fn handle_source_events(source: Source, operation: Operation) {
     }
 }
 
+fn handle_source_removed(index: u32) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    let _: Result<(), dbus::Error> =
+        proxy.method_call("org.xetibo.ReSet", "RemoveSourceEvent", (index,));
+}
+
 fn handle_input_stream_events(input_stream: InputStream, operation: Operation) {
     let conn = Connection::new_session().unwrap();
     let proxy = conn.with_proxy(
@@ -714,14 +749,19 @@ fn handle_input_stream_events(input_stream: InputStream, operation: Operation) {
                 (input_stream,),
             );
         }
-        Operation::Removed => {
-            let _: Result<(), dbus::Error> = proxy.method_call(
-                "org.xetibo.ReSet",
-                "RemoveInputStreamEvent",
-                (input_stream,),
-            );
-        }
+        Operation::Removed => (),
     }
+}
+
+fn handle_input_stream_removed(index: u32) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    let _: Result<(), dbus::Error> =
+        proxy.method_call("org.xetibo.ReSet", "RemoveInputStreamEvent", (index,));
 }
 
 fn handle_output_stream_events(output_stream: OutputStream, operation: Operation) {
@@ -731,6 +771,7 @@ fn handle_output_stream_events(output_stream: OutputStream, operation: Operation
         "/org/xetibo/ReSet",
         Duration::from_millis(1000),
     );
+    dbg!(operation.clone());
     match operation {
         Operation::New => {
             let _: Result<(), dbus::Error> =
@@ -751,4 +792,15 @@ fn handle_output_stream_events(output_stream: OutputStream, operation: Operation
             );
         }
     }
+}
+
+fn handle_output_stream_removed(index: u32) {
+    let conn = Connection::new_session().unwrap();
+    let proxy = conn.with_proxy(
+        "org.xetibo.ReSet",
+        "/org/xetibo/ReSet",
+        Duration::from_millis(1000),
+    );
+    let _: Result<(), dbus::Error> =
+        proxy.method_call("org.xetibo.ReSet", "RemoveOutputStreamEvent", (index,));
 }
