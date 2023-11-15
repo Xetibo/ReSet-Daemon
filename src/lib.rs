@@ -42,12 +42,12 @@ pub enum AudioRequest {
     GetDefaultSource,
     SetSourceVolume((u32, u16, u32)),
     SetSourceMute((u32, bool)),
-    SetDefaultSource(Source),
+    SetDefaultSource(String),
     ListSinks,
     GetDefaultSink,
     SetSinkVolume((u32, u16, u32)),
     SetSinkMute((u32, bool)),
-    SetDefaultSink(Sink),
+    SetDefaultSink(String),
     ListInputStreams,
     SetSinkOfInputStream(InputStream, Sink),
     SetInputStreamVolume((u32, u16, u32)),
@@ -608,7 +608,7 @@ pub async fn run_daemon() {
             "SetDefaultSink",
             ("sink",),
             ("result",),
-            move |mut ctx, cross, (sink,): (Sink,)| {
+            move |mut ctx, cross, (sink,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data.audio_sender.send(AudioRequest::SetDefaultSink(sink));
                 let result: bool;
@@ -628,7 +628,7 @@ pub async fn run_daemon() {
             "SetDefaultSource",
             ("source",),
             ("result",),
-            move |mut ctx, cross, (source,): (Source,)| {
+            move |mut ctx, cross, (source,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender

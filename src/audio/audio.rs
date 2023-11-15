@@ -1,3 +1,4 @@
+use std::thread;
 use std::time::Duration;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
@@ -106,75 +107,87 @@ impl PulseServer {
         let mainloop_ref = Rc::clone(&mainloop);
         let context_ref = Rc::clone(&context);
         println!("setup callback");
-        context.borrow_mut().set_subscribe_callback(Some(Box::new(
-            move |facility, operation, index| {
+        {
+            let mut borrow = context.borrow_mut();
+            let introspector = borrow.introspect();
+            borrow.set_subscribe_callback(Some(Box::new(move |facility, operation, index| {
                 let mainloop_ref_response = Rc::clone(&mainloop_ref);
-                let introspector = context_ref.borrow_mut().introspect();
+                let mainloop_ref_result = Rc::clone(&mainloop_ref);
+                // let introspector = context_ref.borrow_mut().introspect();
                 let operation = operation.unwrap();
                 let facility = facility.unwrap();
-                match facility {
-                    pulse::context::subscribe::Facility::Sink => {
-                        introspector.get_sink_info_by_index(index, move |result| match result {
-                            ListResult::Item(sink) => {
-                                handle_sink_events(Sink::from(sink), operation);
-                            }
-                            ListResult::Error => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(true);
-                            },
-                            ListResult::End => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(false);
-                            },
-                        });
-                    }
-                    pulse::context::subscribe::Facility::Source => {
-                        introspector.get_source_info_by_index(index, move |result| match result {
-                            ListResult::Item(source) => {
-                                handle_source_events(Source::from(source), operation);
-                            }
-                            ListResult::Error => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(true);
-                            },
-                            ListResult::End => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(false);
-                            },
-                        });
-                    }
-                    pulse::context::subscribe::Facility::SinkInput => {
-                        introspector.get_sink_input_info(index, move |result| match result {
-                            ListResult::Item(input_stream) => {
-                                handle_input_stream_events(
-                                    InputStream::from(input_stream),
-                                    operation,
-                                );
-                            }
-                            ListResult::Error => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(true);
-                            },
-                            ListResult::End => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(false);
-                            },
-                        });
-                    }
-                    pulse::context::subscribe::Facility::SourceOutput => {
-                        introspector.get_source_output_info(index, move |result| match result {
-                            ListResult::Item(output_stream) => {
-                                handle_output_stream_events(
-                                    OutputStream::from(output_stream),
-                                    operation,
-                                );
-                            }
-                            ListResult::Error => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(true);
-                            },
-                            ListResult::End => unsafe {
-                                (*mainloop_ref_response.as_ptr()).signal(false);
-                            },
-                        });
-                    }
-                    _ => (),
-                }
-            },
-        )));
+                // match facility {
+                //     pulse::context::subscribe::Facility::Sink => {
+                //         let result = introspector.get_sink_info_by_index(index, move |result| match result {
+                //             ListResult::Item(sink) => {
+                //                 handle_sink_events(Sink::from(sink), operation);
+                //             }
+                //             ListResult::Error => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(true);
+                //             },
+                //             ListResult::End => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(false);
+                //             },
+                //         });
+                //         while result.get_state() != pulse::operation::State::Done {
+                //         }
+                //     }
+                //     pulse::context::subscribe::Facility::Source => {
+                //         let result = introspector.get_source_info_by_index(index, move |result| match result {
+                //             ListResult::Item(source) => {
+                //                 handle_source_events(Source::from(source), operation);
+                //             }
+                //             ListResult::Error => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(true);
+                //             },
+                //             ListResult::End => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(false);
+                //             },
+                //         });
+                //         while result.get_state() != pulse::operation::State::Done {
+                //         }
+                //     }
+                //     pulse::context::subscribe::Facility::SinkInput => {
+                //         let result = introspector.get_sink_input_info(index, move |result| match result {
+                //             ListResult::Item(input_stream) => {
+                //                 handle_input_stream_events(
+                //                     InputStream::from(input_stream),
+                //                     operation,
+                //                 );
+                //             }
+                //             ListResult::Error => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(true);
+                //             },
+                //             ListResult::End => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(false);
+                //             },
+                //         });
+                //         while result.get_state() != pulse::operation::State::Done {
+                //         }
+                //     }
+                //     pulse::context::subscribe::Facility::SourceOutput => {
+                //         let result = introspector.get_source_output_info(index, move |result| match result {
+                //             ListResult::Item(output_stream) => {
+                //                 handle_output_stream_events(
+                //                     OutputStream::from(output_stream),
+                //                     operation,
+                //                 );
+                //             }
+                //             ListResult::Error => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(true);
+                //             },
+                //             ListResult::End => unsafe {
+                //                 (*mainloop_ref_response.as_ptr()).signal(false);
+                //             },
+                //         });
+                //         while result.get_state() != pulse::operation::State::Done {
+                //         }
+                //     }
+                //     _ => (),
+                // }
+                // TODO remove this endless loop... lkasdfjadslkfjadslf
+            })));
+        }
 
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
@@ -250,6 +263,7 @@ impl PulseServer {
             if result.default_sink_name.is_some() {
                 let mut borrow = sink_name_ref.borrow_mut();
                 *borrow = String::from(result.default_sink_name.clone().unwrap());
+                dbg!(borrow.clone());
                 unsafe {
                     (*ml_ref_info.as_ptr()).signal(false);
                 }
@@ -268,6 +282,7 @@ impl PulseServer {
                 sink_name.take().as_str(),
                 move |result| match result {
                     ListResult::Item(item) => {
+                        dbg!(item.clone());
                         sink_ref.borrow_mut().push(item.into());
                     }
                     ListResult::Error => unsafe {
@@ -462,29 +477,31 @@ impl PulseServer {
         self.mainloop.borrow_mut().unlock();
     }
 
-    pub fn set_default_sink(&self, sink: Sink) {
+    pub fn set_default_sink(&self, sink: String) {
         self.mainloop.borrow_mut().lock();
         let ml_ref = Rc::clone(&self.mainloop);
-        let result =
-            self.context
-                .borrow_mut()
-                .set_default_sink(&sink.name, move |error: bool| unsafe {
-                    (*ml_ref.as_ptr()).signal(!error);
-                });
-        while result.get_state() != pulse::operation::State::Done {
+        let result = self
+            .context
+            .borrow_mut()
+            .set_default_sink(&sink, move |error: bool| unsafe {
+                (*ml_ref.as_ptr()).signal(!error);
+            });
+        while result.get_state() != pulse::operation::State::Done
+            && result.get_state() != pulse::operation::State::Cancelled
+        {
             self.mainloop.borrow_mut().wait();
         }
         let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
-    pub fn set_default_source(&self, source: Source) {
+    pub fn set_default_source(&self, source: String) {
         self.mainloop.borrow_mut().lock();
         let ml_ref = Rc::clone(&self.mainloop);
         let result =
             self.context
                 .borrow_mut()
-                .set_default_source(&source.name, move |error: bool| unsafe {
+                .set_default_source(&source, move |error: bool| unsafe {
                     (*ml_ref.as_ptr()).signal(!error);
                 });
         while result.get_state() != pulse::operation::State::Done {
