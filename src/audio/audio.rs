@@ -1,4 +1,3 @@
-use std::thread;
 use std::time::Duration;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
@@ -69,7 +68,6 @@ impl PulseServer {
             .borrow_mut()
             .connect(None, FlagSet::NOFLAGS, None)
             .expect("Failed to connect context");
-        println!("done");
 
         mainloop.borrow_mut().lock();
         mainloop
@@ -93,7 +91,6 @@ impl PulseServer {
             }
         }
 
-        println!("setup mask");
         let mut mask = InterestMaskSet::empty();
         mask.insert(InterestMaskSet::SINK);
         mask.insert(InterestMaskSet::SOURCE);
@@ -101,91 +98,66 @@ impl PulseServer {
         mask.insert(InterestMaskSet::SOURCE_OUTPUT);
         dbg!(mask.clone());
 
-        println!("setup subscription");
         context.borrow_mut().subscribe(mask, |_| {});
-
-        let mainloop_ref = Rc::clone(&mainloop);
-        let context_ref = Rc::clone(&context);
-        println!("setup callback");
         {
             let mut borrow = context.borrow_mut();
             let introspector = borrow.introspect();
             borrow.set_subscribe_callback(Some(Box::new(move |facility, operation, index| {
-                let mainloop_ref_response = Rc::clone(&mainloop_ref);
-                let mainloop_ref_result = Rc::clone(&mainloop_ref);
-                // let introspector = context_ref.borrow_mut().introspect();
                 let operation = operation.unwrap();
                 let facility = facility.unwrap();
-                // match facility {
-                //     pulse::context::subscribe::Facility::Sink => {
-                //         let result = introspector.get_sink_info_by_index(index, move |result| match result {
-                //             ListResult::Item(sink) => {
-                //                 handle_sink_events(Sink::from(sink), operation);
-                //             }
-                //             ListResult::Error => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(true);
-                //             },
-                //             ListResult::End => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(false);
-                //             },
-                //         });
-                //         while result.get_state() != pulse::operation::State::Done {
-                //         }
-                //     }
-                //     pulse::context::subscribe::Facility::Source => {
-                //         let result = introspector.get_source_info_by_index(index, move |result| match result {
-                //             ListResult::Item(source) => {
-                //                 handle_source_events(Source::from(source), operation);
-                //             }
-                //             ListResult::Error => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(true);
-                //             },
-                //             ListResult::End => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(false);
-                //             },
-                //         });
-                //         while result.get_state() != pulse::operation::State::Done {
-                //         }
-                //     }
-                //     pulse::context::subscribe::Facility::SinkInput => {
-                //         let result = introspector.get_sink_input_info(index, move |result| match result {
-                //             ListResult::Item(input_stream) => {
-                //                 handle_input_stream_events(
-                //                     InputStream::from(input_stream),
-                //                     operation,
-                //                 );
-                //             }
-                //             ListResult::Error => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(true);
-                //             },
-                //             ListResult::End => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(false);
-                //             },
-                //         });
-                //         while result.get_state() != pulse::operation::State::Done {
-                //         }
-                //     }
-                //     pulse::context::subscribe::Facility::SourceOutput => {
-                //         let result = introspector.get_source_output_info(index, move |result| match result {
-                //             ListResult::Item(output_stream) => {
-                //                 handle_output_stream_events(
-                //                     OutputStream::from(output_stream),
-                //                     operation,
-                //                 );
-                //             }
-                //             ListResult::Error => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(true);
-                //             },
-                //             ListResult::End => unsafe {
-                //                 (*mainloop_ref_response.as_ptr()).signal(false);
-                //             },
-                //         });
-                //         while result.get_state() != pulse::operation::State::Done {
-                //         }
-                //     }
-                //     _ => (),
-                // }
-                // TODO remove this endless loop... lkasdfjadslkfjadslf
+                match facility {
+                    pulse::context::subscribe::Facility::Sink => {
+                        println!("sink changed");
+                        introspector.get_sink_info_by_index(index, move |result| match result {
+                            ListResult::Item(sink) => {
+                                handle_sink_events(Sink::from(sink), operation);
+                                return;
+                            }
+                            ListResult::Error => return,
+                            ListResult::End => return,
+                        });
+                    }
+                    pulse::context::subscribe::Facility::Source => {
+                        println!("source changed");
+                        introspector.get_source_info_by_index(index, move |result| match result {
+                            ListResult::Item(source) => {
+                                handle_source_events(Source::from(source), operation);
+                                return;
+                            }
+                            ListResult::Error => return,
+                            ListResult::End => return,
+                        });
+                    }
+                    pulse::context::subscribe::Facility::SinkInput => {
+                        println!("inputstream changed");
+                        introspector.get_sink_input_info(index, move |result| match result {
+                            ListResult::Item(input_stream) => {
+                                handle_input_stream_events(
+                                    InputStream::from(input_stream),
+                                    operation,
+                                );
+                                return;
+                            }
+                            ListResult::Error => return,
+                            ListResult::End => return,
+                        });
+                    }
+                    pulse::context::subscribe::Facility::SourceOutput => {
+                        println!("outputstream changed");
+                        introspector.get_source_output_info(index, move |result| match result {
+                            ListResult::Item(output_stream) => {
+                                handle_output_stream_events(
+                                    OutputStream::from(output_stream),
+                                    operation,
+                                );
+                                return;
+                            }
+                            ListResult::Error => return,
+                            ListResult::End => return,
+                        });
+                    }
+                    _ => (),
+                }
             })));
         }
 
@@ -218,33 +190,33 @@ impl PulseServer {
             AudioRequest::GetDefaultSource => self.get_default_source(),
             AudioRequest::ListInputStreams => self.get_input_streams(),
             AudioRequest::ListOutputStreams => self.get_output_streams(),
-            AudioRequest::SetInputStreamMute((index, muted)) => {
+            AudioRequest::SetInputStreamMute(index, muted) => {
                 self.set_input_stream_mute(index, muted)
             }
-            AudioRequest::SetInputStreamVolume((index, channels, volume)) => {
+            AudioRequest::SetInputStreamVolume(index, channels, volume) => {
                 self.set_volume_of_input_stream(index, channels, volume)
             }
-            AudioRequest::SetSinkOfInputStream(inpu_stream, sink) => {
-                self.set_sink_of_input_stream(inpu_stream, sink)
+            AudioRequest::SetSinkOfInputStream(input_stream, sink) => {
+                self.set_sink_of_input_stream(input_stream, sink)
             }
-            AudioRequest::SetOutputStreamMute((index, muted)) => {
+            AudioRequest::SetOutputStreamMute(index, muted) => {
                 self.set_output_stream_mute(index, muted)
             }
-            AudioRequest::SetOutputStreamVolume((index, channels, volume)) => {
+            AudioRequest::SetOutputStreamVolume(index, channels, volume) => {
                 self.set_volume_of_output_stream(index, channels, volume)
             }
             AudioRequest::SetSourceOfOutputStream(output_stream, sink) => {
                 self.set_source_of_output_stream(output_stream, sink)
             }
-            AudioRequest::SetSinkVolume((index, channels, volume)) => {
+            AudioRequest::SetSinkVolume(index, channels, volume) => {
                 self.set_sink_volume(index, channels, volume)
             }
-            AudioRequest::SetSinkMute((index, muted)) => self.set_sink_mute(index, muted),
+            AudioRequest::SetSinkMute(index, muted) => self.set_sink_mute(index, muted),
             AudioRequest::SetDefaultSink(sink) => self.set_default_sink(sink),
-            AudioRequest::SetSourceVolume((index, channels, volume)) => {
+            AudioRequest::SetSourceVolume(index, channels, volume) => {
                 self.set_source_volume(index, channels, volume)
             }
-            AudioRequest::SetSourceMute((index, muted)) => self.set_source_mute(index, muted),
+            AudioRequest::SetSourceMute(index, muted) => self.set_source_mute(index, muted),
             AudioRequest::SetDefaultSource(source) => self.set_default_source(source),
             _ => {}
         }
@@ -282,7 +254,6 @@ impl PulseServer {
                 sink_name.take().as_str(),
                 move |result| match result {
                     ListResult::Item(item) => {
-                        dbg!(item.clone());
                         sink_ref.borrow_mut().push(item.into());
                     }
                     ListResult::Error => unsafe {
@@ -537,13 +508,13 @@ impl PulseServer {
         self.mainloop.borrow_mut().unlock();
     }
 
-    pub fn set_sink_of_input_stream(&self, input_stream: InputStream, sink: Sink) {
+    pub fn set_sink_of_input_stream(&self, input_stream: u32, sink: u32) {
         self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let ml_ref = Rc::clone(&self.mainloop);
         let result = introspector.move_sink_input_by_index(
-            input_stream.index,
-            sink.index,
+            input_stream,
+            sink,
             Some(Box::new(move |error| unsafe {
                 (*ml_ref.as_ptr()).signal(!error);
             })),
@@ -584,7 +555,6 @@ impl PulseServer {
             index,
             muted,
             Some(Box::new(move |error| unsafe {
-                println!("{error}");
                 (*ml_ref.as_ptr()).signal(!error);
             })),
         );
@@ -621,13 +591,13 @@ impl PulseServer {
         self.mainloop.borrow_mut().unlock();
     }
 
-    pub fn set_source_of_output_stream(&self, output_stream: OutputStream, source: Source) {
+    pub fn set_source_of_output_stream(&self, output_stream: u32, source: u32) {
         self.mainloop.borrow_mut().lock();
         let mut introspector = self.context.borrow_mut().introspect();
         let ml_ref = Rc::clone(&self.mainloop);
         let result = introspector.move_source_output_by_index(
-            output_stream.index,
-            source.index,
+            output_stream,
+            source,
             Some(Box::new(move |error| unsafe {
                 (*ml_ref.as_ptr()).signal(!error);
             })),
