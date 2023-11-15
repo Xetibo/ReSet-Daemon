@@ -969,7 +969,6 @@ pub async fn run_daemon() {
             ("input_stream",),
             (),
             move |mut ctx, _, (input_stream,): (InputStream,)| {
-                dbg!(input_stream.clone());
                 let input_stream = input_stream_changed(ctx.path(), &(input_stream,));
                 ctx.push_msg(input_stream);
                 println!("changed input stream");

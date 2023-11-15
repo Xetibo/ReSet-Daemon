@@ -84,6 +84,8 @@ impl Device {
         }
     }
 }
+
+#[allow(unused_variables)]
 pub fn start_listener(
     access_points: Vec<AccessPoint>,
     path: Path<'static>,
@@ -104,8 +106,6 @@ pub fn start_listener(
     )
     .static_clone();
     let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
-        println!("got some changed event");
-        dbg!(ir.interface.clone());
         match ir.interface.as_str() {
             "org.freedesktop.NetworkManager.AccessPoint" => {
                 let conn = Connection::new_session().unwrap();
@@ -293,6 +293,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
     true
 }
 
+#[allow(dead_code)]
 pub fn set_password(path: Path<'static>, password: String) {
     // yes this will be encrypted later
     // TODO encrypt
@@ -317,6 +318,7 @@ pub fn set_password(path: Path<'static>, password: String) {
     result.unwrap();
 }
 
+#[allow(dead_code)]
 pub fn get_connection_secrets(path: Path<'static>) {
     let result = call_system_dbus_method::<(String,), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
@@ -431,7 +433,6 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
             wifi_connections.push((connection, ssid));
         }
     }
-    dbg!(wifi_connections.clone());
     wifi_connections
 }
 
@@ -587,7 +588,6 @@ impl Device {
                     "State",
                 );
                 if res.is_err() {
-                    dbg!(res);
                     return Err(ConnectionError {
                         method: "Password was wrong",
                     });
@@ -595,7 +595,6 @@ impl Device {
                 result = res.unwrap();
             }
             if result != 2 {
-                dbg!(result);
                 return Err(ConnectionError {
                     method: "Password was wrong",
                 });

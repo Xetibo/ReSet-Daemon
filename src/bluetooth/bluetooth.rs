@@ -20,6 +20,7 @@ struct BluetoothAdapter {
     path: Path<'static>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct BluetoothInterface {
     adapters: Vec<BluetoothAdapter>,

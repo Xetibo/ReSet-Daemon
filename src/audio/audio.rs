@@ -96,7 +96,6 @@ impl PulseServer {
         mask.insert(InterestMaskSet::SOURCE);
         mask.insert(InterestMaskSet::SINK_INPUT);
         mask.insert(InterestMaskSet::SOURCE_OUTPUT);
-        dbg!(mask.clone());
 
         context.borrow_mut().subscribe(mask, |_| {});
         {
@@ -141,7 +140,6 @@ impl PulseServer {
                         }
                         introspector.get_sink_input_info(index, move |result| match result {
                             ListResult::Item(input_stream) => {
-                                dbg!(input_stream.clone());
                                 handle_input_stream_events(
                                     InputStream::from(input_stream),
                                     operation,
@@ -248,7 +246,6 @@ impl PulseServer {
             if result.default_sink_name.is_some() {
                 let mut borrow = sink_name_ref.borrow_mut();
                 *borrow = String::from(result.default_sink_name.clone().unwrap());
-                dbg!(borrow.clone());
                 unsafe {
                     (*ml_ref_info.as_ptr()).signal(false);
                 }
@@ -771,7 +768,6 @@ fn handle_output_stream_events(output_stream: OutputStream, operation: Operation
         "/org/xetibo/ReSet",
         Duration::from_millis(1000),
     );
-    dbg!(operation.clone());
     match operation {
         Operation::New => {
             let _: Result<(), dbus::Error> =
