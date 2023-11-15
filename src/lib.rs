@@ -519,131 +519,137 @@ pub async fn run_daemon() {
         c.method_with_cr_async(
             "SetSinkVolume",
             ("index", "channels", "volume"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSinkVolume(index, channels, volume));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetSinkMute",
             ("index", "muted"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSinkMute(index, muted));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetSourceVolume",
             ("index", "channels", "volume"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSourceVolume(index, channels, volume));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetSourceMute",
             ("index", "muted"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSourceMute(index, muted));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetDefaultSink",
             ("sink",),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (sink,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data.audio_sender.send(AudioRequest::SetDefaultSink(sink));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetDefaultSource",
             ("source",),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (source,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetDefaultSource(source));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
@@ -669,67 +675,70 @@ pub async fn run_daemon() {
         c.method_with_cr_async(
             "SetSinkOfInputStream",
             ("input_stream", "sink"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (input_stream, sink): (u32, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSinkOfInputStream(input_stream, sink));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetInputStreamVolume",
             ("index", "channels", "volume"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetInputStreamVolume(index, channels, volume));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetInputStreamMute",
             ("input_stream_index", "muted"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetInputStreamMute(index, muted));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
@@ -757,67 +766,70 @@ pub async fn run_daemon() {
         c.method_with_cr_async(
             "SetSourceOfOutputStream",
             ("input_stream", "source"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (output_stream, source): (u32, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSourceOfOutputStream(output_stream, source));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetOutputStreamVolume",
             ("index", "channels", "volume"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetOutputStreamVolume(index, channels, volume));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetOutputStreamMute",
             ("index", "muted"),
-            ("result",),
+            // ("result",),
+            (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetOutputStreamMute(index, muted));
-                let result: bool;
-                let res = data.audio_receiver.recv();
-                if res.is_err() {
-                    result = false;
-                } else {
-                    result = match res.unwrap() {
-                        AudioResponse::BoolResponse(b) => b,
-                        _ => false,
-                    };
-                }
-                async move { ctx.reply(Ok((result,))) }
+                // let result: bool;
+                // let res = data.audio_receiver.recv();
+                // if res.is_err() {
+                //     result = false;
+                // } else {
+                //     result = match res.unwrap() {
+                //         AudioResponse::BoolResponse(b) => b,
+                //         _ => false,
+                //     };
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         // these are for the listener, other synchroniztion methods seem to not work....
