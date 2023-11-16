@@ -34,7 +34,7 @@ impl PulseServer {
     ) -> Result<Self, PulseError> {
         let mut proplist = Proplist::new().unwrap();
         proplist
-            .set_str(pulse::proplist::properties::APPLICATION_NAME, "ReSet")
+            .set_str(pulse::proplist::properties::APPLICATION_NAME, "org.xetibo.ReSet")
             .unwrap();
 
         let mainloop = Rc::new(RefCell::new(
@@ -66,7 +66,7 @@ impl PulseServer {
 
         context
             .borrow_mut()
-            .connect(None, FlagSet::NOFLAGS, None)
+            .connect(None, FlagSet::NOAUTOSPAWN, None)
             .expect("Failed to connect context");
 
         mainloop.borrow_mut().lock();
