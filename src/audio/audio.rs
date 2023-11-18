@@ -34,7 +34,10 @@ impl PulseServer {
     ) -> Result<Self, PulseError> {
         let mut proplist = Proplist::new().unwrap();
         proplist
-            .set_str(pulse::proplist::properties::APPLICATION_NAME, "org.xetibo.ReSet")
+            .set_str(
+                pulse::proplist::properties::APPLICATION_NAME,
+                "org.Xetibo.ReSet",
+            )
             .unwrap();
 
         let mainloop = Rc::new(RefCell::new(
@@ -151,12 +154,13 @@ impl PulseServer {
                         });
                     }
                     pulse::context::subscribe::Facility::SourceOutput => {
+                        if operation == Operation::Removed {
+                            println!("{index} got removed");
+                            handle_output_stream_removed(index);
+                            return;
+                        }
                         introspector.get_source_output_info(index, move |result| match result {
                             ListResult::Item(output_stream) => {
-                                if operation == Operation::Removed {
-                                    handle_output_stream_removed(index);
-                                    return;
-                                }
                                 handle_output_stream_events(
                                     OutputStream::from(output_stream),
                                     operation,
@@ -675,10 +679,7 @@ fn handle_sink_events(sink: Sink, operation: Operation) {
             let _: Result<(), dbus::Error> =
                 proxy.method_call("org.xetibo.ReSet", "ChangedSinkEvent", (sink,));
         }
-        Operation::Removed => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "RemoveSinkEvent", (sink,));
-        }
+        Operation::Removed => (),
     }
 }
 
@@ -709,10 +710,7 @@ fn handle_source_events(source: Source, operation: Operation) {
             let _: Result<(), dbus::Error> =
                 proxy.method_call("org.xetibo.ReSet", "ChangedSourceEvent", (source,));
         }
-        Operation::Removed => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "RemoveSourceEvent", (source,));
-        }
+        Operation::Removed => (),
     }
 }
 
@@ -770,23 +768,19 @@ fn handle_output_stream_events(output_stream: OutputStream, operation: Operation
     );
     match operation {
         Operation::New => {
+        println!("{} got added", output_stream.index);
             let _: Result<(), dbus::Error> =
                 proxy.method_call("org.xetibo.ReSet", "AddOutputStreamEvent", (output_stream,));
         }
         Operation::Changed => {
+            println!("{} got changed", output_stream.index);
             let _: Result<(), dbus::Error> = proxy.method_call(
                 "org.xetibo.ReSet",
                 "ChangedOutputStreamEvent",
                 (output_stream,),
             );
         }
-        Operation::Removed => {
-            let _: Result<(), dbus::Error> = proxy.method_call(
-                "org.xetibo.ReSet",
-                "RemoveOutputStreamEvent",
-                (output_stream,),
-            );
-        }
+        Operation::Removed => (),
     }
 }
 
