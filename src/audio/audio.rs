@@ -4,6 +4,7 @@ use std::{cell::RefCell, ops::Deref, rc::Rc};
 use std::sync::mpsc::{Receiver, Sender};
 
 use dbus::blocking::Connection;
+use pulse::context::introspect::CardInfo;
 use pulse::context::subscribe::{InterestMaskSet, Operation};
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
@@ -233,6 +234,10 @@ impl PulseServer {
             }
             AudioRequest::SetSourceMute(index, muted) => self.set_source_mute(index, muted),
             AudioRequest::SetDefaultSource(source) => self.set_default_source(source),
+            AudioRequest::ListCards => self.get_cards(),
+            AudioRequest::SetCardProfileOfDevice(device_index, profile_name) => {
+                self.set_card_profile_of_device(device_index, profile_name)
+            }
             _ => {}
         }
     }
@@ -661,6 +666,47 @@ impl PulseServer {
         // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
+
+    pub fn get_cards(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let cards = Rc::new(RefCell::new(Vec::new()));
+        let cards_ref = cards.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let result = introspector.get_card_info_list(move |result| match result {
+            ListResult::Item(item) => {
+                cards_ref.borrow_mut().push(item.into());
+            }
+            ListResult::Error => unsafe {
+                (*ml_ref.as_ptr()).signal(false);
+            },
+            ListResult::End => unsafe {
+                (*ml_ref.as_ptr()).signal(false);
+            },
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(AudioResponse::Cards(cards.take()));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn set_card_profile_of_device(&self, device_index: u32, profile_name: String) {
+        self.mainloop.borrow_mut().lock();
+        let mut introspector = self.context.borrow().introspect();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let result = introspector.set_card_profile_by_index(
+            device_index,
+            &profile_name,
+            Some(Box::new(move |_| unsafe {
+                (*ml_ref.as_ptr()).signal(false);
+            })),
+        );
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        self.mainloop.borrow_mut().unlock();
+    }
 }
 
 fn handle_sink_events(sink: Sink, operation: Operation) {
@@ -768,7 +814,7 @@ fn handle_output_stream_events(output_stream: OutputStream, operation: Operation
     );
     match operation {
         Operation::New => {
-        println!("{} got added", output_stream.index);
+            println!("{} got added", output_stream.index);
             let _: Result<(), dbus::Error> =
                 proxy.method_call("org.xetibo.ReSet", "AddOutputStreamEvent", (output_stream,));
         }

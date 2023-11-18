@@ -14,7 +14,7 @@ use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use tokio;
 use ReSet_Lib::{
-    audio::audio::{InputStream, OutputStream, Sink, Source},
+    audio::audio::{Card, InputStream, OutputStream, Sink, Source},
     bluetooth::bluetooth::BluetoothDevice,
     network::network::{AccessPoint, Error},
     utils::{call_system_dbus_method, get_system_dbus_property},
@@ -56,6 +56,8 @@ pub enum AudioRequest {
     SetSourceOfOutputStream(u32, u32),
     SetOutputStreamVolume(u32, u16, u32),
     SetOutputStreamMute(u32, bool),
+    ListCards,
+    SetCardProfileOfDevice(u32, String),
 }
 
 pub enum AudioResponse {
@@ -65,6 +67,7 @@ pub enum AudioResponse {
     Sinks(Vec<Sink>),
     InputStreams(Vec<InputStream>),
     OutputStreams(Vec<OutputStream>),
+    Cards(Vec<Card>),
     BoolResponse(bool),
 }
 
@@ -170,9 +173,7 @@ pub async fn run_daemon() {
         let source_added = c
             .signal::<(Source,), _>("SourceAdded", ("source",))
             .msg_fn();
-        let source_removed = c
-            .signal::<(u32,), _>("SourceRemoved", ("source",))
-            .msg_fn();
+        let source_removed = c.signal::<(u32,), _>("SourceRemoved", ("source",)).msg_fn();
         let source_changed = c
             .signal::<(Source,), _>("SourceChanged", ("source",))
             .msg_fn();
@@ -832,6 +833,36 @@ pub async fn run_daemon() {
                 async move { ctx.reply(Ok(())) }
             },
         );
+        c.method_with_cr_async("ListCards", (), ("cards",), move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            let _ = data.audio_sender.send(AudioRequest::ListCards);
+            let response = data.audio_receiver.recv();
+            async move {
+                let cards: Vec<Card>;
+                if response.is_ok() {
+                    cards = match response.unwrap() {
+                        AudioResponse::Cards(s) => s,
+                        _ => Vec::new(),
+                    }
+                } else {
+                    cards = Vec::new();
+                }
+                ctx.reply(Ok((cards,)))
+            }
+        });
+        c.method_with_cr_async(
+            "SetCardProfileOfDevice",
+            ("device_index", "profile_name"),
+            (),
+            move |mut ctx, cross, (device_index, profile_name): (u32, String)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.audio_sender.send(AudioRequest::SetCardProfileOfDevice(
+                    device_index,
+                    profile_name,
+                ));
+                async move { ctx.reply(Ok(())) }
+            },
+        );
         // these are for the listener, other synchroniztion methods seem to not work....
         c.method_with_cr_async(
             "AddAccessPointEvent",
@@ -871,6 +902,7 @@ pub async fn run_daemon() {
             ("device",),
             (),
             move |mut ctx, _, (device,): (BluetoothDevice,)| {
+                dbg!(device.clone());
                 let device = bluetooth_device_added(ctx.path(), &(device,));
                 ctx.push_msg(device);
                 println!("added bluetooth device");
@@ -882,6 +914,7 @@ pub async fn run_daemon() {
             ("path",),
             (),
             move |mut ctx, _, (path,): (Path<'static>,)| {
+                dbg!(path.clone());
                 let path = bluetooth_device_removed(ctx.path(), &(path,));
                 ctx.push_msg(path);
                 println!("removed bluetooth device");

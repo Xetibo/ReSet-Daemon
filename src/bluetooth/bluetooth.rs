@@ -9,11 +9,13 @@ use dbus::{
     message::SignalArgs,
     Path,
 };
-use ReSet_Lib::{bluetooth::{
-    bluetooth::BluetoothDevice,
-    bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
-}, utils::{call_system_dbus_method, set_system_dbus_property}};
-
+use ReSet_Lib::{
+    bluetooth::{
+        bluetooth::BluetoothDevice,
+        bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
+    },
+    utils::{call_system_dbus_method, set_system_dbus_property},
+};
 
 #[derive(Debug, Clone)]
 struct BluetoothAdapter {
@@ -183,6 +185,7 @@ impl BluetoothInterface {
             ));
         }
         let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
+            println!("removed in bluetooth listener");
             let conn = Connection::new_session().unwrap();
             let proxy = conn.with_proxy(
                 "org.xetibo.ReSet",
@@ -192,7 +195,7 @@ impl BluetoothInterface {
             let _: Result<(), dbus::Error> = proxy.method_call(
                 "org.xetibo.ReSet",
                 "RemoveBluetoothDeviceEvent",
-                ((ir.object),),
+                (ir.object,),
             );
             true
         });
