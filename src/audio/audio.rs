@@ -110,12 +110,12 @@ impl PulseServer {
                 let facility = facility.unwrap();
                 match facility {
                     pulse::context::subscribe::Facility::Sink => {
+                        if operation == Operation::Removed {
+                            handle_sink_removed(index);
+                            return;
+                        }
                         introspector.get_sink_info_by_index(index, move |result| match result {
                             ListResult::Item(sink) => {
-                                if operation == Operation::Removed {
-                                    handle_sink_removed(index);
-                                    return;
-                                }
                                 handle_sink_events(Sink::from(sink), operation);
                                 return;
                             }
@@ -156,7 +156,6 @@ impl PulseServer {
                     }
                     pulse::context::subscribe::Facility::SourceOutput => {
                         if operation == Operation::Removed {
-                            println!("{index} got removed");
                             handle_output_stream_removed(index);
                             return;
                         }

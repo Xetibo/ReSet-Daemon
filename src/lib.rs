@@ -386,17 +386,15 @@ pub async fn run_daemon() {
         c.method_with_cr_async(
             "StartBluetoothSearch",
             ("duration",),
-            ("result",),
-            move |ctx, cross, (duration,): (i32,)| {
+            (),
+            move |mut ctx, cross, (duration,): (i32,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let ctx_ref = Arc::new(Mutex::new(ctx));
-                let res = data.b_interface.start_discovery(duration as u64);
-                let mut response = true;
-                if res.is_err() {
-                    response = false;
-                }
-                let mut ctx = Arc::try_unwrap(ctx_ref).unwrap().into_inner().unwrap();
-                async move { ctx.reply(Ok((response,))) }
+                let _ = data.b_interface.start_discovery(duration as u64);
+                // let mut response = true;
+                // if res.is_err() {
+                //     response = false;
+                // }
+                async move { ctx.reply(Ok(())) }
             },
         );
         c.method(
@@ -417,6 +415,18 @@ pub async fn run_daemon() {
             ("result",),
             move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
                 let res = d.b_interface.connect_to(device);
+                if res.is_err() {
+                    return Ok((false,));
+                }
+                Ok((true,))
+            },
+        );
+        c.method(
+            "PairWithBluetoothDevice",
+            ("device",),
+            ("result",),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                let res = d.b_interface.pair_with(device);
                 if res.is_err() {
                     return Ok((false,));
                 }
