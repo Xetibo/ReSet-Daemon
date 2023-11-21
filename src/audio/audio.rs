@@ -847,7 +847,7 @@ fn handle_output_stream_events(
             let msg = Message::signal(
                 &Path::from("/org/xetibo/ReSet"),
                 &"org.xetibo.ReSet".into(),
-                &"InputStreamAdded".into(),
+                &"OutputStreamAdded".into(),
             )
             .append1(output_stream);
             conn.send(msg);
@@ -856,7 +856,7 @@ fn handle_output_stream_events(
             let msg = Message::signal(
                 &Path::from("/org/xetibo/ReSet"),
                 &"org.xetibo.ReSet".into(),
-                &"InputStreamChanged".into(),
+                &"OutputStreamChanged".into(),
             )
             .append1(output_stream);
             conn.send(msg);
