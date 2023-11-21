@@ -101,7 +101,7 @@ impl DaemonData {
             });
         }
         let current_n_device = n_devices.pop().unwrap();
-        let b_interface_opt = BluetoothInterface::create();
+        let b_interface_opt = BluetoothInterface::create(conn.clone());
         let b_interface: BluetoothInterface;
         if b_interface_opt.is_none() {
             b_interface = BluetoothInterface::empty();
@@ -156,51 +156,23 @@ pub async fn run_daemon() {
     )));
 
     let token = cross.register("org.xetibo.ReSet", |c| {
-        let bluetooth_device_added = c
-            .signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",))
-            .msg_fn();
-        let bluetooth_device_removed = c
-            .signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",))
-            .msg_fn();
-        let access_point_added = c
-            .signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",))
-            .msg_fn();
-        let access_point_removed = c
-            .signal::<(AccessPoint,), _>("AccessPointRemoved", ("access_point",))
-            .msg_fn();
-        let access_point_changed = c
-            .signal::<(PropMap,), _>("AccessPointChanged", ("map",))
-            .msg_fn();
-        let sink_added = c.signal::<(Sink,), _>("SinkAdded", ("sink",)).msg_fn();
-        let sink_removed = c.signal::<(u32,), _>("SinkRemoved", ("sink",)).msg_fn();
-        let sink_changed = c.signal::<(Sink,), _>("SinkChanged", ("sink",)).msg_fn();
+        c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
+        c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));
+        c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
+        c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
+        c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
         c.signal::<(Sink,), _>("SinkChanged", ("sink",));
         c.signal::<(Sink,), _>("SinkAdded", ("sink",));
-        let source_added = c
-            .signal::<(Source,), _>("SourceAdded", ("source",))
-            .msg_fn();
-        let source_removed = c.signal::<(u32,), _>("SourceRemoved", ("source",)).msg_fn();
-        let source_changed = c
-            .signal::<(Source,), _>("SourceChanged", ("source",))
-            .msg_fn();
-        let input_stream_added = c
-            .signal::<(InputStream,), _>("InputStreamAdded", ("input_stream",))
-            .msg_fn();
-        let input_stream_removed = c
-            .signal::<(u32,), _>("InputStreamRemoved", ("input_stream",))
-            .msg_fn();
-        let input_stream_changed = c
-            .signal::<(InputStream,), _>("InputStreamChanged", ("input_stream",))
-            .msg_fn();
-        let output_stream_added = c
-            .signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",))
-            .msg_fn();
-        let output_stream_removed = c
-            .signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",))
-            .msg_fn();
-        let output_stream_changed = c
-            .signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",))
-            .msg_fn();
+        c.signal::<(u32,), _>("SinkRemoved", ("sink",));
+        c.signal::<(Source,), _>("SourceChanged", ("source",));
+        c.signal::<(Source,), _>("SourceAdded", ("source",));
+        c.signal::<(u32,), _>("SourceRemoved", ("source",));
+        c.signal::<(InputStream,), _>("InputStream", ("input_stream",));
+        c.signal::<(InputStream,), _>("InputStream", ("input_stream",));
+        c.signal::<(u32,), _>("InputStreamRemoved", ("input_stream",));
+        c.signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",));
+        c.signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",));
+        c.signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",));
         c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
         c.method(
             "ListAccessPoints",
@@ -374,7 +346,10 @@ pub async fn run_daemon() {
                 let path = data.current_n_device.dbus_path.clone();
                 let active_listener = data.network_listener_active.clone();
                 let access_points = data.current_n_device.get_access_points();
-                thread::spawn(move || start_listener(access_points, path, active_listener));
+                let connection = data.connection.clone();
+                thread::spawn(move || {
+                    start_listener(connection, access_points, path, active_listener)
+                });
                 async move { ctx.reply(Ok((true,))) }
             },
         );
@@ -900,196 +875,6 @@ pub async fn run_daemon() {
                     device_index,
                     profile_name,
                 ));
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        // these are for the listener, other synchroniztion methods seem to not work....
-        c.method_with_cr_async(
-            "AddAccessPointEvent",
-            ("access_point",),
-            (),
-            move |mut ctx, _, access_point: (AccessPoint,)| {
-                let access_point = access_point_added(ctx.path(), &access_point);
-                ctx.push_msg(access_point);
-                println!("added access point");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "RemoveAccessPointEvent",
-            ("path",),
-            (),
-            move |mut ctx, _, access_point: (AccessPoint,)| {
-                let access_point = access_point_removed(ctx.path(), &access_point);
-                ctx.push_msg(access_point);
-                println!("removed access point");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "ChangeAccessPointEvent",
-            ("path",),
-            (),
-            move |mut ctx, _, map: (PropMap,)| {
-                let map = access_point_changed(ctx.path(), &map);
-                ctx.push_msg(map);
-                println!("changed access point");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "AddBluetoothDeviceEvent",
-            ("device",),
-            (),
-            move |mut ctx, _, (device,): (BluetoothDevice,)| {
-                dbg!(device.clone());
-                let device = bluetooth_device_added(ctx.path(), &(device,));
-                ctx.push_msg(device);
-                println!("added bluetooth device");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "RemoveBluetoothDeviceEvent",
-            ("path",),
-            (),
-            move |mut ctx, _, (path,): (Path<'static>,)| {
-                dbg!(path.clone());
-                let path = bluetooth_device_removed(ctx.path(), &(path,));
-                ctx.push_msg(path);
-                println!("removed bluetooth device");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "AddSinkEvent",
-            ("sink",),
-            (),
-            move |mut ctx, _, (sink,): (Sink,)| {
-                let sink = sink_added(ctx.path(), &(sink,));
-                ctx.push_msg(sink);
-                println!("added sink");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "RemoveSinkEvent",
-            ("sink",),
-            (),
-            move |mut ctx, _, (sink,): (u32,)| {
-                let sink = sink_removed(ctx.path(), &(sink,));
-                ctx.push_msg(sink);
-                println!("removed sink");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "ChangedSinkEvent",
-            ("sink",),
-            (),
-            move |mut ctx, _, (sink,): (Sink,)| {
-                let sink = sink_changed(ctx.path(), &(sink,));
-                ctx.push_msg(sink);
-                println!("changed sink");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "AddSourceEvent",
-            ("source",),
-            (),
-            move |mut ctx, _, (source,): (Source,)| {
-                let source = source_added(ctx.path(), &(source,));
-                ctx.push_msg(source);
-                println!("added source");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "RemoveSourceEvent",
-            ("source",),
-            (),
-            move |mut ctx, _, (source,): (u32,)| {
-                let source = source_removed(ctx.path(), &(source,));
-                ctx.push_msg(source);
-                println!("removed source");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "ChangedSourceEvent",
-            ("source",),
-            (),
-            move |mut ctx, _, (source,): (Source,)| {
-                let source = source_changed(ctx.path(), &(source,));
-                ctx.push_msg(source);
-                println!("changed source");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "AddInputStreamEvent",
-            ("input_stream",),
-            (),
-            move |mut ctx, _, (input_stream,): (InputStream,)| {
-                let input_stream = input_stream_added(ctx.path(), &(input_stream,));
-                ctx.push_msg(input_stream);
-                println!("added input stream");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "RemoveInputStreamEvent",
-            ("input_stream",),
-            (),
-            move |mut ctx, _, (input_stream,): (u32,)| {
-                let input_stream = input_stream_removed(ctx.path(), &(input_stream,));
-                ctx.push_msg(input_stream);
-                println!("removed input stream");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "ChangedInputStreamEvent",
-            ("input_stream",),
-            (),
-            move |mut ctx, _, (input_stream,): (InputStream,)| {
-                let input_stream = input_stream_changed(ctx.path(), &(input_stream,));
-                ctx.push_msg(input_stream);
-                println!("changed input stream");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "AddOutputStreamEvent",
-            ("output_stream",),
-            (),
-            move |mut ctx, _, (output_stream,): (OutputStream,)| {
-                let output_stream = output_stream_added(ctx.path(), &(output_stream,));
-                ctx.push_msg(output_stream);
-                println!("added output stream");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "RemoveOutputStreamEvent",
-            ("output_stream",),
-            (),
-            move |mut ctx, _, (output_stream,): (u32,)| {
-                let output_stream = output_stream_removed(ctx.path(), &(output_stream,));
-                ctx.push_msg(output_stream);
-                println!("removed output stream");
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "ChangedOutputStreamEvent",
-            ("ouput_stream",),
-            (),
-            move |mut ctx, _, (output_stream,): (OutputStream,)| {
-                let output_stream = output_stream_changed(ctx.path(), &(output_stream,));
-                ctx.push_msg(output_stream);
-                println!("changed output stream");
                 async move { ctx.reply(Ok(())) }
             },
         );

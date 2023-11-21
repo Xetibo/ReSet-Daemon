@@ -11,8 +11,10 @@ use std::{
 use dbus::{
     arg::{self, PropMap, RefArg, Variant},
     blocking::Connection,
+    channel::Sender,
     message::SignalArgs,
-    Path,
+    nonblock::SyncConnection,
+    Message, Path,
 };
 use ReSet_Lib::{
     network::{
@@ -87,10 +89,13 @@ impl Device {
 
 #[allow(unused_variables)]
 pub fn start_listener(
+    connection: Arc<SyncConnection>,
     access_points: Vec<AccessPoint>,
     path: Path<'static>,
     active_listener: Arc<AtomicBool>,
 ) -> Result<(), dbus::Error> {
+    let access_point_added_ref = connection.clone();
+    let access_point_removed_ref = connection.clone();
     let conn = Connection::new_system().unwrap();
     let mr =
         AccessPointAdded::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
@@ -106,14 +111,13 @@ pub fn start_listener(
     )
     .static_clone();
     let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
-        let conn = Connection::new_session().unwrap();
-        let proxy = conn.with_proxy(
-            "org.xetibo.ReSet",
-            "/org/xetibo/ReSet",
-            Duration::from_millis(1000),
-        );
-        let _: Result<(), dbus::Error> =
-            proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
+        let msg = Message::signal(
+            &Path::from("/org/xetibo/ReSet"),
+            &"org.xetibo.ReSet".into(),
+            &"AccessPointChanged".into(),
+        )
+        .append1(ir.map);
+        connection.send(msg);
         true
     });
     if res.is_err() {
@@ -124,17 +128,13 @@ pub fn start_listener(
     }
     // }
     let res = conn.add_match(mr, move |ir: AccessPointAdded, conn, _| {
-        let conn = Connection::new_session().unwrap();
-        let proxy = conn.with_proxy(
-            "org.xetibo.ReSet",
-            "/org/xetibo/ReSet",
-            Duration::from_millis(1000),
-        );
-        let _: Result<(), dbus::Error> = proxy.method_call(
-            "org.xetibo.ReSet",
-            "AddAccessPointEvent",
-            (get_access_point_properties(false, ir.access_point),),
-        );
+        let msg = Message::signal(
+            &Path::from("/org/xetibo/ReSet"),
+            &"org.xetibo.ReSet".into(),
+            &"AccessPointAdded".into(),
+        )
+        .append1(ir.access_point);
+        access_point_added_ref.send(msg);
         true
     });
     if res.is_err() {
@@ -144,18 +144,13 @@ pub fn start_listener(
         ));
     }
     let res = conn.add_match(mrb, move |ir: AccessPointRemoved, conn, _| {
-        // conn.remove_match(id)
-        let conn = Connection::new_session().unwrap();
-        let proxy = conn.with_proxy(
-            "org.xetibo.ReSet",
-            "/org/xetibo/ReSet",
-            Duration::from_millis(1000),
-        );
-        let _: Result<(), dbus::Error> = proxy.method_call(
-            "org.xetibo.ReSet",
-            "RemoveAccessPointEvent",
-            (get_access_point_properties(false, ir.access_point),),
-        );
+        let msg = Message::signal(
+            &Path::from("/org/xetibo/ReSet"),
+            &"org.xetibo.ReSet".into(),
+            &"AccessPointRemoved".into(),
+        )
+        .append1(ir.access_point);
+        access_point_removed_ref.send(msg);
         true
     });
     if res.is_err() {

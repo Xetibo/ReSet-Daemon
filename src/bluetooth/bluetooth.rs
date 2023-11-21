@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    sync::Arc,
     thread,
     time::{Duration, SystemTime},
 };
@@ -7,9 +8,12 @@ use std::{
 use dbus::{
     arg::{self, RefArg, Variant},
     blocking::Connection,
+    channel::Sender,
     message::SignalArgs,
-    Path,
+    nonblock::SyncConnection,
+    Message, Path,
 };
+use dbus_tokio::connection;
 use ReSet_Lib::{
     bluetooth::{
         bluetooth::BluetoothDevice,
@@ -24,13 +28,14 @@ struct BluetoothAdapter {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BluetoothInterface {
     adapters: Vec<BluetoothAdapter>,
     current_adapter: BluetoothAdapter,
     devices: HashMap<Path<'static>, BluetoothDevice>,
     enabled: bool,
     real: bool,
+    connection: Arc<SyncConnection>,
 }
 
 fn get_objects() -> Result<
@@ -111,9 +116,10 @@ impl BluetoothInterface {
             devices: HashMap::new(),
             enabled: false,
             real: false,
+            connection: connection::new_session_sync().unwrap().1,
         }
     }
-    pub fn create() -> Option<Self> {
+    pub fn create(conn: Arc<SyncConnection>) -> Option<Self> {
         let mut adapters = Vec::new();
         let res = get_objects();
         if res.is_err() {
@@ -137,6 +143,7 @@ impl BluetoothInterface {
             devices: HashMap::new(),
             enabled: false,
             real: true,
+            connection: conn,
         };
         let _ = interface.set_bluetooth(true);
         Some(interface)
@@ -159,6 +166,8 @@ impl BluetoothInterface {
 
     pub fn start_discovery(&self, duration: u64) {
         let path = self.current_adapter.path.clone();
+        let added_ref = self.connection.clone();
+        let removed_ref = self.connection.clone();
         thread::spawn(move || {
             let conn = Connection::new_system().unwrap();
             let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
@@ -170,14 +179,13 @@ impl BluetoothInterface {
                 let device = convert_device(&ir.object, &ir.interfaces);
                 if device.is_some() {
                     let device = device.unwrap();
-                    let conn = Connection::new_session().unwrap();
-                    let proxy = conn.with_proxy(
-                        "org.xetibo.ReSet",
-                        "/org/xetibo/ReSet",
-                        Duration::from_millis(1000),
-                    );
-                    let _: Result<(), dbus::Error> =
-                        proxy.method_call("org.xetibo.ReSet", "AddBluetoothDeviceEvent", (device,));
+                    let msg = Message::signal(
+                        &Path::from("/org/xetibo/ReSet"),
+                        &"org.xetibo.ReSet".into(),
+                        &"BluetoothDeviceAdded".into(),
+                    )
+                    .append1(device);
+                    added_ref.send(msg);
                 }
                 true
             });
@@ -190,16 +198,13 @@ impl BluetoothInterface {
             let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
                 println!("removed in bluetooth listener");
                 let conn = Connection::new_session().unwrap();
-                let proxy = conn.with_proxy(
-                    "org.xetibo.ReSet",
-                    "/org/xetibo/ReSet",
-                    Duration::from_millis(1000),
-                );
-                let _: Result<(), dbus::Error> = proxy.method_call(
-                    "org.xetibo.ReSet",
-                    "RemoveBluetoothDeviceEvent",
-                    (ir.object,),
-                );
+                let msg = Message::signal(
+                    &Path::from("/org/xetibo/ReSet"),
+                    &"org.xetibo.ReSet".into(),
+                    &"BluetoothDeviceRemoved".into(),
+                )
+                .append1(ir.object);
+                removed_ref.send(msg);
                 true
             });
             if res.is_err() {
@@ -257,7 +262,7 @@ impl BluetoothInterface {
         if res.is_err() {
             println!("Error BROOOOOOOO");
             dbg!(res.err());
-            return Ok(())
+            return Ok(());
         }
         res
     }

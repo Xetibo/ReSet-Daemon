@@ -112,6 +112,7 @@ impl PulseServer {
             let mut borrow = context.borrow_mut();
             let introspector = borrow.introspect();
             borrow.set_subscribe_callback(Some(Box::new(move |facility, operation, index| {
+                let connection = connection_ref.clone();
                 let connection_sink = connection_ref.clone();
                 let connection_source = connection_ref.clone();
                 let connection_input_stream = connection_ref.clone();
@@ -121,7 +122,7 @@ impl PulseServer {
                 match facility {
                     pulse::context::subscribe::Facility::Sink => {
                         if operation == Operation::Removed {
-                            handle_sink_removed(index);
+                            handle_sink_removed(&connection_ref, index);
                             return;
                         }
                         introspector.get_sink_info_by_index(index, move |result| match result {
@@ -135,12 +136,16 @@ impl PulseServer {
                     }
                     pulse::context::subscribe::Facility::Source => {
                         if operation == Operation::Removed {
-                            handle_source_removed(index);
+                            handle_source_removed(&connection, index);
                             return;
                         }
                         introspector.get_source_info_by_index(index, move |result| match result {
                             ListResult::Item(source) => {
-                                handle_source_events(Source::from(source), operation);
+                                handle_source_events(
+                                    &connection_source,
+                                    Source::from(source),
+                                    operation,
+                                );
                                 return;
                             }
                             ListResult::Error => return,
@@ -149,12 +154,13 @@ impl PulseServer {
                     }
                     pulse::context::subscribe::Facility::SinkInput => {
                         if operation == Operation::Removed {
-                            handle_input_stream_removed(index);
+                            handle_input_stream_removed(&connection, index);
                             return;
                         }
                         introspector.get_sink_input_info(index, move |result| match result {
                             ListResult::Item(input_stream) => {
                                 handle_input_stream_events(
+                                    &connection_input_stream,
                                     InputStream::from(input_stream),
                                     operation,
                                 );
@@ -166,12 +172,13 @@ impl PulseServer {
                     }
                     pulse::context::subscribe::Facility::SourceOutput => {
                         if operation == Operation::Removed {
-                            handle_output_stream_removed(index);
+                            handle_output_stream_removed(&connection, index);
                             return;
                         }
                         introspector.get_source_output_info(index, move |result| match result {
                             ListResult::Item(output_stream) => {
                                 handle_output_stream_events(
+                                    &connection_output_stream,
                                     OutputStream::from(output_stream),
                                     operation,
                                 );
@@ -748,114 +755,122 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
     }
 }
 
-fn handle_sink_removed(index: u32) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
-    let _: Result<(), dbus::Error> =
-        proxy.method_call("org.xetibo.ReSet", "RemoveSinkEvent", (index,));
+fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
+    let msg = Message::signal(
+        &Path::from("/org/xetibo/ReSet"),
+        &"org.xetibo.ReSet".into(),
+        &"SinkRemoved".into(),
+    )
+    .append1(index);
+    conn.send(msg);
 }
 
-fn handle_source_events(source: Source, operation: Operation) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
+fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: Operation) {
     match operation {
         Operation::New => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "AddSourceEvent", (source,));
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"SourceAdded".into(),
+            )
+            .append1(source);
+            conn.send(msg);
         }
         Operation::Changed => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "ChangedSourceEvent", (source,));
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"SourceChanged".into(),
+            )
+            .append1(source);
+            conn.send(msg);
         }
         Operation::Removed => (),
     }
 }
 
-fn handle_source_removed(index: u32) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
-    let _: Result<(), dbus::Error> =
-        proxy.method_call("org.xetibo.ReSet", "RemoveSourceEvent", (index,));
+fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
+    let msg = Message::signal(
+        &Path::from("/org/xetibo/ReSet"),
+        &"org.xetibo.ReSet".into(),
+        &"SourceAdded".into(),
+    )
+    .append1(index);
+    conn.send(msg);
 }
 
-fn handle_input_stream_events(input_stream: InputStream, operation: Operation) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
+fn handle_input_stream_events(
+    conn: &Arc<SyncConnection>,
+    input_stream: InputStream,
+    operation: Operation,
+) {
     match operation {
         Operation::New => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "AddInputStreamEvent", (input_stream,));
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"InputStreamAdded".into(),
+            )
+            .append1(input_stream);
+            conn.send(msg);
         }
         Operation::Changed => {
-            let _: Result<(), dbus::Error> = proxy.method_call(
-                "org.xetibo.ReSet",
-                "ChangedInputStreamEvent",
-                (input_stream,),
-            );
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"InputStreamChanged".into(),
+            )
+            .append1(input_stream);
+            conn.send(msg);
         }
         Operation::Removed => (),
     }
 }
 
-fn handle_input_stream_removed(index: u32) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
-    let _: Result<(), dbus::Error> =
-        proxy.method_call("org.xetibo.ReSet", "RemoveInputStreamEvent", (index,));
+fn handle_input_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
+    let msg = Message::signal(
+        &Path::from("/org/xetibo/ReSet"),
+        &"org.xetibo.ReSet".into(),
+        &"InputStreamRemoved".into(),
+    )
+    .append1(index);
+    conn.send(msg);
 }
 
-fn handle_output_stream_events(output_stream: OutputStream, operation: Operation) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
+fn handle_output_stream_events(
+    conn: &Arc<SyncConnection>,
+    output_stream: OutputStream,
+    operation: Operation,
+) {
     match operation {
         Operation::New => {
-            println!("{} got added", output_stream.index);
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "AddOutputStreamEvent", (output_stream,));
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"InputStreamAdded".into(),
+            )
+            .append1(output_stream);
+            conn.send(msg);
         }
         Operation::Changed => {
-            println!("{} got changed", output_stream.index);
-            let _: Result<(), dbus::Error> = proxy.method_call(
-                "org.xetibo.ReSet",
-                "ChangedOutputStreamEvent",
-                (output_stream,),
-            );
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"InputStreamChanged".into(),
+            )
+            .append1(output_stream);
+            conn.send(msg);
         }
         Operation::Removed => (),
     }
 }
 
-fn handle_output_stream_removed(index: u32) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
-    let _: Result<(), dbus::Error> =
-        proxy.method_call("org.xetibo.ReSet", "RemoveOutputStreamEvent", (index,));
+fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
+    let msg = Message::signal(
+        &Path::from("/org/xetibo/ReSet"),
+        &"org.xetibo.ReSet".into(),
+        &"OutputStreamRemoved".into(),
+    )
+    .append1(index);
+    conn.send(msg);
 }
