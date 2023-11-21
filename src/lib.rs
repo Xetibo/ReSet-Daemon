@@ -167,8 +167,8 @@ pub async fn run_daemon() {
         c.signal::<(Source,), _>("SourceChanged", ("source",));
         c.signal::<(Source,), _>("SourceAdded", ("source",));
         c.signal::<(u32,), _>("SourceRemoved", ("source",));
-        c.signal::<(InputStream,), _>("InputStream", ("input_stream",));
-        c.signal::<(InputStream,), _>("InputStream", ("input_stream",));
+        c.signal::<(InputStream,), _>("InputStreamChanged", ("input_stream",));
+        c.signal::<(InputStream,), _>("InputStreamAdded", ("input_stream",));
         c.signal::<(u32,), _>("InputStreamRemoved", ("input_stream",));
         c.signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",));
         c.signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",));
