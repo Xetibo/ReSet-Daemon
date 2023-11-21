@@ -5,11 +5,17 @@ mod network;
 use std::{
     collections::HashMap,
     future::{self},
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
 };
 
-use dbus::{arg::PropMap, channel::MatchingReceiver, message::MatchRule, Path};
+use dbus::{
+    arg::PropMap, channel::MatchingReceiver, message::MatchRule, nonblock::SyncConnection, Path,
+};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use tokio;
@@ -58,6 +64,7 @@ pub enum AudioRequest {
     SetOutputStreamMute(u32, bool),
     ListCards,
     SetCardProfileOfDevice(u32, String),
+    StopListener,
 }
 
 pub enum AudioResponse {
@@ -75,16 +82,18 @@ pub struct DaemonData {
     pub n_devices: Vec<Device>,
     pub current_n_device: Device,
     pub b_interface: BluetoothInterface,
-    pub audio_sender: Sender<AudioRequest>,
-    pub audio_receiver: Receiver<AudioResponse>,
-    pub active_listener: Arc<AtomicBool>,
+    pub audio_sender: Rc<Sender<AudioRequest>>,
+    pub audio_receiver: Rc<Receiver<AudioResponse>>,
+    pub audio_listener_active: Arc<AtomicBool>,
+    pub network_listener_active: Arc<AtomicBool>,
+    pub connection: Arc<SyncConnection>,
 }
 
 unsafe impl Send for DaemonData {}
 unsafe impl Sync for DaemonData {}
 
 impl DaemonData {
-    pub async fn create() -> Result<Self, Error> {
+    pub async fn create(conn: Arc<SyncConnection>) -> Result<Self, Error> {
         let mut n_devices = get_wifi_devices();
         if n_devices.len() < 1 {
             return Err(Error {
@@ -100,40 +109,35 @@ impl DaemonData {
             b_interface = b_interface_opt.unwrap();
         }
 
-        let (dbus_pulse_sender, pulse_receiver): (Sender<AudioRequest>, Receiver<AudioRequest>) =
+        let (dbus_pulse_sender, _): (Sender<AudioRequest>, Receiver<AudioRequest>) =
             mpsc::channel();
-        let (pulse_sender, dbus_pulse_receiver): (Sender<AudioResponse>, Receiver<AudioResponse>) =
+        let (_, dbus_pulse_receiver): (Sender<AudioResponse>, Receiver<AudioResponse>) =
             mpsc::channel();
 
-        thread::spawn(move || {
-            let res = PulseServer::create(pulse_sender, pulse_receiver);
-            if res.is_err() {
-                return;
-            }
-            res.unwrap().listen_to_messages();
-        });
         Ok(DaemonData {
             n_devices,
             current_n_device,
             b_interface,
-            audio_sender: dbus_pulse_sender,
-            audio_receiver: dbus_pulse_receiver,
-            active_listener: Arc::new(AtomicBool::new(false)),
+            audio_sender: Rc::new(dbus_pulse_sender),
+            audio_receiver: Rc::new(dbus_pulse_receiver),
+            network_listener_active: Arc::new(AtomicBool::new(false)),
+            audio_listener_active: Arc::new(AtomicBool::new(false)),
+            connection: conn,
         })
     }
 }
 
 pub async fn run_daemon() {
-    let data = DaemonData::create().await;
-    if data.is_err() {
-        return;
-    }
-    let data = data.unwrap();
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
     }
     let (resource, conn) = res.unwrap();
+    let data = DaemonData::create(conn.clone()).await;
+    if data.is_err() {
+        return;
+    }
+    let data = data.unwrap();
 
     let _handle = tokio::spawn(async {
         let err = resource.await;
@@ -170,6 +174,8 @@ pub async fn run_daemon() {
         let sink_added = c.signal::<(Sink,), _>("SinkAdded", ("sink",)).msg_fn();
         let sink_removed = c.signal::<(u32,), _>("SinkRemoved", ("sink",)).msg_fn();
         let sink_changed = c.signal::<(Sink,), _>("SinkChanged", ("sink",)).msg_fn();
+        c.signal::<(Sink,), _>("SinkChanged", ("sink",));
+        c.signal::<(Sink,), _>("SinkAdded", ("sink",));
         let source_added = c
             .signal::<(Source,), _>("SourceAdded", ("source",))
             .msg_fn();
@@ -366,7 +372,7 @@ pub async fn run_daemon() {
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let path = data.current_n_device.dbus_path.clone();
-                let active_listener = data.active_listener.clone();
+                let active_listener = data.network_listener_active.clone();
                 let access_points = data.current_n_device.get_access_points();
                 thread::spawn(move || start_listener(access_points, path, active_listener));
                 async move { ctx.reply(Ok((true,))) }
@@ -377,7 +383,7 @@ pub async fn run_daemon() {
             (),
             ("result",),
             move |_, data, ()| {
-                let active_listener = data.active_listener.clone();
+                let active_listener = data.network_listener_active.clone();
                 stop_listener(active_listener);
                 println!("stopped network listener");
                 Ok((true,))
@@ -445,6 +451,41 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
+        c.method_with_cr_async("StartAudioListener", (), (), move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            if !data.audio_listener_active.load(Ordering::SeqCst) {
+                let (dbus_pulse_sender, pulse_receiver): (
+                    Sender<AudioRequest>,
+                    Receiver<AudioRequest>,
+                ) = mpsc::channel();
+                let (pulse_sender, dbus_pulse_receiver): (
+                    Sender<AudioResponse>,
+                    Receiver<AudioResponse>,
+                ) = mpsc::channel();
+
+                data.audio_sender = Rc::new(dbus_pulse_sender);
+                data.audio_receiver = Rc::new(dbus_pulse_receiver);
+                let listener_active = data.audio_listener_active.clone();
+                let connection = data.connection.clone();
+                thread::spawn(move || {
+                    let res = PulseServer::create(pulse_sender, pulse_receiver, connection);
+                    if res.is_err() {
+                        return;
+                    }
+                    listener_active.store(true, Ordering::SeqCst);
+                    res.unwrap().listen_to_messages();
+                });
+            }
+            async move { ctx.reply(Ok(())) }
+        });
+        c.method_with_cr_async("StopAudioListener", (), (), move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            if data.audio_listener_active.load(Ordering::SeqCst) {
+                let _ = data.audio_sender.send(AudioRequest::StopListener);
+            }
+            data.audio_listener_active.store(false, Ordering::SeqCst);
+            async move { ctx.reply(Ok(())) }
+        });
         c.method_with_cr_async(
             "GetDefaultSink",
             (),
@@ -530,23 +571,12 @@ pub async fn run_daemon() {
         c.method_with_cr_async(
             "SetSinkVolume",
             ("index", "channels", "volume"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSinkVolume(index, channels, volume));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );

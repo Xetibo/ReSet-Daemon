@@ -1,10 +1,13 @@
+use std::sync::Arc;
 use std::time::Duration;
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
 use std::sync::mpsc::{Receiver, Sender};
 
 use dbus::blocking::Connection;
-use pulse::context::introspect::CardInfo;
+use dbus::channel::Sender as dbus_sender;
+use dbus::nonblock::{NonblockReply, SyncConnection};
+use dbus::{Message, Path};
 use pulse::context::subscribe::{InterestMaskSet, Operation};
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
@@ -23,6 +26,7 @@ pub struct PulseServer {
     context: Rc<RefCell<Context>>,
     sender: Sender<AudioResponse>,
     receiver: Receiver<AudioRequest>,
+    connection: Arc<SyncConnection>,
 }
 
 #[derive(Debug)]
@@ -32,6 +36,7 @@ impl PulseServer {
     pub fn create(
         sender: Sender<AudioResponse>,
         receiver: Receiver<AudioRequest>,
+        connection: Arc<SyncConnection>,
     ) -> Result<Self, PulseError> {
         let mut proplist = Proplist::new().unwrap();
         proplist
@@ -102,10 +107,15 @@ impl PulseServer {
         mask.insert(InterestMaskSet::SOURCE_OUTPUT);
 
         context.borrow_mut().subscribe(mask, |_| {});
+        let connection_ref = connection.clone();
         {
             let mut borrow = context.borrow_mut();
             let introspector = borrow.introspect();
             borrow.set_subscribe_callback(Some(Box::new(move |facility, operation, index| {
+                let connection_sink = connection_ref.clone();
+                let connection_source = connection_ref.clone();
+                let connection_input_stream = connection_ref.clone();
+                let connection_output_stream = connection_ref.clone();
                 let operation = operation.unwrap();
                 let facility = facility.unwrap();
                 match facility {
@@ -116,7 +126,7 @@ impl PulseServer {
                         }
                         introspector.get_sink_info_by_index(index, move |result| match result {
                             ListResult::Item(sink) => {
-                                handle_sink_events(Sink::from(sink), operation);
+                                handle_sink_events(&connection_sink, Sink::from(sink), operation);
                                 return;
                             }
                             ListResult::Error => return,
@@ -183,6 +193,7 @@ impl PulseServer {
             context,
             sender,
             receiver,
+            connection,
         });
     }
 
@@ -237,8 +248,13 @@ impl PulseServer {
             AudioRequest::SetCardProfileOfDevice(device_index, profile_name) => {
                 self.set_card_profile_of_device(device_index, profile_name)
             }
+            AudioRequest::StopListener => self.stop_listener(),
             _ => {}
         }
+    }
+
+    pub fn stop_listener(&self) {
+        self.mainloop.borrow_mut().stop();
     }
 
     pub fn get_default_sink(&self) {
@@ -402,9 +418,9 @@ impl PulseServer {
                 (*ml_ref.as_ptr()).signal(!error);
             })),
         );
-        while result.get_state() != pulse::operation::State::Done {
-            self.mainloop.borrow_mut().wait();
-        }
+        // while result.get_state() != pulse::operation::State::Done {
+        //     self.mainloop.borrow_mut().wait();
+        // }
         // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
@@ -708,21 +724,25 @@ impl PulseServer {
     }
 }
 
-fn handle_sink_events(sink: Sink, operation: Operation) {
-    let conn = Connection::new_session().unwrap();
-    let proxy = conn.with_proxy(
-        "org.xetibo.ReSet",
-        "/org/xetibo/ReSet",
-        Duration::from_millis(1000),
-    );
+fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operation) {
     match operation {
         Operation::New => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "AddSinkEvent", (sink,));
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"SinkAdded".into(),
+            )
+            .append1(sink);
+            conn.send(msg);
         }
         Operation::Changed => {
-            let _: Result<(), dbus::Error> =
-                proxy.method_call("org.xetibo.ReSet", "ChangedSinkEvent", (sink,));
+            let msg = Message::signal(
+                &Path::from("/org/xetibo/ReSet"),
+                &"org.xetibo.ReSet".into(),
+                &"SinkChanged".into(),
+            )
+            .append1(sink);
+            conn.send(msg);
         }
         Operation::Removed => (),
     }

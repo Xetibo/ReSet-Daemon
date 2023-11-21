@@ -49,7 +49,7 @@ impl arg::ReadAll for AccessPointChanged {
 
 impl dbus::message::SignalArgs for AccessPointChanged {
     const NAME: &'static str = "PropertiesChanged";
-    const INTERFACE: &'static str = "org.freedesktop.DBus.Properties.PropertiesChanged";
+    const INTERFACE: &'static str = "org.freedesktop.DBus.Properties";
 }
 
 #[derive(Debug)]
@@ -100,25 +100,20 @@ pub fn start_listener(
             .static_clone();
     // for access_point in access_points {
     let access_point_changed = AccessPointChanged::match_rule(
-        Some(&"org.freedesktop.NetworkManager.AccessPoint".into()),
+        Some(&"org.freedesktop.NetworkManager".into()),
         // Some(&access_point.dbus_path),
         None,
     )
     .static_clone();
     let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
-        match ir.interface.as_str() {
-            "org.freedesktop.NetworkManager.AccessPoint" => {
-                let conn = Connection::new_session().unwrap();
-                let proxy = conn.with_proxy(
-                    "org.xetibo.ReSet",
-                    "/org/xetibo/ReSet",
-                    Duration::from_millis(1000),
-                );
-                let _: Result<(), dbus::Error> =
-                    proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
-            }
-            _ => (),
-        }
+        let conn = Connection::new_session().unwrap();
+        let proxy = conn.with_proxy(
+            "org.xetibo.ReSet",
+            "/org/xetibo/ReSet",
+            Duration::from_millis(1000),
+        );
+        let _: Result<(), dbus::Error> =
+            proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
         true
     });
     if res.is_err() {
@@ -129,30 +124,6 @@ pub fn start_listener(
     }
     // }
     let res = conn.add_match(mr, move |ir: AccessPointAdded, conn, _| {
-        // let access_point_changed = AccessPointChanged::match_rule(
-        //     Some(&"org.freedesktop.NetworkManager.AccessPoint".into()),
-        //     Some(&ir.access_point.clone()),
-        // )
-        // .static_clone();
-        // let res = conn.add_match(access_point_changed, move |ir: AccessPointChanged, _, _| {
-        //     match ir.interface.as_str() {
-        //         "org.freedesktop.NetworkManager.AccessPoint" => {
-        //             let conn = Connection::new_session().unwrap();
-        //             let proxy = conn.with_proxy(
-        //                 "org.xetibo.ReSet",
-        //                 "/org/xetibo/ReSet",
-        //                 Duration::from_millis(1000),
-        //             );
-        //             let _: Result<(), dbus::Error> =
-        //                 proxy.method_call("org.xetibo.ReSet", "ChangeAccessPointEvent", (ir.map,));
-        //         }
-        //         _ => (),
-        //     }
-        //     true
-        // });
-        // if res.is_err() {
-        //     return false;
-        // }
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy(
             "org.xetibo.ReSet",
