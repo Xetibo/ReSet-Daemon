@@ -793,7 +793,7 @@ fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
         &Path::from("/org/xetibo/ReSet"),
         &"org.xetibo.ReSet".into(),
-        &"SourceAdded".into(),
+        &"SourceRemoved".into(),
     )
     .append1(index);
     conn.send(msg);
