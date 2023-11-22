@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc, Mutex, RwLock,
     },
     thread,
 };
@@ -79,8 +79,8 @@ pub enum AudioResponse {
 }
 
 pub struct DaemonData {
-    pub n_devices: Vec<Device>,
-    pub current_n_device: Device,
+    pub n_devices: Vec<Arc<RwLock<Device>>>,
+    pub current_n_device: Arc<RwLock<Device>>,
     pub b_interface: BluetoothInterface,
     pub audio_sender: Rc<Sender<AudioRequest>>,
     pub audio_receiver: Rc<Receiver<AudioResponse>>,
@@ -179,7 +179,7 @@ pub async fn run_daemon() {
             (),
             ("access_points",),
             move |_, d: &mut DaemonData, ()| {
-                let access_points = d.current_n_device.get_access_points();
+                let access_points = d.current_n_device.read().unwrap().get_access_points();
                 Ok((access_points,))
             },
         );
@@ -188,16 +188,14 @@ pub async fn run_daemon() {
             (),
             ("path", "name"),
             move |_, d: &mut DaemonData, ()| {
+                let path = d.current_n_device.read().unwrap().dbus_path.clone();
                 let name = get_system_dbus_property::<(), String>(
                     "org.freedesktop.NetworkManager",
-                    d.current_n_device.dbus_path.clone(),
+                    path.clone(),
                     "org.freedesktop.NetworkManager.Device",
                     "Interface",
                 );
-                Ok((
-                    d.current_n_device.dbus_path.clone(),
-                    name.unwrap_or_else(|_| String::from("")),
-                ))
+                Ok((path, name.unwrap_or_else(|_| String::from(""))))
             },
         );
         c.method(
@@ -208,24 +206,23 @@ pub async fn run_daemon() {
                 let mut devices = Vec::new();
                 let device_paths = get_wifi_devices();
                 for device in device_paths {
+                    let path = device.read().unwrap().dbus_path.clone();
                     let name = get_system_dbus_property::<(), String>(
                         "org.freedesktop.NetworkManager",
-                        device.dbus_path.clone(),
+                        path.clone(),
                         "org.freedesktop.NetworkManager.Device",
                         "Interface",
                     );
-                    devices.push((device.dbus_path, name.unwrap_or_else(|_| String::from(""))));
+                    devices.push((path, name.unwrap_or_else(|_| String::from(""))));
                 }
+                let path = d.current_n_device.read().unwrap().dbus_path.clone();
                 let name = get_system_dbus_property::<(), String>(
                     "org.freedesktop.NetworkManager",
-                    d.current_n_device.dbus_path.clone(),
+                    path.clone(),
                     "org.freedesktop.NetworkManager.Device",
                     "Interface",
                 );
-                devices.push((
-                    d.current_n_device.dbus_path.clone(),
-                    name.unwrap_or_else(|_| String::from("")),
-                ));
+                devices.push((path, name.unwrap_or_else(|_| String::from(""))));
                 Ok((devices,))
             },
         );
@@ -237,7 +234,7 @@ pub async fn run_daemon() {
                 let mut res = false;
                 let mut iter = 0;
                 for device in d.n_devices.iter() {
-                    if device.dbus_path == path {
+                    if device.read().unwrap().dbus_path == path {
                         res = true;
                     }
                     iter += 1;
@@ -254,7 +251,11 @@ pub async fn run_daemon() {
             ("access_point",),
             ("result",),
             move |_, d: &mut DaemonData, (access_point,): (AccessPoint,)| {
-                let res = d.current_n_device.connect_to_access_point(access_point);
+                let res = d
+                    .current_n_device
+                    .write()
+                    .unwrap()
+                    .connect_to_access_point(access_point);
                 if res.is_err() {
                     return Ok((false,));
                 }
@@ -268,6 +269,8 @@ pub async fn run_daemon() {
             move |_, d: &mut DaemonData, (access_point, password): (AccessPoint, String)| {
                 let res = d
                     .current_n_device
+                    .write()
+                    .unwrap()
                     .add_and_connect_to_access_point(access_point, password);
                 if res.is_err() {
                     return Ok((false,));
@@ -280,7 +283,11 @@ pub async fn run_daemon() {
             (),
             ("result",),
             move |_, d: &mut DaemonData, ()| {
-                let res = d.current_n_device.disconnect_from_current();
+                let res = d
+                    .current_n_device
+                    .write()
+                    .unwrap()
+                    .disconnect_from_current();
                 if res.is_err() {
                     return Ok((false,));
                 }
@@ -343,13 +350,11 @@ pub async fn run_daemon() {
             ("result",),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let path = data.current_n_device.dbus_path.clone();
+                let path = data.current_n_device.read().unwrap().dbus_path.clone();
                 let active_listener = data.network_listener_active.clone();
-                let access_points = data.current_n_device.get_access_points();
+                let device = data.current_n_device.clone();
                 let connection = data.connection.clone();
-                thread::spawn(move || {
-                    start_listener(connection, access_points, path, active_listener)
-                });
+                thread::spawn(move || start_listener(connection, device, path, active_listener));
                 async move { ctx.reply(Ok((true,))) }
             },
         );
