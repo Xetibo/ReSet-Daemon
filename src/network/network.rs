@@ -9,7 +9,7 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, PropMap, RefArg, Variant},
+    arg::{self, prop_cast, PropMap, RefArg, Variant},
     blocking::Connection,
     channel::Sender,
     message::SignalArgs,
@@ -96,6 +96,8 @@ pub fn start_listener(
 ) -> Result<(), dbus::Error> {
     let access_point_added_ref = connection.clone();
     let access_point_removed_ref = connection.clone();
+    let device_ref_access_point = device.clone();
+    let active_access_point_changed_ref = connection.clone();
     let device_ref = device.clone();
     let conn = Connection::new_system().unwrap();
     let access_point_added =
@@ -104,39 +106,77 @@ pub fn start_listener(
     let access_point_removed =
         AccessPointRemoved::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
             .static_clone();
-    let access_point_changed =
-        AccessPointChanged::match_rule(Some(&"org.freedesktop.NetworkManager".into()), None)
-            .static_clone();
+    let mut access_point_changed = AccessPointChanged::match_rule(
+        Some(&"org.freedesktop.NetworkManager".into()),
+        Some(&Path::from("/org/freedesktop/NetworkManager/AccessPoint")),
+    )
+    .static_clone();
+    access_point_changed.path_is_namespace = true;
+    let mut wifi_device_event = AccessPointChanged::match_rule(
+        Some(&"org.freedesktop.NetworkManager".into()),
+        Some(&Path::from("/org/freedesktop/NetworkManager/Devices")),
+    )
+    .static_clone();
+    wifi_device_event.path_is_namespace = true;
     let res = conn.add_match(
         access_point_changed,
         move |ir: AccessPointChanged, _, msg| {
-            match ir.interface.as_str() {
-                "org.freedesktop.NetworkManager.AccessPoint" => {
-                    let path = msg.path().unwrap().to_string();
-                    if path.contains("/org/freedesktop/NetworkManager/AccessPoint/") {
-                        let mut connected = false;
-                        let current_access_point = device_ref.read().unwrap().access_point.clone();
-                        if current_access_point.is_some() {
-                            let current_path = current_access_point.unwrap().dbus_path;
-                            if Path::from(path.clone()) == current_path {
-                                connected = true;
-                            }
-                        }
-                        let access_point = get_access_point_properties(connected, Path::from(path));
-                        let msg = Message::signal(
-                            &Path::from("/org/xetibo/ReSet"),
-                            &"org.xetibo.ReSet".into(),
-                            &"AccessPointChanged".into(),
-                        )
-                        .append1(access_point);
-                        let _ = connection.send(msg);
+            let path = msg.path().unwrap().to_string();
+            if path.contains("/org/freedesktop/NetworkManager/AccessPoint/") {
+                let mut access_point = get_access_point_properties(false, Path::from(path));
+                let current_access_point =
+                    device_ref_access_point.read().unwrap().access_point.clone();
+                if let Some(current_access_point) = current_access_point {
+                    let current_path = current_access_point.ssid;
+                    if access_point.ssid == current_path {
+                        access_point.connected = true;
                     }
                 }
-                _ => println!("other event"),
+                let msg = Message::signal(
+                    &Path::from("/org/xetibo/ReSet"),
+                    &"org.xetibo.ReSet".into(),
+                    &"AccessPointChanged".into(),
+                )
+                .append1(access_point);
+                let _ = connection.send(msg);
             }
             true
         },
     );
+    if res.is_err() {
+        return Err(dbus::Error::new_custom(
+            "SignalMatchFailed",
+            "Failed to match signal on NetworkManager.",
+        ));
+    }
+    let res = conn.add_match(wifi_device_event, move |ir: AccessPointChanged, conn, _| {
+        // TODO remove connected flag from access point
+        let active_access_point: Option<&Path<'static>> = prop_cast(&ir.map, "ActiveAccessPoint");
+        if let Some(active_access_point) = active_access_point {
+            let active_access_point = active_access_point.clone();
+            if active_access_point != Path::from("/") {
+                let parsed_access_point = get_access_point_properties(true, active_access_point);
+                let mut device = device_ref.write().unwrap();
+                device.access_point = Some(parsed_access_point.clone());
+                let msg = Message::signal(
+                    &Path::from("/org/xetibo/ReSet"),
+                    &"org.xetibo.ReSet".into(),
+                    &"AddActiveAccessPoint".into(),
+                )
+                .append1(parsed_access_point);
+                let _ = active_access_point_changed_ref.send(msg);
+            } else {
+                let msg = Message::signal(
+                    &Path::from("/org/xetibo/ReSet"),
+                    &"org.xetibo.ReSet".into(),
+                    &"RemoveActiveAccessPoint".into(),
+                )
+                .append1(active_access_point);
+                let _ = active_access_point_changed_ref.send(msg);
+            }
+        }
+        true
+    });
     if res.is_err() {
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
@@ -336,12 +376,16 @@ pub fn get_access_point_properties(connected: bool, path: Path<'static>) -> Acce
     let mut associated_connection: Option<Path<'static>> = None;
     let connections = get_stored_connections();
     let mut stored: bool = false;
-    for (connection, connection_ssid) in connections {
-        if ssid == connection_ssid {
-            associated_connection = Some(connection);
-            stored = true;
-            break;
+    if !connected {
+        for (connection, connection_ssid) in connections {
+            if ssid == connection_ssid {
+                associated_connection = Some(connection);
+                stored = true;
+                break;
+            }
         }
+    } else {
+        stored = true;
     }
     if associated_connection.is_none() {
         associated_connection = Some(Path::from("/"));
