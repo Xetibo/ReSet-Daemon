@@ -8,7 +8,7 @@ use std::{
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, RwLock,
+        Arc, RwLock,
     },
     thread,
 };
@@ -18,7 +18,6 @@ use dbus::{
 };
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
-use tokio;
 use ReSet_Lib::{
     audio::audio::{Card, InputStream, OutputStream, Sink, Source},
     bluetooth::bluetooth::BluetoothDevice,
@@ -26,12 +25,6 @@ use ReSet_Lib::{
     utils::{call_system_dbus_method, get_system_dbus_property},
 };
 
-// use crate::network::network::{
-// get_connection_settings, list_connections, set_connection_settings, start_listener,
-// stop_listener,
-// };
-
-// use bluetooth::bluetooth::BluetoothInterface;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::{
