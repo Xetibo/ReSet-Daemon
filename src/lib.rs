@@ -15,13 +15,13 @@ use std::{
     thread,
 };
 
-use bluetooth::bluetooth::BluetoothAgent;
 use dbus::{
     arg::PropMap, channel::MatchingReceiver, message::MatchRule, nonblock::SyncConnection, Message,
     Path,
 };
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
+use utils::{AudioRequest, AudioResponse};
 use ReSet_Lib::{
     audio::audio::{Card, InputStream, OutputStream, Sink, Source},
     bluetooth::bluetooth::BluetoothDevice,
@@ -32,50 +32,15 @@ use ReSet_Lib::{
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::{
-    audio::audio::PulseServer,
-    bluetooth::bluetooth::BluetoothInterface,
-    network::network::{
+    audio::audio_lib::PulseServer,
+    bluetooth::bluetooth_lib::{get_connections, BluetoothAgent, BluetoothInterface},
+    network::network_lib::{
         get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
         set_connection_settings, start_listener, stop_listener, Device,
     },
 };
 
-pub enum AudioRequest {
-    ListSources,
-    GetDefaultSource,
-    SetSourceVolume(u32, u16, u32),
-    SetSourceMute(u32, bool),
-    SetDefaultSource(String),
-    ListSinks,
-    GetDefaultSink,
-    SetSinkVolume(u32, u16, u32),
-    SetSinkMute(u32, bool),
-    SetDefaultSink(String),
-    ListInputStreams,
-    SetSinkOfInputStream(u32, u32),
-    SetInputStreamVolume(u32, u16, u32),
-    SetInputStreamMute(u32, bool),
-    ListOutputStreams,
-    SetSourceOfOutputStream(u32, u32),
-    SetOutputStreamVolume(u32, u16, u32),
-    SetOutputStreamMute(u32, bool),
-    ListCards,
-    SetCardProfileOfDevice(u32, String),
-    StopListener,
-}
-
-pub enum AudioResponse {
-    DefaultSink(Sink),
-    DefaultSource(Source),
-    Sources(Vec<Source>),
-    Sinks(Vec<Sink>),
-    InputStreams(Vec<InputStream>),
-    OutputStreams(Vec<OutputStream>),
-    Cards(Vec<Card>),
-    BoolResponse(bool),
-}
-
-pub struct DaemonData {
+struct DaemonData {
     pub n_devices: Vec<Arc<RwLock<Device>>>,
     pub current_n_device: Arc<RwLock<Device>>,
     pub b_interface: BluetoothInterface,
@@ -461,6 +426,12 @@ fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
                 }
                 Ok((true,))
             },
+        );
+        c.method(
+            "GetConnectedBluetoothDevices",
+            (),
+            ("devices",),
+            move |_, _, ()| Ok((get_connections(),)),
         );
     });
     token

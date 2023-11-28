@@ -17,12 +17,12 @@
 /// a: `Vec<T>` an array of something
 #[allow(non_snake_case)]
 pub mod API {
-    use crate::network::network::Device;
+    use crate::network::network_lib::Device;
     use dbus::{arg::PropMap, Path};
     use std::collections::HashMap;
     use ReSet_Lib::{
         audio::audio::{Card, InputStream, OutputStream, Sink, Source},
-        network::network::AccessPoint,
+        network::network::AccessPoint, bluetooth::bluetooth::BluetoothDevice,
     };
 
     /// # Base API
@@ -148,6 +148,11 @@ pub mod API {
         /// Disconnects a Bluetooth device given the DBus path.
         /// Returns true on success and false on error.
         fn DisconnectFromBluetoothDevice(path: Path<'static>) -> bool;
+        ///
+        /// Returns all connected Bluetooth devices.
+        /// The first part of the HashMap is the DBus path of the object, the second the object
+        /// itself.
+        fn GetConnectedBluetoothDevices() -> HashMap<Path<'static>, BluetoothDevice>;
     }
 
     /// # Audio Manager API

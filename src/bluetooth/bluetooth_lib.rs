@@ -107,6 +107,24 @@ pub fn convert_device(path: &Path<'static>, map: &MaskedPropMap) -> Option<Bluet
     })
 }
 
+pub fn get_connections(
+) -> std::collections::HashMap<dbus::Path<'static>, ReSet_Lib::bluetooth::bluetooth::BluetoothDevice>
+{
+    let mut devices = HashMap::new();
+    let res = get_objects();
+    if res.is_err() {
+        return devices;
+    }
+    let (res,) = res.unwrap();
+    for (path, map) in res.iter() {
+        let device = convert_device(path, map);
+        if let Some(device) = device {
+            devices.insert(path.clone(), device);
+        }
+    }
+    devices
+}
+
 impl BluetoothInterface {
     pub fn empty() -> Self {
         Self {
@@ -148,20 +166,6 @@ impl BluetoothInterface {
         };
         interface.set_bluetooth(true);
         Some(interface)
-    }
-
-    pub fn get_connections(&mut self) {
-        let res = get_objects();
-        if res.is_err() {
-            return;
-        }
-        let (res,) = res.unwrap();
-        for (path, map) in res.iter() {
-            let device = convert_device(path, map);
-            if let Some(device) = device {
-                self.devices.insert(path.clone(), device);
-            }
-        }
     }
 
     pub fn start_discovery(&self, duration: u64) {
