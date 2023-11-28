@@ -1,3 +1,4 @@
+mod api;
 mod audio;
 mod bluetooth;
 mod network;
@@ -182,17 +183,12 @@ pub async fn run_daemon() {
     unreachable!()
 }
 
-/// Base API
-/// Simple API for connectivety checks and functionality check.
 fn setup_base(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     cross.register("org.Xetibo.ReSetDaemon", |c| {
         c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
     })
 }
 
-/// Wireless Manager API
-/// The wireless manager handles connecting, disconnecting, configuring, saving and removing of wireless network
-/// connections.
 fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetWireless", |c| {
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
