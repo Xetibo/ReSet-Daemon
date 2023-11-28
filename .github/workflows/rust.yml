@@ -29,6 +29,8 @@ jobs:
       run: |
         sudo apt install libdbus-1-dev pkg-config libpulse-dev network-manager dbus pulseaudio -y
         sudo systemctl enable --now NetworkManager
+        systemctl --user enable --now pulseaudio
+        sudo systemctl enable --now dbus-broker
     - name: Build
       run: cargo build --verbose
     - name: Run tests
