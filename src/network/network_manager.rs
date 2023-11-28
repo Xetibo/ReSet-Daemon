@@ -135,8 +135,8 @@ pub fn start_listener(
                     }
                 }
                 let msg = Message::signal(
-                    &Path::from("/org/xetibo/ReSet"),
-                    &"org.xetibo.ReSet".into(),
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetWireless".into(),
                     &"AccessPointChanged".into(),
                 )
                 .append1(access_point);
@@ -161,16 +161,16 @@ pub fn start_listener(
                 let mut device = device_ref.write().unwrap();
                 device.access_point = Some(parsed_access_point.clone());
                 let msg = Message::signal(
-                    &Path::from("/org/xetibo/ReSet"),
-                    &"org.xetibo.ReSet".into(),
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetWireless".into(),
                     &"AddActiveAccessPoint".into(),
                 )
                 .append1(parsed_access_point);
                 let _ = active_access_point_changed_ref.send(msg);
             } else {
                 let msg = Message::signal(
-                    &Path::from("/org/xetibo/ReSet"),
-                    &"org.xetibo.ReSet".into(),
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetWireless".into(),
                     &"RemoveActiveAccessPoint".into(),
                 )
                 .append1(active_access_point);
@@ -187,8 +187,8 @@ pub fn start_listener(
     }
     let res = conn.add_match(access_point_added, move |ir: AccessPointAdded, conn, _| {
         let msg = Message::signal(
-            &Path::from("/org/xetibo/ReSet"),
-            &"org.xetibo.ReSet".into(),
+            &Path::from("/org/Xetibo/ReSet"),
+            &"org.Xetibo.ReSetWireless".into(),
             &"AccessPointAdded".into(),
         )
         .append1(get_access_point_properties(false, ir.access_point));
@@ -205,8 +205,8 @@ pub fn start_listener(
         access_point_removed,
         move |ir: AccessPointRemoved, conn, _| {
             let msg = Message::signal(
-                &Path::from("/org/xetibo/ReSet"),
-                &"org.xetibo.ReSet".into(),
+                &Path::from("/org/Xetibo/ReSet"),
+                &"org.Xetibo.ReSetWireless".into(),
                 &"AccessPointRemoved".into(),
             )
             .append1(ir.access_point);
