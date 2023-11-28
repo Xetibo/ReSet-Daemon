@@ -137,7 +137,7 @@ pub async fn run_daemon() {
         panic!("Lost connection to D-Bus: {}", err);
     });
 
-    conn.request_name("org.xetibo.ReSet", false, true, false)
+    conn.request_name("org.Xetibo.ReSetDaemon", false, true, false)
         .await
         .unwrap();
     let mut cross = Crossroads::new();
@@ -148,25 +148,43 @@ pub async fn run_daemon() {
         }),
     )));
 
-    let token = cross.register("org.xetibo.ReSet", |c| {
+    let wireless_manager = setup_wireless_manager(&mut cross);
+    let bluetooth_manager = setup_bluetooth_manager(&mut cross);
+    let bluetooth_agent = setup_bluetooth_agent(&mut cross);
+    let audio_manager = setup_audio_manager(&mut cross);
+
+    let token = cross.register("org.Xetibo.ReSetDaemon", |c| {
+        c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
+    });
+    cross.insert(
+        "/org/xetibo/ReSetDaemon",
+        &[
+            token,
+            wireless_manager,
+            bluetooth_manager,
+            bluetooth_agent,
+            audio_manager,
+        ],
+        data,
+    );
+
+    conn.start_receive(
+        MatchRule::new_method_call(),
+        Box::new(move |msg, conn| {
+            cross.handle_message(msg, conn).unwrap();
+            true
+        }),
+    );
+
+    future::pending::<()>().await;
+    unreachable!()
+}
+
+fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register("org.Xetibo.ReSetWireless", |c| {
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));
         c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
-        c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
-        c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
-        c.signal::<(Sink,), _>("SinkChanged", ("sink",));
-        c.signal::<(Sink,), _>("SinkAdded", ("sink",));
-        c.signal::<(u32,), _>("SinkRemoved", ("sink",));
-        c.signal::<(Source,), _>("SourceChanged", ("source",));
-        c.signal::<(Source,), _>("SourceAdded", ("source",));
-        c.signal::<(u32,), _>("SourceRemoved", ("source",));
-        c.signal::<(InputStream,), _>("InputStreamChanged", ("input_stream",));
-        c.signal::<(InputStream,), _>("InputStreamAdded", ("input_stream",));
-        c.signal::<(u32,), _>("InputStreamRemoved", ("input_stream",));
-        c.signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",));
-        c.signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",));
-        c.signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",));
-        c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
         c.method(
             "ListAccessPoints",
             (),
@@ -362,6 +380,14 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
+    });
+    token
+}
+
+fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register("org.Xetibo.ReSetBluetooth", |c| {
+        c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
+        c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
         c.method_with_cr_async(
             "StartBluetoothSearch",
             ("duration",),
@@ -424,55 +450,24 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
-        c.method(
-            "RequestPinCode",
-            ("device",),
-            ("result",),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
-                Ok(("grengeng",))
-                // handle receive with a dynamic dbus function? does that even exist?
-            },
-        );
-        c.method(
-            "DisplayPinCode",
-            ("device", "code"),
-            (),
-            move |_, d: &mut DaemonData, (device, code): (Path<'static>, String)| Ok(()),
-        );
-        c.method(
-            "RequestPassKey",
-            ("device",),
-            ("passkey",),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok((0,)),
-        );
-        c.method(
-            "DisplayPassKey",
-            ("device", "passkey", "entered"),
-            (),
-            move |_, d: &mut DaemonData, (device, passkey, entered): (Path<'static>, u32, u16)| {
-                Ok(())
-            },
-        );
-        c.method(
-            "RequestConfirmation",
-            ("device", "passkey"),
-            (),
-            move |_, d: &mut DaemonData, (device, passkey): (Path<'static>, u32)| Ok(()),
-        );
-        c.method(
-            "RequestAuthorization",
-            ("device",),
-            (),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok(()),
-        );
-        c.method(
-            "AuthorizeService",
-            ("device", "uuid"),
-            (),
-            move |_, d: &mut DaemonData, (device, uuid): (Path<'static>, String)| Ok(()),
-        );
-        c.method("Cancel", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
-        c.method("Release", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
+    });
+    token
+}
+
+fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register("org.Xetibo.ReSetAudio", |c| {
+        c.signal::<(Sink,), _>("SinkChanged", ("sink",));
+        c.signal::<(Sink,), _>("SinkAdded", ("sink",));
+        c.signal::<(u32,), _>("SinkRemoved", ("sink",));
+        c.signal::<(Source,), _>("SourceChanged", ("source",));
+        c.signal::<(Source,), _>("SourceAdded", ("source",));
+        c.signal::<(u32,), _>("SourceRemoved", ("source",));
+        c.signal::<(InputStream,), _>("InputStreamChanged", ("input_stream",));
+        c.signal::<(InputStream,), _>("InputStreamAdded", ("input_stream",));
+        c.signal::<(u32,), _>("InputStreamRemoved", ("input_stream",));
+        c.signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",));
+        c.signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",));
+        c.signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",));
         c.method_with_cr_async("StartAudioListener", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             if !data.audio_listener_active.load(Ordering::SeqCst) {
@@ -926,16 +921,61 @@ pub async fn run_daemon() {
             },
         );
     });
-    cross.insert("/org/xetibo/ReSet", &[token], data);
+    token
+}
 
-    conn.start_receive(
-        MatchRule::new_method_call(),
-        Box::new(move |msg, conn| {
-            cross.handle_message(msg, conn).unwrap();
-            true
-        }),
-    );
+fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register("org.Xetibo.ReSetBluetoothAgent", |c| {
+        c.method(
+            "RequestPinCode",
+            ("device",),
+            ("result",),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                Ok(("grengeng",))
+                // handle receive with a dynamic dbus function? does that even exist?
+            },
+        );
+        c.method(
+            "DisplayPinCode",
+            ("device", "code"),
+            (),
+            move |_, d: &mut DaemonData, (device, code): (Path<'static>, String)| Ok(()),
+        );
+        c.method(
+            "RequestPassKey",
+            ("device",),
+            ("passkey",),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok((0,)),
+        );
+        c.method(
+            "DisplayPassKey",
+            ("device", "passkey", "entered"),
+            (),
+            move |_, d: &mut DaemonData, (device, passkey, entered): (Path<'static>, u32, u16)| {
+                Ok(())
+            },
+        );
+        c.method(
+            "RequestConfirmation",
+            ("device", "passkey"),
+            (),
+            move |_, d: &mut DaemonData, (device, passkey): (Path<'static>, u32)| Ok(()),
+        );
+        c.method(
+            "RequestAuthorization",
+            ("device",),
+            (),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok(()),
+        );
+        c.method(
+            "AuthorizeService",
+            ("device", "uuid"),
+            (),
+            move |_, d: &mut DaemonData, (device, uuid): (Path<'static>, String)| Ok(()),
+        );
+        c.method("Cancel", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
+        c.method("Release", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
+    });
 
-    future::pending::<()>().await;
-    unreachable!()
+    token
 }
