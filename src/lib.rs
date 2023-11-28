@@ -3,6 +3,7 @@ mod audio;
 mod bluetooth;
 mod network;
 mod utils;
+mod tests;
 
 use std::{
     collections::HashMap,
@@ -32,9 +33,9 @@ use ReSet_Lib::{
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use crate::{
-    audio::audio_lib::PulseServer,
-    bluetooth::bluetooth_lib::{get_connections, BluetoothAgent, BluetoothInterface},
-    network::network_lib::{
+    audio::audio_manager::PulseServer,
+    bluetooth::bluetooth_manager::{get_connections, BluetoothAgent, BluetoothInterface},
+    network::network_manager::{
         get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
         set_connection_settings, start_listener, stop_listener, Device,
     },
@@ -90,6 +91,24 @@ impl DaemonData {
     }
 }
 
+/// # Running the daemon as a library function
+///
+/// Used as a standalone binary:
+/// ```no_run
+/// use reset_daemon::run_daemon;
+///
+/// #[tokio::main]
+/// pub async fn main() {
+///     run_daemon().await;
+/// }
+/// ```
+///
+/// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
+/// ```no_run
+/// use reset_daemon::run_daemon;
+/// tokio::task::spawn(run_daemon());
+/// // your other code here...
+/// ```
 pub async fn run_daemon() {
     let res = connection::new_session_sync();
     if res.is_err() {
@@ -125,7 +144,7 @@ pub async fn run_daemon() {
     let audio_manager = setup_audio_manager(&mut cross);
 
     cross.insert(
-        "/org/xetibo/ReSetDaemon",
+        "/org/Xetibo/ReSetDaemon",
         &[
             base,
             wireless_manager,
@@ -314,7 +333,6 @@ fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken
             ("path",),
             ("result",),
             move |_, _, (path,): (Path<'static>,)| {
-                println!("called delete");
                 let res = call_system_dbus_method::<(), ()>(
                     "org.freedesktop.NetworkManager",
                     path,
@@ -350,7 +368,6 @@ fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken
             move |_, data, ()| {
                 let active_listener = data.network_listener_active.clone();
                 stop_listener(active_listener);
-                println!("stopped network listener");
                 Ok((true,))
             },
         );
@@ -366,10 +383,10 @@ fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
         c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
         c.method_with_cr_async(
-            "StartBluetoothSearch",
+            "StartBluetoothListener",
             ("duration",),
             (),
-            move |mut ctx, cross, (duration,): (i32,)| {
+            move |mut ctx, cross, (duration,): (u32,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 data.b_interface.start_discovery(duration as u64);
                 // let mut response = true;
@@ -380,7 +397,7 @@ fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
             },
         );
         c.method(
-            "StopBluetoothSearch",
+            "StopBluetoothListener",
             (),
             ("result",),
             move |_, d: &mut DaemonData, ()| {

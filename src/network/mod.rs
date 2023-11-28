@@ -1,1 +1,1 @@
-pub mod network_lib;
+pub mod network_manager;

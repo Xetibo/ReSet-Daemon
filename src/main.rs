@@ -4,4 +4,3 @@ use reset_daemon::run_daemon;
 pub async fn main() {
     run_daemon().await;
 }
-

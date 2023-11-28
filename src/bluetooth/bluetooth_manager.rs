@@ -199,7 +199,6 @@ impl BluetoothInterface {
                 ));
             }
             let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
-                println!("removed in bluetooth listener");
                 let _conn = Connection::new_session().unwrap();
                 let msg = Message::signal(
                     &Path::from("/org/xetibo/ReSet"),
@@ -252,21 +251,14 @@ impl BluetoothInterface {
     }
 
     pub fn pair_with(&self, device: Path<'static>) -> Result<(), dbus::Error> {
-        println!("pairing on {}", device.clone());
-        let res = call_system_dbus_method::<(), ()>(
+        call_system_dbus_method::<(), ()>(
             "org.bluez",
             device,
             "Pair",
             "org.bluez.Device1",
             (),
             1000,
-        );
-        if res.is_err() {
-            println!("Error BROOOOOOOO");
-            dbg!(res.err());
-            return Ok(());
-        }
-        res
+        )
     }
 
     pub fn disconnect(&self, device: Path<'static>) -> Result<(), dbus::Error> {

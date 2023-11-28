@@ -1,1 +1,2 @@
-pub mod bluetooth_lib;
+pub mod bluetooth_manager;
+pub mod bluetooth_agent;

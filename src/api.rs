@@ -17,12 +17,13 @@
 /// a: `Vec<T>` an array of something
 #[allow(non_snake_case)]
 pub mod API {
-    use crate::network::network_lib::Device;
+    use crate::network::network_manager::Device;
     use dbus::{arg::PropMap, Path};
     use std::collections::HashMap;
     use ReSet_Lib::{
         audio::audio::{Card, InputStream, OutputStream, Sink, Source},
-        network::network::AccessPoint, bluetooth::bluetooth::BluetoothDevice,
+        bluetooth::bluetooth::BluetoothDevice,
+        network::network::AccessPoint,
     };
 
     /// # Base API

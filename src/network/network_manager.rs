@@ -220,13 +220,11 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    println!("started listener");
     active_listener.store(true, Ordering::SeqCst);
     let mut time = SystemTime::now();
     loop {
         let _ = conn.process(Duration::from_millis(1000))?;
         if !active_listener.load(Ordering::SeqCst) {
-            println!("stopped listener");
             break;
         }
         if time.elapsed().unwrap_or(Duration::from_millis(0)) < Duration::from_secs(10) {
