@@ -24,6 +24,8 @@ use ReSet_Lib::{
     utils::{call_system_dbus_method, get_system_dbus_property},
 };
 
+use crate::utils::MaskedPropMap;
+
 #[derive(Debug)]
 pub struct AccessPointChanged {
     pub interface: String,
@@ -286,18 +288,7 @@ pub fn list_connections() -> Vec<Path<'static>> {
     result
 }
 
-pub fn get_connection_settings(
-    path: Path<'static>,
-) -> Result<
-    (
-        HashMap<
-            std::string::String,
-            HashMap<std::string::String, dbus::arg::Variant<Box<dyn RefArg>>>,
-        >,
-    ),
-    dbus::Error,
-> {
-    
+pub fn get_connection_settings(path: Path<'static>) -> Result<(MaskedPropMap,), dbus::Error> {
     call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
         path,
@@ -433,12 +424,11 @@ pub fn get_associations_of_active_connection(
     let connection_type: String = proxy
         .get(interface, "Type")
         .unwrap_or_else(|_| String::from(""));
-    let access_point: Option<AccessPoint>;
-    if connection_type == "802-11-wireless" {
-        access_point = Some(get_access_point_properties(true, access_point_prop));
+    let access_point: Option<AccessPoint> = if connection_type == "802-11-wireless" {
+        Some(get_access_point_properties(true, access_point_prop))
     } else {
-        access_point = None;
-    }
+        None
+    };
     (devices, access_point)
 }
 
@@ -460,8 +450,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         }
         let (settings,) = res.unwrap();
         let settings = settings.get("802-11-wireless");
-        if settings.is_some() {
-            let settings = settings.unwrap();
+        if let Some(settings) = settings {
             let ssid: &Vec<u8> = arg::prop_cast(settings, "ssid").unwrap();
             let ssid = ssid.clone();
             wifi_connections.push((connection, ssid));
@@ -631,8 +620,8 @@ impl Device {
                 access_point.dbus_path.clone(),
             ),
         );
-        if result.is_ok() {
-            let (path, connection) = result.unwrap();
+        if let Ok(result) = result {
+            let (path, connection) = result;
             let mut result = 1;
             while result == 1 {
                 let res = get_system_dbus_property::<(), u32>(

@@ -2,6 +2,7 @@ mod api;
 mod audio;
 mod bluetooth;
 mod network;
+mod utils;
 
 use std::{
     collections::HashMap,
@@ -99,12 +100,11 @@ impl DaemonData {
         }
         let current_n_device = n_devices.pop().unwrap();
         let b_interface_opt = BluetoothInterface::create(conn.clone());
-        let b_interface: BluetoothInterface;
-        if b_interface_opt.is_none() {
-            b_interface = BluetoothInterface::empty();
+        let b_interface: BluetoothInterface = if let Some(b_interface_opt) = b_interface_opt {
+            b_interface_opt
         } else {
-            b_interface = b_interface_opt.unwrap();
-        }
+            BluetoothInterface::empty()
+        };
 
         let (dbus_pulse_sender, _): (Sender<AudioRequest>, Receiver<AudioRequest>) =
             mpsc::channel();
@@ -524,23 +524,21 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
             ("default_sink",),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let sink: Option<Sink>;
                 let _ = data.audio_sender.send(AudioRequest::GetDefaultSink);
                 let response = data.audio_receiver.recv();
-                if response.is_ok() {
-                    sink = match response.unwrap() {
+                let sink: Option<Sink> = if let Ok(response) = response {
+                    match response {
                         AudioResponse::DefaultSink(s) => Some(s),
                         _ => None,
                     }
                 } else {
-                    sink = None;
-                }
-                let response: Result<(Sink,), dbus::MethodErr>;
-                if sink.is_none() {
-                    response = Err(dbus::MethodErr::failed("Could not get default sink"));
+                    None
+                };
+                let response: Result<(Sink,), dbus::MethodErr> = if let Some(sink) = sink {
+                    Ok((sink,))
                 } else {
-                    response = Ok((sink.unwrap(),));
-                }
+                    Err(dbus::MethodErr::failed("Could not get default sink"))
+                };
                 async move { ctx.reply(response) }
             },
         );
@@ -550,54 +548,50 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
             ("default_source",),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let source: Option<Source>;
                 let _ = data.audio_sender.send(AudioRequest::GetDefaultSource);
                 let response = data.audio_receiver.recv();
-                if response.is_ok() {
-                    source = match response.unwrap() {
+                let source: Option<Source> = if let Ok(response) = response {
+                    match response {
                         AudioResponse::DefaultSource(s) => Some(s),
                         _ => None,
                     }
                 } else {
-                    source = None;
-                }
-                let response: Result<(Source,), dbus::MethodErr>;
-                if source.is_none() {
-                    response = Err(dbus::MethodErr::failed("Could not get default source"));
+                    None
+                };
+                let response: Result<(Source,), dbus::MethodErr> = if let Some(source) = source {
+                    Ok((source,))
                 } else {
-                    response = Ok((source.unwrap(),));
-                }
+                    Err(dbus::MethodErr::failed("Could not get default source"))
+                };
                 async move { ctx.reply(response) }
             },
         );
         c.method_with_cr_async("ListSinks", (), ("sinks",), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-            let sinks: Vec<Sink>;
             let _ = data.audio_sender.send(AudioRequest::ListSinks);
             let response = data.audio_receiver.recv();
-            if response.is_ok() {
-                sinks = match response.unwrap() {
+            let sinks: Vec<Sink> = if let Ok(response) = response {
+                match response {
                     AudioResponse::Sinks(s) => s,
                     _ => Vec::new(),
                 }
             } else {
-                sinks = Vec::new();
-            }
+                Vec::new()
+            };
             async move { ctx.reply(Ok((sinks,))) }
         });
         c.method_with_cr_async("ListSources", (), ("sinks",), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-            let sources: Vec<Source>;
             let _ = data.audio_sender.send(AudioRequest::ListSources);
             let response = data.audio_receiver.recv();
-            if response.is_ok() {
-                sources = match response.unwrap() {
+            let sources: Vec<Source> = if let Ok(response) = response {
+                match response {
                     AudioResponse::Sources(s) => s,
                     _ => Vec::new(),
                 }
             } else {
-                sources = Vec::new();
-            }
+                Vec::new()
+            };
             async move { ctx.reply(Ok((sources,))) }
         });
         c.method_with_cr_async(
@@ -615,113 +609,58 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
         c.method_with_cr_async(
             "SetSinkMute",
             ("index", "muted"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSinkMute(index, muted));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetSourceVolume",
             ("index", "channels", "volume"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSourceVolume(index, channels, volume));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetSourceMute",
             ("index", "muted"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSourceMute(index, muted));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetDefaultSink",
             ("sink",),
-            // ("result",),
             (),
             move |mut ctx, cross, (sink,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data.audio_sender.send(AudioRequest::SetDefaultSink(sink));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetDefaultSource",
             ("source",),
-            // ("result",),
             (),
             move |mut ctx, cross, (source,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetDefaultSource(source));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
@@ -731,86 +670,52 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
             ("input_streams",),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let input_streams: Vec<InputStream>;
                 let _ = data.audio_sender.send(AudioRequest::ListInputStreams);
                 let response = data.audio_receiver.recv();
-                if response.is_ok() {
-                    input_streams = match response.unwrap() {
+                let input_streams: Vec<InputStream> = if let Ok(response) = response {
+                    match response {
                         AudioResponse::InputStreams(s) => s,
                         _ => Vec::new(),
                     }
                 } else {
-                    input_streams = Vec::new();
-                }
+                    Vec::new()
+                };
                 async move { ctx.reply(Ok((input_streams,))) }
             },
         );
         c.method_with_cr_async(
             "SetSinkOfInputStream",
             ("input_stream", "sink"),
-            // ("result",),
             (),
             move |mut ctx, cross, (input_stream, sink): (u32, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSinkOfInputStream(input_stream, sink));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetInputStreamVolume",
             ("index", "channels", "volume"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetInputStreamVolume(index, channels, volume));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetInputStreamMute",
             ("input_stream_index", "muted"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetInputStreamMute(index, muted));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
@@ -823,15 +728,14 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
                 let _ = data.audio_sender.send(AudioRequest::ListOutputStreams);
                 let response = data.audio_receiver.recv();
                 async move {
-                    let output_streams: Vec<OutputStream>;
-                    if response.is_ok() {
-                        output_streams = match response.unwrap() {
+                    let output_streams: Vec<OutputStream> = if let Ok(response) = response {
+                        match response {
                             AudioResponse::OutputStreams(s) => s,
                             _ => Vec::new(),
                         }
                     } else {
-                        output_streams = Vec::new();
-                    }
+                        Vec::new()
+                    };
                     ctx.reply(Ok((output_streams,)))
                 }
             },
@@ -839,69 +743,36 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
         c.method_with_cr_async(
             "SetSourceOfOutputStream",
             ("input_stream", "source"),
-            // ("result",),
             (),
             move |mut ctx, cross, (output_stream, source): (u32, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetSourceOfOutputStream(output_stream, source));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetOutputStreamVolume",
             ("index", "channels", "volume"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, channels, volume): (u32, u16, u32)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetOutputStreamVolume(index, channels, volume));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method_with_cr_async(
             "SetOutputStreamMute",
             ("index", "muted"),
-            // ("result",),
             (),
             move |mut ctx, cross, (index, muted): (u32, bool)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetOutputStreamMute(index, muted));
-                // let result: bool;
-                // let res = data.audio_receiver.recv();
-                // if res.is_err() {
-                //     result = false;
-                // } else {
-                //     result = match res.unwrap() {
-                //         AudioResponse::BoolResponse(b) => b,
-                //         _ => false,
-                //     };
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
@@ -910,15 +781,14 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
             let _ = data.audio_sender.send(AudioRequest::ListCards);
             let response = data.audio_receiver.recv();
             async move {
-                let cards: Vec<Card>;
-                if response.is_ok() {
-                    cards = match response.unwrap() {
+                let cards: Vec<Card> = if let Ok(response) = response {
+                    match response {
                         AudioResponse::Cards(s) => s,
                         _ => Vec::new(),
                     }
                 } else {
-                    cards = Vec::new();
-                }
+                    Vec::new()
+                };
                 ctx.reply(Ok((cards,)))
             }
         });
@@ -963,7 +833,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
                 );
                 ctx.push_msg(msg);
                 Ok(("grengeng",))
-                // handle receive with a dynamic dbus function? does that even exist?
+                // TODO handle receive with a dynamic dbus function? does that even exist?
             },
         );
         c.method(

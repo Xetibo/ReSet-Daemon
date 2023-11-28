@@ -22,6 +22,8 @@ use ReSet_Lib::{
     utils::{call_system_dbus_method, set_system_dbus_property},
 };
 
+use crate::utils::{FullMaskedPropMap, MaskedPropMap};
+
 #[derive(Debug, Clone)]
 struct BluetoothAdapter {
     path: Path<'static>,
@@ -48,19 +50,13 @@ impl BluetoothAgent {
     }
 }
 
-fn get_objects() -> Result<
-    (
-        HashMap<
-            Path<'static>,
-            HashMap<
-                std::string::String,
-                HashMap<std::string::String, dbus::arg::Variant<Box<dyn RefArg>>>,
-            >,
-        >,
-    ),
-    dbus::Error,
-> {
-    
+impl Default for BluetoothAgent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn get_objects() -> Result<(FullMaskedPropMap,), dbus::Error> {
     call_system_dbus_method::<
         (),
         (HashMap<Path<'static>, HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>>,),
@@ -74,19 +70,16 @@ fn get_objects() -> Result<
     )
 }
 
-pub fn convert_device(
-    path: &Path<'static>,
-    map: &HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>,
-) -> Option<BluetoothDevice> {
+pub fn convert_device(path: &Path<'static>, map: &MaskedPropMap) -> Option<BluetoothDevice> {
     let map = map.get("org.bluez.Device1");
     map?;
     let map = map.unwrap();
     let rssi: i16;
     let rssi_opt = map.get("RSSI");
-    if rssi_opt.is_none() {
-        rssi = -1;
+    if let Some(rssi_opt) = rssi_opt {
+        rssi = *arg::cast::<i16>(&rssi_opt.0).unwrap();
     } else {
-        rssi = *arg::cast::<i16>(&rssi_opt.unwrap().0).unwrap();
+        rssi = -1;
     }
     let name = arg::cast::<String>(&map.get("Alias").unwrap().0)
         .unwrap()
@@ -165,8 +158,7 @@ impl BluetoothInterface {
         let (res,) = res.unwrap();
         for (path, map) in res.iter() {
             let device = convert_device(path, map);
-            if device.is_some() {
-                let device = device.unwrap();
+            if let Some(device) = device {
                 self.devices.insert(path.clone(), device);
             }
         }
@@ -185,15 +177,14 @@ impl BluetoothInterface {
                 BluetoothDeviceRemoved::match_rule(Some(&"org.bluez".into()), None).static_clone();
             let res = conn.add_match(mr, move |ir: BluetoothDeviceAdded, _, _| {
                 let device = convert_device(&ir.object, &ir.interfaces);
-                if device.is_some() {
-                    let device = device.unwrap();
+                if let Some(device) = device {
                     let msg = Message::signal(
                         &Path::from("/org/xetibo/ReSet"),
                         &"org.xetibo.ReSet".into(),
                         &"BluetoothDeviceAdded".into(),
                     )
                     .append1(device);
-                    added_ref.send(msg);
+                    let _ = added_ref.send(msg);
                 }
                 true
             });
@@ -212,7 +203,7 @@ impl BluetoothInterface {
                     &"BluetoothDeviceRemoved".into(),
                 )
                 .append1(ir.object);
-                removed_ref.send(msg);
+                let _ = removed_ref.send(msg);
                 true
             });
             if res.is_err() {
@@ -246,7 +237,6 @@ impl BluetoothInterface {
     }
 
     pub fn connect_to(&self, device: Path<'static>) -> Result<(), dbus::Error> {
-        
         call_system_dbus_method::<(), ()>(
             "org.bluez",
             device,
@@ -276,7 +266,6 @@ impl BluetoothInterface {
     }
 
     pub fn disconnect(&self, device: Path<'static>) -> Result<(), dbus::Error> {
-        
         call_system_dbus_method::<(), ()>(
             "org.bluez",
             device,

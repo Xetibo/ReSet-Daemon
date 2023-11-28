@@ -4,9 +4,8 @@ use std::{cell::RefCell, ops::Deref, rc::Rc};
 
 use std::sync::mpsc::{Receiver, Sender};
 
-
 use dbus::channel::Sender as dbus_sender;
-use dbus::nonblock::{SyncConnection};
+use dbus::nonblock::SyncConnection;
 use dbus::{Message, Path};
 use pulse::context::subscribe::{InterestMaskSet, Operation};
 use pulse::volume::{ChannelVolumes, Volume};
@@ -26,7 +25,6 @@ pub struct PulseServer {
     context: Rc<RefCell<Context>>,
     sender: Sender<AudioResponse>,
     receiver: Receiver<AudioRequest>,
-    connection: Arc<SyncConnection>,
 }
 
 #[derive(Debug)]
@@ -196,15 +194,14 @@ impl PulseServer {
             context,
             sender,
             receiver,
-            connection,
         })
     }
 
     pub fn listen_to_messages(&mut self) {
         loop {
             let message = self.receiver.recv();
-            if message.is_ok() {
-                self.handle_message(message.unwrap());
+            if let Ok(message) = message {
+                self.handle_message(message);
             }
         }
     }
@@ -421,10 +418,6 @@ impl PulseServer {
                 (*ml_ref.as_ptr()).signal(!error);
             })),
         );
-        // while result.get_state() != pulse::operation::State::Done {
-        //     self.mainloop.borrow_mut().wait();
-        // }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -442,7 +435,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -463,7 +455,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -481,7 +472,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -499,7 +489,6 @@ impl PulseServer {
         {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -515,7 +504,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -559,7 +547,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -580,7 +567,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -598,7 +584,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -642,7 +627,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -663,7 +647,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -681,7 +664,6 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        // let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -736,7 +718,7 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
                 &"SinkAdded".into(),
             )
             .append1(sink);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -745,7 +727,7 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
                 &"SinkChanged".into(),
             )
             .append1(sink);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Removed => (),
     }
@@ -758,7 +740,7 @@ fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"SinkRemoved".into(),
     )
     .append1(index);
-    conn.send(msg);
+    let _ = conn.send(msg);
 }
 
 fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: Operation) {
@@ -770,7 +752,7 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
                 &"SourceAdded".into(),
             )
             .append1(source);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -779,7 +761,7 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
                 &"SourceChanged".into(),
             )
             .append1(source);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Removed => (),
     }
@@ -792,7 +774,7 @@ fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"SourceRemoved".into(),
     )
     .append1(index);
-    conn.send(msg);
+    let _ = conn.send(msg);
 }
 
 fn handle_input_stream_events(
@@ -808,7 +790,7 @@ fn handle_input_stream_events(
                 &"InputStreamAdded".into(),
             )
             .append1(input_stream);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -817,7 +799,7 @@ fn handle_input_stream_events(
                 &"InputStreamChanged".into(),
             )
             .append1(input_stream);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Removed => (),
     }
@@ -830,7 +812,7 @@ fn handle_input_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"InputStreamRemoved".into(),
     )
     .append1(index);
-    conn.send(msg);
+    let _ = conn.send(msg);
 }
 
 fn handle_output_stream_events(
@@ -846,7 +828,7 @@ fn handle_output_stream_events(
                 &"OutputStreamAdded".into(),
             )
             .append1(output_stream);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -855,7 +837,7 @@ fn handle_output_stream_events(
                 &"OutputStreamChanged".into(),
             )
             .append1(output_stream);
-            conn.send(msg);
+            let _ = conn.send(msg);
         }
         Operation::Removed => (),
     }
@@ -868,5 +850,5 @@ fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"OutputStreamRemoved".into(),
     )
     .append1(index);
-    conn.send(msg);
+    let _ = conn.send(msg);
 }
