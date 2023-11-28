@@ -1,5 +1,4 @@
 use crate::run_daemon;
-use ReSet_Lib::audio::audio::{Source, InputStream, OutputStream};
 use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
@@ -16,6 +15,8 @@ use std::{thread, time::Duration};
 use tokio::runtime;
 #[cfg(test)]
 use ReSet_Lib::audio::audio::Sink;
+#[allow(unused_imports)]
+use ReSet_Lib::audio::audio::{InputStream, OutputStream, Source};
 
 #[allow(dead_code)]
 static START_DAEMON: Once = Once::new();
@@ -31,9 +32,6 @@ fn call_session_dbus_method<
     params: I,
 ) -> Result<O, dbus::Error> {
     let conn = Connection::new_session();
-    if conn.is_err() {
-        println!("wat");
-    }
     let conn = conn.unwrap();
     let proxy = conn.with_proxy(
         "org.Xetibo.ReSetDaemon",
