@@ -1,9 +1,19 @@
-use std::{sync::{mpsc::{Sender, Receiver, self}, atomic::Ordering}, rc::Rc, thread};
+use std::{
+    rc::Rc,
+    sync::{
+        atomic::Ordering,
+        mpsc::{self, Receiver, Sender},
+    },
+    thread,
+};
 
-use ReSet_Lib::audio::audio::{Sink, Source, InputStream, OutputStream, Card};
 use dbus_crossroads::Crossroads;
+use ReSet_Lib::audio::audio::{Card, InputStream, OutputStream, Sink, Source};
 
-use crate::{utils::{AudioRequest, AudioResponse}, DaemonData};
+use crate::{
+    utils::{AudioRequest, AudioResponse},
+    DaemonData,
+};
 
 use super::audio_manager::PulseServer;
 
@@ -347,4 +357,3 @@ pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
     });
     token
 }
-

@@ -1,6 +1,6 @@
-use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
 use dbus::Path;
 use dbus_crossroads::Crossroads;
+use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
 
 use crate::DaemonData;
 
