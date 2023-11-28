@@ -424,6 +424,55 @@ pub async fn run_daemon() {
                 Ok((true,))
             },
         );
+        c.method(
+            "RequestPinCode",
+            ("device",),
+            ("result",),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                Ok(("grengeng",))
+                // handle receive with a dynamic dbus function? does that even exist?
+            },
+        );
+        c.method(
+            "DisplayPinCode",
+            ("device", "code"),
+            (),
+            move |_, d: &mut DaemonData, (device, code): (Path<'static>, String)| Ok(()),
+        );
+        c.method(
+            "RequestPassKey",
+            ("device",),
+            ("passkey",),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok((0,)),
+        );
+        c.method(
+            "DisplayPassKey",
+            ("device", "passkey", "entered"),
+            (),
+            move |_, d: &mut DaemonData, (device, passkey, entered): (Path<'static>, u32, u16)| {
+                Ok(())
+            },
+        );
+        c.method(
+            "RequestConfirmation",
+            ("device", "passkey"),
+            (),
+            move |_, d: &mut DaemonData, (device, passkey): (Path<'static>, u32)| Ok(()),
+        );
+        c.method(
+            "RequestAuthorization",
+            ("device",),
+            (),
+            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok(()),
+        );
+        c.method(
+            "AuthorizeService",
+            ("device", "uuid"),
+            (),
+            move |_, d: &mut DaemonData, (device, uuid): (Path<'static>, String)| Ok(()),
+        );
+        c.method("Cancel", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
+        c.method("Release", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
         c.method_with_cr_async("StartAudioListener", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             if !data.audio_listener_active.load(Ordering::SeqCst) {
