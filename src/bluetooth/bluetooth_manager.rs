@@ -138,6 +138,7 @@ impl BluetoothInterface {
             connection: connection::new_session_sync().unwrap().1,
         }
     }
+
     pub fn create(conn: Arc<SyncConnection>) -> Option<Self> {
         let mut adapters = Vec::new();
         let res = get_objects();

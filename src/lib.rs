@@ -2,8 +2,8 @@ pub mod api;
 mod audio;
 mod bluetooth;
 mod network;
-mod utils;
 mod tests;
+mod utils;
 
 use std::{
     collections::HashMap,
@@ -64,7 +64,9 @@ impl DaemonData {
                 message: "Could not get any wifi devices",
             });
         }
-        let current_n_device = n_devices.pop().unwrap();
+        let current_n_device = n_devices
+            .pop()
+            .unwrap_or(Arc::new(RwLock::new(Device::new(Path::from("/")))));
         let b_interface_opt = BluetoothInterface::create(conn.clone());
         let b_interface: BluetoothInterface = if let Some(b_interface_opt) = b_interface_opt {
             b_interface_opt
