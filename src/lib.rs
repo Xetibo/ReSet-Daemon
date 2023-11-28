@@ -13,8 +13,10 @@ use std::{
     thread,
 };
 
+use bluetooth::bluetooth::BluetoothAgent;
 use dbus::{
-    arg::PropMap, channel::MatchingReceiver, message::MatchRule, nonblock::SyncConnection, Path,
+    arg::PropMap, channel::MatchingReceiver, message::MatchRule, nonblock::SyncConnection, Message,
+    Path,
 };
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
@@ -75,6 +77,7 @@ pub struct DaemonData {
     pub n_devices: Vec<Arc<RwLock<Device>>>,
     pub current_n_device: Arc<RwLock<Device>>,
     pub b_interface: BluetoothInterface,
+    pub bluetooth_agent: BluetoothAgent,
     pub audio_sender: Rc<Sender<AudioRequest>>,
     pub audio_receiver: Rc<Receiver<AudioResponse>>,
     pub audio_listener_active: Arc<AtomicBool>,
@@ -111,6 +114,7 @@ impl DaemonData {
             n_devices,
             current_n_device,
             b_interface,
+            bluetooth_agent: BluetoothAgent::new(),
             audio_sender: Rc::new(dbus_pulse_sender),
             audio_receiver: Rc::new(dbus_pulse_receiver),
             network_listener_active: Arc::new(AtomicBool::new(false)),
@@ -148,18 +152,16 @@ pub async fn run_daemon() {
         }),
     )));
 
+    let base = setup_base(&mut cross);
     let wireless_manager = setup_wireless_manager(&mut cross);
     let bluetooth_manager = setup_bluetooth_manager(&mut cross);
     let bluetooth_agent = setup_bluetooth_agent(&mut cross);
     let audio_manager = setup_audio_manager(&mut cross);
 
-    let token = cross.register("org.Xetibo.ReSetDaemon", |c| {
-        c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
-    });
     cross.insert(
         "/org/xetibo/ReSetDaemon",
         &[
-            token,
+            base,
             wireless_manager,
             bluetooth_manager,
             bluetooth_agent,
@@ -180,6 +182,17 @@ pub async fn run_daemon() {
     unreachable!()
 }
 
+/// Base API
+/// Simple API for connectivety checks and functionality check.
+fn setup_base(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    cross.register("org.Xetibo.ReSetDaemon", |c| {
+        c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
+    })
+}
+
+/// Wireless Manager API
+/// The wireless manager handles connecting, disconnecting, configuring, saving and removing of wireless network
+/// connections.
 fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetWireless", |c| {
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
@@ -384,6 +397,9 @@ fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken
     token
 }
 
+/// Bluetooth Manager API
+/// The Bluetooth Manager handles searching for Bluetooth devices, as well as connecting and
+/// disconnecting from Bluetooth devices.
 fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetBluetooth", |c| {
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
@@ -454,7 +470,10 @@ fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
     token
 }
 
+/// Audio Manager API
+/// The audio manager handles all audio devices and their volume.
 fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    // TODO handle errors on the now not bool returning functions
     let token = cross.register("org.Xetibo.ReSetAudio", |c| {
         c.signal::<(Sink,), _>("SinkChanged", ("sink",));
         c.signal::<(Sink,), _>("SinkAdded", ("sink",));
@@ -924,13 +943,29 @@ fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<Da
     token
 }
 
+/// Bluetooth Agent API
+/// The Bluetooth Agent is used to authorize connections and initiate pairing.
 fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetBluetoothAgent", |c| {
+        c.signal::<(), _>("PincodeRequested", ());
+        c.signal::<(String,), _>("DisplayPinCode", ("code",));
+        c.signal::<(), _>("PassKeyRequested", ());
+        c.signal::<(u32, u16), _>("DisplayPassKey", ("passkey", "entered"));
+        c.signal::<(), _>("PinCodeRequested", ());
         c.method(
             "RequestPinCode",
             ("device",),
             ("result",),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+            move |ctx, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                if d.bluetooth_agent.in_progress {
+                    return Ok(("No pairing in progress.",));
+                }
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"PincodeRequested".into(),
+                );
+                ctx.push_msg(msg);
                 Ok(("grengeng",))
                 // handle receive with a dynamic dbus function? does that even exist?
             },
@@ -939,19 +974,45 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "DisplayPinCode",
             ("device", "code"),
             (),
-            move |_, d: &mut DaemonData, (device, code): (Path<'static>, String)| Ok(()),
+            move |ctx, d: &mut DaemonData, (device, code): (Path<'static>, String)| {
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"DisplayPinCode".into(),
+                )
+                .append1(code);
+                ctx.push_msg(msg);
+                Ok(())
+            },
         );
         c.method(
             "RequestPassKey",
             ("device",),
             ("passkey",),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok((0,)),
+            move |ctx, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"RequestPassKey".into(),
+                );
+                ctx.push_msg(msg);
+                Ok((0,))
+            },
         );
         c.method(
             "DisplayPassKey",
             ("device", "passkey", "entered"),
             (),
-            move |_, d: &mut DaemonData, (device, passkey, entered): (Path<'static>, u32, u16)| {
+            move |ctx,
+                  d: &mut DaemonData,
+                  (device, passkey, entered): (Path<'static>, u32, u16)| {
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"DisplayPassKey".into(),
+                )
+                .append2(passkey, entered);
+                ctx.push_msg(msg);
                 Ok(())
             },
         );
@@ -959,22 +1020,54 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "RequestConfirmation",
             ("device", "passkey"),
             (),
-            move |_, d: &mut DaemonData, (device, passkey): (Path<'static>, u32)| Ok(()),
+            move |ctx, d: &mut DaemonData, (device, passkey): (Path<'static>, u32)| {
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"RequestConfirmation".into(),
+                )
+                .append1(passkey);
+                ctx.push_msg(msg);
+                Ok(())
+            },
         );
         c.method(
             "RequestAuthorization",
             ("device",),
             (),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| Ok(()),
+            move |ctx, d: &mut DaemonData, (device,): (Path<'static>,)| {
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"RequestAuthorization".into(),
+                );
+                ctx.push_msg(msg);
+                Ok(())
+            },
         );
         c.method(
             "AuthorizeService",
             ("device", "uuid"),
             (),
-            move |_, d: &mut DaemonData, (device, uuid): (Path<'static>, String)| Ok(()),
+            move |ctx, d: &mut DaemonData, (device, uuid): (Path<'static>, String)| {
+                let msg = Message::signal(
+                    &Path::from("/org/Xetibo/ReSet"),
+                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"AuthorizeService".into(),
+                )
+                .append1(uuid);
+                ctx.push_msg(msg);
+                Ok(())
+            },
         );
-        c.method("Cancel", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
-        c.method("Release", (), (), move |_, d: &mut DaemonData, ()| Ok(()));
+        c.method("Cancel", (), (), move |_, d: &mut DaemonData, ()| {
+            d.bluetooth_agent.in_progress = false;
+            Ok(())
+        });
+        c.method("Release", (), (), move |_, d: &mut DaemonData, ()| {
+            d.bluetooth_agent.in_progress = false;
+            Ok(())
+        });
     });
 
     token

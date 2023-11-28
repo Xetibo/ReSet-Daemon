@@ -38,6 +38,16 @@ pub struct BluetoothInterface {
     connection: Arc<SyncConnection>,
 }
 
+pub struct BluetoothAgent {
+    pub in_progress: bool,
+}
+
+impl BluetoothAgent {
+    pub fn new() -> Self {
+        Self { in_progress: false }
+    }
+}
+
 fn get_objects() -> Result<
     (
         HashMap<
