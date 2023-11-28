@@ -26,7 +26,9 @@ jobs:
         path: target/debug 
         key: ${{ runner.os }}-cache
     - name: setup dependencies
-      run: sudo apt install libdbus-1-dev pkg-config libpulse-dev -y
+      run: |
+        sudo apt install libdbus-1-dev pkg-config libpulse-dev network-manager dbus pulseaudio -y
+        sudo systemctl enable --now NetworkManager
     - name: Build
       run: cargo build --verbose
     - name: Run tests

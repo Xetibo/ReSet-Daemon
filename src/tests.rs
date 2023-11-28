@@ -1,4 +1,5 @@
 use crate::run_daemon;
+use ReSet_Lib::audio::audio::{Source, InputStream, OutputStream};
 use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
@@ -109,11 +110,31 @@ async fn test_get_sinks() {
 }
 
 #[tokio::test]
+async fn test_get_default_sink() {
+    setup();
+    thread::sleep(Duration::from_millis(1000));
+    let res =
+        call_session_dbus_method::<(), (Sink,)>("GetDefaultSink", "org.Xetibo.ReSetAudio", ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_get_default_source() {
+    setup();
+    thread::sleep(Duration::from_millis(1000));
+    let res =
+        call_session_dbus_method::<(), (Source,)>("GetDefaultSource", "org.Xetibo.ReSetAudio", ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
 async fn test_get_sources() {
     setup();
     thread::sleep(Duration::from_millis(1000));
     let res =
-        call_session_dbus_method::<(), (Vec<Sink>,)>("ListSources", "org.Xetibo.ReSetAudio", ());
+        call_session_dbus_method::<(), (Vec<Source>,)>("ListSources", "org.Xetibo.ReSetAudio", ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -122,7 +143,7 @@ async fn test_get_sources() {
 async fn test_get_input_streams() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), (Vec<Sink>,)>(
+    let res = call_session_dbus_method::<(), (Vec<InputStream>,)>(
         "ListInputStreams",
         "org.Xetibo.ReSetAudio",
         (),
@@ -135,7 +156,7 @@ async fn test_get_input_streams() {
 async fn test_get_output_streams() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), (Vec<Sink>,)>(
+    let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>(
         "ListOutputStreams",
         "org.Xetibo.ReSetAudio",
         (),
