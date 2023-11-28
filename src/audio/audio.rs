@@ -1,12 +1,12 @@
 use std::sync::Arc;
-use std::time::Duration;
+
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
 use std::sync::mpsc::{Receiver, Sender};
 
-use dbus::blocking::Connection;
+
 use dbus::channel::Sender as dbus_sender;
-use dbus::nonblock::{NonblockReply, SyncConnection};
+use dbus::nonblock::{SyncConnection};
 use dbus::{Message, Path};
 use pulse::context::subscribe::{InterestMaskSet, Operation};
 use pulse::volume::{ChannelVolumes, Volume};
@@ -128,10 +128,9 @@ impl PulseServer {
                         introspector.get_sink_info_by_index(index, move |result| match result {
                             ListResult::Item(sink) => {
                                 handle_sink_events(&connection_sink, Sink::from(sink), operation);
-                                return;
                             }
-                            ListResult::Error => return,
-                            ListResult::End => return,
+                            ListResult::Error => (),
+                            ListResult::End => (),
                         });
                     }
                     pulse::context::subscribe::Facility::Source => {
@@ -146,10 +145,9 @@ impl PulseServer {
                                     Source::from(source),
                                     operation,
                                 );
-                                return;
                             }
-                            ListResult::Error => return,
-                            ListResult::End => return,
+                            ListResult::Error => (),
+                            ListResult::End => (),
                         });
                     }
                     pulse::context::subscribe::Facility::SinkInput => {
@@ -164,10 +162,9 @@ impl PulseServer {
                                     InputStream::from(input_stream),
                                     operation,
                                 );
-                                return;
                             }
-                            ListResult::Error => return,
-                            ListResult::End => return,
+                            ListResult::Error => (),
+                            ListResult::End => (),
                         });
                     }
                     pulse::context::subscribe::Facility::SourceOutput => {
@@ -182,10 +179,9 @@ impl PulseServer {
                                     OutputStream::from(output_stream),
                                     operation,
                                 );
-                                return;
                             }
-                            ListResult::Error => return,
-                            ListResult::End => return,
+                            ListResult::Error => (),
+                            ListResult::End => (),
                         });
                     }
                     _ => (),
@@ -195,13 +191,13 @@ impl PulseServer {
 
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
-        return Ok(Self {
+        Ok(Self {
             mainloop,
             context,
             sender,
             receiver,
             connection,
-        });
+        })
     }
 
     pub fn listen_to_messages(&mut self) {
@@ -418,7 +414,7 @@ impl PulseServer {
         channel_volume.set_len(channels as u8);
         channel_volume.set(channels as u8, Volume(volume));
         let ml_ref = Rc::clone(&self.mainloop);
-        let result = introspector.set_sink_volume_by_index(
+        let _result = introspector.set_sink_volume_by_index(
             index,
             &channel_volume,
             Some(Box::new(move |error| unsafe {

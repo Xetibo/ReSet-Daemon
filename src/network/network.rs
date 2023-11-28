@@ -297,15 +297,15 @@ pub fn get_connection_settings(
     ),
     dbus::Error,
 > {
-    let result = call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
+    
+    call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
         path,
         "GetSettings",
         "org.freedesktop.NetworkManager.Settings.Connection",
         (),
         1000,
-    );
-    result
+    )
 }
 
 pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, PropMap>) -> bool {
@@ -372,7 +372,7 @@ pub fn get_access_point_properties(connected: bool, path: Path<'static>) -> Acce
     );
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
     let ssid: Vec<u8> = proxy.get(interface, "Ssid").unwrap_or_else(|_| Vec::new());
-    let strength: u8 = proxy.get(interface, "Strength").unwrap_or_else(|_| 130);
+    let strength: u8 = proxy.get(interface, "Strength").unwrap_or(130);
     let mut associated_connection: Option<Path<'static>> = None;
     let connections = get_stored_connections();
     let mut stored: bool = false;

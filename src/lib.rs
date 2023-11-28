@@ -92,7 +92,7 @@ unsafe impl Sync for DaemonData {}
 impl DaemonData {
     pub async fn create(conn: Arc<SyncConnection>) -> Result<Self, Error> {
         let mut n_devices = get_wifi_devices();
-        if n_devices.len() < 1 {
+        if n_devices.is_empty() {
             return Err(Error {
                 message: "Could not get any wifi devices",
             });
@@ -406,7 +406,7 @@ fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
             (),
             move |mut ctx, cross, (duration,): (i32,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.b_interface.start_discovery(duration as u64);
+                data.b_interface.start_discovery(duration as u64);
                 // let mut response = true;
                 // if res.is_err() {
                 //     response = false;
@@ -952,7 +952,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "RequestPinCode",
             ("device",),
             ("result",),
-            move |ctx, d: &mut DaemonData, (device,): (Path<'static>,)| {
+            move |ctx, d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 if d.bluetooth_agent.in_progress {
                     return Ok(("No pairing in progress.",));
                 }
@@ -970,7 +970,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "DisplayPinCode",
             ("device", "code"),
             (),
-            move |ctx, d: &mut DaemonData, (device, code): (Path<'static>, String)| {
+            move |ctx, _d: &mut DaemonData, (_device, code): (Path<'static>, String)| {
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSet"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
@@ -985,7 +985,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "RequestPassKey",
             ("device",),
             ("passkey",),
-            move |ctx, d: &mut DaemonData, (device,): (Path<'static>,)| {
+            move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSet"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
@@ -1000,8 +1000,8 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             ("device", "passkey", "entered"),
             (),
             move |ctx,
-                  d: &mut DaemonData,
-                  (device, passkey, entered): (Path<'static>, u32, u16)| {
+                  _d: &mut DaemonData,
+                  (_device, passkey, entered): (Path<'static>, u32, u16)| {
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSet"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
@@ -1016,7 +1016,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "RequestConfirmation",
             ("device", "passkey"),
             (),
-            move |ctx, d: &mut DaemonData, (device, passkey): (Path<'static>, u32)| {
+            move |ctx, _d: &mut DaemonData, (_device, passkey): (Path<'static>, u32)| {
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSet"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
@@ -1031,7 +1031,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "RequestAuthorization",
             ("device",),
             (),
-            move |ctx, d: &mut DaemonData, (device,): (Path<'static>,)| {
+            move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSet"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
@@ -1045,7 +1045,7 @@ fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<
             "AuthorizeService",
             ("device", "uuid"),
             (),
-            move |ctx, d: &mut DaemonData, (device, uuid): (Path<'static>, String)| {
+            move |ctx, _d: &mut DaemonData, (_device, uuid): (Path<'static>, String)| {
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSet"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),

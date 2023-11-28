@@ -60,7 +60,8 @@ fn get_objects() -> Result<
     ),
     dbus::Error,
 > {
-    let res = call_system_dbus_method::<
+    
+    call_system_dbus_method::<
         (),
         (HashMap<Path<'static>, HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>>,),
     >(
@@ -70,8 +71,7 @@ fn get_objects() -> Result<
         "org.freedesktop.DBus.ObjectManager",
         (),
         1000,
-    );
-    res
+    )
 }
 
 pub fn convert_device(
@@ -79,9 +79,7 @@ pub fn convert_device(
     map: &HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>,
 ) -> Option<BluetoothDevice> {
     let map = map.get("org.bluez.Device1");
-    if map.is_none() {
-        return None;
-    }
+    map?;
     let map = map.unwrap();
     let rssi: i16;
     let rssi_opt = map.get("RSSI");
@@ -143,7 +141,7 @@ impl BluetoothInterface {
             }
             adapters.push(BluetoothAdapter { path: path.clone() });
         }
-        if adapters.len() < 1 {
+        if adapters.is_empty() {
             return None;
         }
         let current_adapter = adapters.pop().unwrap();
@@ -155,7 +153,7 @@ impl BluetoothInterface {
             real: true,
             connection: conn,
         };
-        let _ = interface.set_bluetooth(true);
+        interface.set_bluetooth(true);
         Some(interface)
     }
 
@@ -207,7 +205,7 @@ impl BluetoothInterface {
             }
             let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
                 println!("removed in bluetooth listener");
-                let conn = Connection::new_session().unwrap();
+                let _conn = Connection::new_session().unwrap();
                 let msg = Message::signal(
                     &Path::from("/org/xetibo/ReSet"),
                     &"org.xetibo.ReSet".into(),
@@ -248,15 +246,15 @@ impl BluetoothInterface {
     }
 
     pub fn connect_to(&self, device: Path<'static>) -> Result<(), dbus::Error> {
-        let res = call_system_dbus_method::<(), ()>(
+        
+        call_system_dbus_method::<(), ()>(
             "org.bluez",
             device,
             "Connect",
             "org.bluez.Device1",
             (),
             1000,
-        );
-        res
+        )
     }
 
     pub fn pair_with(&self, device: Path<'static>) -> Result<(), dbus::Error> {
@@ -278,15 +276,15 @@ impl BluetoothInterface {
     }
 
     pub fn disconnect(&self, device: Path<'static>) -> Result<(), dbus::Error> {
-        let res = call_system_dbus_method::<(), ()>(
+        
+        call_system_dbus_method::<(), ()>(
             "org.bluez",
             device,
             "Disconnect",
             "org.bluez.Device1",
             (),
             1000,
-        );
-        res
+        )
     }
 
     pub fn set_bluetooth(&mut self, value: bool) {
