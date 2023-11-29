@@ -10,6 +10,12 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
     let token = cross.register("org.Xetibo.ReSetBluetooth", |c| {
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
         c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
+        c.signal::<(BluetoothDevice,), _>("BluetoothDeviceChanged", ("device",));
+        c.signal::<(), _>("PincodeRequested", ());
+        c.signal::<(String,), _>("DisplayPinCode", ("code",));
+        c.signal::<(), _>("PassKeyRequested", ());
+        c.signal::<(u32, u16), _>("DisplayPassKey", ("passkey", "entered"));
+        c.signal::<(), _>("PinCodeRequested", ());
         c.method_with_cr_async(
             "StartBluetoothListener",
             ("duration",),
@@ -29,7 +35,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 if res.is_err() {
                     return Ok((false,));
                 }
-                Ok((true,))
+                Ok((res.is_ok(),))
             },
         );
         c.method(
@@ -51,8 +57,10 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
                 let res = d.b_interface.pair_with(device);
                 if res.is_err() {
+                    dbg!(res);
                     return Ok((false,));
                 }
+                dbg!(res);
                 Ok((true,))
             },
         );

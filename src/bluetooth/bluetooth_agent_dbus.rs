@@ -4,12 +4,7 @@ use dbus_crossroads::Crossroads;
 use crate::DaemonData;
 
 pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    let token = cross.register("org.Xetibo.ReSetBluetoothAgent", |c| {
-        c.signal::<(), _>("PincodeRequested", ());
-        c.signal::<(String,), _>("DisplayPinCode", ("code",));
-        c.signal::<(), _>("PassKeyRequested", ());
-        c.signal::<(u32, u16), _>("DisplayPassKey", ("passkey", "entered"));
-        c.signal::<(), _>("PinCodeRequested", ());
+    let token = cross.register("org.bluez.Agent1", |c| {
         c.method(
             "RequestPinCode",
             ("device",),
@@ -20,53 +15,59 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
                 }
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"PincodeRequested".into(),
                 );
                 ctx.push_msg(msg);
+                println!("pincode requested grengeng!");
                 Ok(("grengeng",))
                 // TODO handle receive with a dynamic dbus function? does that even exist?
             },
         );
         c.method(
             "DisplayPinCode",
-            ("device", "code"),
+            ("device", "pincode"),
             (),
-            move |ctx, _d: &mut DaemonData, (_device, code): (Path<'static>, String)| {
+            move |ctx, _d: &mut DaemonData, (_device, pincode): (Path<'static>, String)| {
+                println!("display pincode");
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"DisplayPinCode".into(),
                 )
-                .append1(code);
+                .append1(pincode);
                 ctx.push_msg(msg);
                 Ok(())
             },
         );
         c.method(
-            "RequestPassKey",
+            "RequestPasskey",
             ("device",),
             ("passkey",),
             move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
+                println!("request passkey");
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"RequestPassKey".into(),
                 );
                 ctx.push_msg(msg);
-                Ok((0,))
+                #[allow(clippy::unnecessary_cast)]
+                Ok((0 as u32,))
+                // leave me alone clippy, I am dealing with C code
             },
         );
         c.method(
-            "DisplayPassKey",
+            "DisplayPasskey",
             ("device", "passkey", "entered"),
             (),
             move |ctx,
                   _d: &mut DaemonData,
                   (_device, passkey, entered): (Path<'static>, u32, u16)| {
+                println!("display passkey");
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"DisplayPassKey".into(),
                 )
                 .append2(passkey, entered);
@@ -79,9 +80,10 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             ("device", "passkey"),
             (),
             move |ctx, _d: &mut DaemonData, (_device, passkey): (Path<'static>, u32)| {
+                println!("request confirmation");
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"RequestConfirmation".into(),
                 )
                 .append1(passkey);
@@ -94,9 +96,10 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             ("device",),
             (),
             move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
+                println!("request authorization");
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"RequestAuthorization".into(),
                 );
                 ctx.push_msg(msg);
@@ -108,9 +111,10 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             ("device", "uuid"),
             (),
             move |ctx, _d: &mut DaemonData, (_device, uuid): (Path<'static>, String)| {
+                println!("authorize service");
                 let msg = Message::signal(
                     &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetoothAgent".into(),
+                    &"org.Xetibo.ReSetBluetooth".into(),
                     &"AuthorizeService".into(),
                 )
                 .append1(uuid);
@@ -119,10 +123,12 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             },
         );
         c.method("Cancel", (), (), move |_, d: &mut DaemonData, ()| {
+            println!("called cancel");
             d.bluetooth_agent.in_progress = false;
             Ok(())
         });
         c.method("Release", (), (), move |_, d: &mut DaemonData, ()| {
+            println!("called release?");
             d.bluetooth_agent.in_progress = false;
             Ok(())
         });

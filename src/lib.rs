@@ -5,9 +5,12 @@ mod network;
 mod tests;
 mod utils;
 
-use std::future::{self};
+use std::{
+    future::{self},
+    process::exit,
+};
 
-use dbus::{channel::MatchingReceiver, message::MatchRule};
+use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use utils::{AudioRequest, AudioResponse};
@@ -46,16 +49,17 @@ pub async fn run_daemon() {
         return;
     }
     let (resource, conn) = res.unwrap();
-    let data = DaemonData::create(conn.clone()).await;
-    if data.is_err() {
-        return;
-    }
-    let data = data.unwrap();
 
     let _handle = tokio::spawn(async {
         let err = resource.await;
         panic!("Lost connection to D-Bus: {}", err);
     });
+
+    let data = DaemonData::create(_handle, conn.clone()).await;
+    if data.is_err() {
+        return;
+    }
+    let data = data.unwrap();
 
     conn.request_name("org.Xetibo.ReSetDaemon", false, true, false)
         .await
@@ -86,6 +90,12 @@ pub async fn run_daemon() {
         data,
     );
 
+    // register bluetooth agent before listening to calls
+    let data: &mut DaemonData = cross
+        .data_mut(&Path::from("/org/Xetibo/ReSetDaemon"))
+        .unwrap();
+    data.b_interface.register_agent();
+
     conn.start_receive(
         MatchRule::new_method_call(),
         Box::new(move |msg, conn| {
@@ -100,6 +110,31 @@ pub async fn run_daemon() {
 
 fn setup_base(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     cross.register("org.Xetibo.ReSetDaemon", |c| {
-        c.method("Check", (), ("result",), move |_, _, ()| Ok((true,)));
+        c.method(
+            "RegisterClient",
+            ("client_name",),
+            ("result",),
+            move |_, data: &mut DaemonData, (client_name,): (String,)| {
+                data.clients.insert(client_name, data.clients.len());
+                Ok((true,))
+            },
+        );
+        c.method(
+            "UnregisterClient",
+            ("client_name",),
+            ("result",),
+            move |_, data: &mut DaemonData, (client_name,): (String,)| {
+                data.clients.remove(&client_name);
+                Ok((true,))
+            },
+        );
+        c.method("Shutdown", (), (), move |_, data: &mut DaemonData, ()| {
+            println!("called shutdown");
+            data.b_interface.unregister_agent();
+            data.handle.abort();
+            exit(0);
+            #[allow(unreachable_code)]
+            Ok(())
+        });
     })
 }

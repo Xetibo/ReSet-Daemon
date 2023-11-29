@@ -13,6 +13,7 @@ use dbus::{
     nonblock::SyncConnection,
     Path,
 };
+use tokio::task::JoinHandle;
 use ReSet_Lib::{
     audio::audio::{Card, InputStream, OutputStream, Sink, Source},
     network::network::Error,
@@ -73,14 +74,16 @@ pub struct DaemonData {
     pub audio_receiver: Rc<Receiver<AudioResponse>>,
     pub audio_listener_active: Arc<AtomicBool>,
     pub network_listener_active: Arc<AtomicBool>,
+    pub clients: HashMap<String, usize>,
     pub connection: Arc<SyncConnection>,
+    pub handle: JoinHandle<()>,
 }
 
 unsafe impl Send for DaemonData {}
 unsafe impl Sync for DaemonData {}
 
 impl DaemonData {
-    pub async fn create(conn: Arc<SyncConnection>) -> Result<Self, Error> {
+    pub async fn create(handle: JoinHandle<()>, conn: Arc<SyncConnection>) -> Result<Self, Error> {
         let mut n_devices = get_wifi_devices();
         if n_devices.is_empty() {
             return Err(ReSet_Lib::network::network::Error {
@@ -112,6 +115,8 @@ impl DaemonData {
             network_listener_active: Arc::new(AtomicBool::new(false)),
             audio_listener_active: Arc::new(AtomicBool::new(false)),
             connection: conn,
+            handle,
+            clients: HashMap::new(), 
         })
     }
 }
