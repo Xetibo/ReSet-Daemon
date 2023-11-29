@@ -19,7 +19,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
                     return Ok(("No pairing in progress.",));
                 }
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"PincodeRequested".into(),
                 );
@@ -34,7 +34,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             (),
             move |ctx, _d: &mut DaemonData, (_device, code): (Path<'static>, String)| {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"DisplayPinCode".into(),
                 )
@@ -49,7 +49,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             ("passkey",),
             move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"RequestPassKey".into(),
                 );
@@ -65,7 +65,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
                   _d: &mut DaemonData,
                   (_device, passkey, entered): (Path<'static>, u32, u16)| {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"DisplayPassKey".into(),
                 )
@@ -80,7 +80,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             (),
             move |ctx, _d: &mut DaemonData, (_device, passkey): (Path<'static>, u32)| {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"RequestConfirmation".into(),
                 )
@@ -95,7 +95,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             (),
             move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"RequestAuthorization".into(),
                 );
@@ -109,7 +109,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             (),
             move |ctx, _d: &mut DaemonData, (_device, uuid): (Path<'static>, String)| {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetoothAgent".into(),
                     &"AuthorizeService".into(),
                 )

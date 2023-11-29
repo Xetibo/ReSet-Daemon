@@ -184,7 +184,7 @@ impl BluetoothInterface {
                 let device = convert_device(&ir.object, &ir.interfaces);
                 if let Some(device) = device {
                     let msg = Message::signal(
-                        &Path::from("/org/Xetibo/ReSet"),
+                        &Path::from("/org/Xetibo/ReSetDaemon"),
                         &"org.Xetibo.ReSetBluetooth".into(),
                         &"BluetoothDeviceAdded".into(),
                     )
@@ -202,7 +202,7 @@ impl BluetoothInterface {
             let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
                 let _conn = Connection::new_session().unwrap();
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetBluetooth".into(),
                     &"BluetoothDeviceRemoved".into(),
                 )

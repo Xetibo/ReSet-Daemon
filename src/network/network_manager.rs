@@ -135,7 +135,7 @@ pub fn start_listener(
                     }
                 }
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetWireless".into(),
                     &"AccessPointChanged".into(),
                 )
@@ -161,7 +161,7 @@ pub fn start_listener(
                 let mut device = device_ref.write().unwrap();
                 device.access_point = Some(parsed_access_point.clone());
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetWireless".into(),
                     &"AddActiveAccessPoint".into(),
                 )
@@ -169,7 +169,7 @@ pub fn start_listener(
                 let _ = active_access_point_changed_ref.send(msg);
             } else {
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSet"),
+                    &Path::from("/org/Xetibo/ReSetDaemon"),
                     &"org.Xetibo.ReSetWireless".into(),
                     &"RemoveActiveAccessPoint".into(),
                 )
@@ -187,7 +187,7 @@ pub fn start_listener(
     }
     let res = conn.add_match(access_point_added, move |ir: AccessPointAdded, conn, _| {
         let msg = Message::signal(
-            &Path::from("/org/Xetibo/ReSet"),
+            &Path::from("/org/Xetibo/ReSetDaemon"),
             &"org.Xetibo.ReSetWireless".into(),
             &"AccessPointAdded".into(),
         )
@@ -205,7 +205,7 @@ pub fn start_listener(
         access_point_removed,
         move |ir: AccessPointRemoved, conn, _| {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSet"),
+                &Path::from("/org/Xetibo/ReSetDaemon"),
                 &"org.Xetibo.ReSetWireless".into(),
                 &"AccessPointRemoved".into(),
             )

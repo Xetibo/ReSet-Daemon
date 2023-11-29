@@ -17,10 +17,6 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             move |mut ctx, cross, (duration,): (u32,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 data.b_interface.start_discovery(duration as u64);
-                // let mut response = true;
-                // if res.is_err() {
-                //     response = false;
-                // }
                 async move { ctx.reply(Ok(())) }
             },
         );
