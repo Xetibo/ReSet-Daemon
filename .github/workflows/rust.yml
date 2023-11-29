@@ -37,13 +37,13 @@ jobs:
       # - name: Run tests
       # run: RUST_BACKTRACE=1 cargo test --verbose
       # tests are currently not working on docker due to environment issues
-    - name: run code coverage
-      uses: actions-rs/tarpaulin@v0.1
-      with:
-        version: '0.15.0'
-        args: '-- --test-threads 1'
-    - name: upload code coverage
-      uses: actions/upload-artifact@v1
-      with:
-        name: code-coverage-report
-        path: cobertura.xml
+    # - name: run code coverage
+    #   uses: actions-rs/tarpaulin@v0.1
+    #   with:
+    #     version: '0.15.0'
+    #     args: '-- --test-threads 1'
+    # - name: upload code coverage
+    #   uses: actions/upload-artifact@v1
+    #   with:
+    #     name: code-coverage-report
+    #     path: cobertura.xml
