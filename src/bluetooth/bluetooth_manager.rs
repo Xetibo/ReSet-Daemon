@@ -3,7 +3,10 @@ use std::{
     mem,
     ops::Deref,
     rc::Rc,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::{Duration, SystemTime},
 };
@@ -42,6 +45,7 @@ pub struct BluetoothInterface {
     enabled: bool,
     real: bool,
     registered: bool,
+    in_discovery: bool,
     connection: Arc<SyncConnection>,
 }
 
@@ -138,10 +142,8 @@ pub fn bluetooth_device_from_map(path: &Path<'static>, map: &PropMap) -> Option<
     })
 }
 
-pub fn get_connections(
-) -> std::collections::HashMap<dbus::Path<'static>, ReSet_Lib::bluetooth::bluetooth::BluetoothDevice>
-{
-    let mut devices = HashMap::new();
+pub fn get_connections() -> Vec<ReSet_Lib::bluetooth::bluetooth::BluetoothDevice> {
+    let mut devices = Vec::new();
     let res = get_objects("org.bluez", "/");
     if res.is_err() {
         return devices;
@@ -150,7 +152,7 @@ pub fn get_connections(
     for (path, map) in res.iter() {
         let device = convert_device(path, map);
         if let Some(device) = device {
-            devices.insert(path.clone(), device);
+            devices.push(device);
         }
     }
     devices
@@ -167,6 +169,7 @@ impl BluetoothInterface {
             enabled: false,
             real: false,
             registered: false,
+            in_discovery: false,
             connection: connection::new_session_sync().unwrap().1,
         }
     }
@@ -196,18 +199,24 @@ impl BluetoothInterface {
             enabled: false,
             real: true,
             registered: false,
+            in_discovery: false,
             connection: conn,
         };
         interface.set_bluetooth(true);
         Some(interface)
     }
 
-    pub fn start_discovery(&self, duration: u64) {
+    pub fn start_bluetooth_listener(&self, duration: u64, active_listener: Arc<AtomicBool>) {
         let path = self.current_adapter.path.clone();
+        let path_loop = self.current_adapter.path.clone();
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
         thread::spawn(move || {
+            println!("starting listener");
+            if active_listener.load(Ordering::SeqCst) {
+                return Ok(());
+            }
             let conn = Connection::new_system().unwrap();
             let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
             let mr =
@@ -255,7 +264,7 @@ impl BluetoothInterface {
                 bluetooth_device_changed,
                 move |ir: PropertiesChanged, _, msg| {
                     let path_owned: Option<Path<'static>> = unsafe { mem::transmute(msg.path()) };
-                    // I don't event.... 
+                    // I don't even....
                     if let Some(path) = path_owned {
                         println!("event on {}", path.clone());
                         let map = get_bluetooth_device_properties(&path);
@@ -286,26 +295,33 @@ impl BluetoothInterface {
             }
             let res: Result<(), dbus::Error> =
                 proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+            active_listener.store(true, Ordering::SeqCst);
+            let mut is_discovery = true;
             let now = SystemTime::now();
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
-                // if now.elapsed().unwrap() > Duration::from_millis(duration) {
-                //     break;
-                // }
+                if is_discovery && now.elapsed().unwrap() > Duration::from_millis(duration) {
+                    // TODO handle dynamic changing
+                    is_discovery = false;
+                    let res: Result<(), dbus::Error> =
+                        proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                    if res.is_err() {
+                        println!("error bro");
+                    }
+                    println!("stopping discovery");
+                }
+                if !active_listener.load(Ordering::SeqCst) {
+                    let res: Result<(), dbus::Error> =
+                        proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                    if res.is_err() {
+                        println!("error bro");
+                    }
+                    println!("shutting down");
+                    break;
+                }
             }
             res
         });
-    }
-
-    pub fn stop_discovery(&self) -> Result<(), dbus::Error> {
-        call_system_dbus_method::<(), ()>(
-            "org.bluez",
-            self.current_adapter.path.clone(),
-            "StopDiscovery",
-            "org.bluez",
-            (),
-            1000,
-        )
     }
 
     pub fn connect_to(&self, device: Path<'static>) -> Result<(), dbus::Error> {
@@ -396,6 +412,45 @@ impl BluetoothInterface {
         }
         self.registered = false;
         true
+    }
+
+    pub fn start_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
+        if self.in_discovery {
+            return Ok(());
+        }
+        call_system_dbus_method::<(), ()>(
+            "org.bluez",
+            self.current_adapter.path.clone(),
+            "StartDiscovery",
+            "org.bluez.Adapter1",
+            (),
+            1000,
+        )
+    }
+
+    pub fn stop_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
+        if !self.in_discovery {
+            return Ok(());
+        }
+        call_system_dbus_method::<(), ()>(
+            "org.bluez",
+            self.current_adapter.path.clone(),
+            "StopDiscovery",
+            "org.bluez.Adapter1",
+            (),
+            1000,
+        )
+    }
+
+    pub fn remove_device_pairing(&self, path: Path<'static>) -> Result<(), dbus::Error> {
+        call_system_dbus_method::<(Path<'static>,), ()>(
+            "org.bluez",
+            self.current_adapter.path.clone(),
+            "RemoveDevice",
+            "org.bluez.Adapter1",
+            (path,),
+            1000,
+        )
     }
 }
 

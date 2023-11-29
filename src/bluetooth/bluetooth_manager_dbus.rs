@@ -1,3 +1,5 @@
+use std::{rc::Rc, sync::atomic::Ordering};
+
 use dbus::Path;
 use dbus_crossroads::Crossroads;
 use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
@@ -17,12 +19,36 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.signal::<(u32, u16), _>("DisplayPassKey", ("passkey", "entered"));
         c.signal::<(), _>("PinCodeRequested", ());
         c.method_with_cr_async(
+            "StartBluetoothScan",
+            ("duration",),
+            (),
+            move |mut ctx, cross, (duration,): (u32,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                data.b_interface.start_bluetooth_discovery();
+                async move { ctx.reply(Ok(())) }
+            },
+        );
+        c.method_with_cr_async(
+            "StopBluetoothScan",
+            ("duration",),
+            (),
+            move |mut ctx, cross, (duration,): (u32,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let active_listener = data.network_listener_active.clone();
+                data.b_interface
+                    .start_bluetooth_listener(duration as u64, active_listener);
+                async move { ctx.reply(Ok(())) }
+            },
+        );
+        c.method_with_cr_async(
             "StartBluetoothListener",
             ("duration",),
             (),
             move |mut ctx, cross, (duration,): (u32,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                data.b_interface.start_discovery(duration as u64);
+                let active_listener = data.network_listener_active.clone();
+                data.b_interface
+                    .start_bluetooth_listener(duration as u64, active_listener);
                 async move { ctx.reply(Ok(())) }
             },
         );
@@ -31,7 +57,11 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             (),
             ("result",),
             move |_, d: &mut DaemonData, ()| {
-                let res = d.b_interface.stop_discovery();
+                let active_listener = d.network_listener_active.clone();
+                if !active_listener.load(Ordering::SeqCst) {
+                    return Ok((false,));
+                }
+                let res = d.b_interface.stop_bluetooth_discovery();
                 if res.is_err() {
                     return Ok((false,));
                 }
@@ -70,6 +100,18 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             ("result",),
             move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
                 let res = d.b_interface.disconnect(device);
+                if res.is_err() {
+                    return Ok((false,));
+                }
+                Ok((true,))
+            },
+        );
+        c.method(
+            "RemoveDevicePairing",
+            ("path",),
+            ("result",),
+            move |_, d: &mut DaemonData, (path,): (Path<'static>,)| {
+                let res = d.b_interface.remove_device_pairing(path);
                 if res.is_err() {
                     return Ok((false,));
                 }
