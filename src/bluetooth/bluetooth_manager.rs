@@ -45,7 +45,7 @@ pub struct BluetoothInterface {
     enabled: bool,
     real: bool,
     registered: bool,
-    in_discovery: bool,
+    in_discovery: Arc<AtomicBool>,
     connection: Arc<SyncConnection>,
 }
 
@@ -169,7 +169,7 @@ impl BluetoothInterface {
             enabled: false,
             real: false,
             registered: false,
-            in_discovery: false,
+            in_discovery: Arc::new(AtomicBool::new(false)),
             connection: connection::new_session_sync().unwrap().1,
         }
     }
@@ -199,7 +199,7 @@ impl BluetoothInterface {
             enabled: false,
             real: true,
             registered: false,
-            in_discovery: false,
+            in_discovery: Arc::new(AtomicBool::new(false)),
             connection: conn,
         };
         interface.set_bluetooth(true);
@@ -212,9 +212,11 @@ impl BluetoothInterface {
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
+        let discovery_active = self.in_discovery.clone();
         thread::spawn(move || {
             println!("starting listener");
             if active_listener.load(Ordering::SeqCst) {
+                discovery_active.store(true,Ordering::SeqCst);
                 return Ok(());
             }
             let conn = Connection::new_system().unwrap();
@@ -262,7 +264,7 @@ impl BluetoothInterface {
             }
             let res = conn.add_match(
                 bluetooth_device_changed,
-                move |ir: PropertiesChanged, _, msg| {
+                move |_: PropertiesChanged, _, msg| {
                     let path_owned: Option<Path<'static>> = unsafe { mem::transmute(msg.path()) };
                     // I don't even....
                     if let Some(path) = path_owned {
@@ -297,7 +299,7 @@ impl BluetoothInterface {
                 proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
             let mut is_discovery = true;
-            let now = SystemTime::now();
+            let mut now = SystemTime::now();
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
                 if is_discovery && now.elapsed().unwrap() > Duration::from_millis(duration) {
@@ -318,6 +320,9 @@ impl BluetoothInterface {
                     }
                     println!("shutting down");
                     break;
+                } else if !is_discovery && discovery_active.load(Ordering::SeqCst) {
+                    now = SystemTime::now();
+                    is_discovery = true;
                 }
             }
             res
@@ -415,7 +420,7 @@ impl BluetoothInterface {
     }
 
     pub fn start_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
-        if self.in_discovery {
+        if self.in_discovery.load(Ordering::SeqCst) {
             return Ok(());
         }
         call_system_dbus_method::<(), ()>(
@@ -429,7 +434,7 @@ impl BluetoothInterface {
     }
 
     pub fn stop_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
-        if !self.in_discovery {
+        if !self.in_discovery.load(Ordering::SeqCst) {
             return Ok(());
         }
         call_system_dbus_method::<(), ()>(
