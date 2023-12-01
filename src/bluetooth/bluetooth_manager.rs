@@ -216,7 +216,7 @@ impl BluetoothInterface {
         thread::spawn(move || {
             println!("starting listener");
             if active_listener.load(Ordering::SeqCst) {
-                discovery_active.store(true,Ordering::SeqCst);
+                discovery_active.store(true, Ordering::SeqCst);
                 return Ok(());
             }
             let conn = Connection::new_system().unwrap();
@@ -303,6 +303,7 @@ impl BluetoothInterface {
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
                 if is_discovery && now.elapsed().unwrap() > Duration::from_millis(duration) {
+                    discovery_active.store(false, Ordering::SeqCst);
                     // TODO handle dynamic changing
                     is_discovery = false;
                     let res: Result<(), dbus::Error> =
@@ -313,6 +314,7 @@ impl BluetoothInterface {
                     println!("stopping discovery");
                 }
                 if !active_listener.load(Ordering::SeqCst) {
+                    discovery_active.store(false, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                     if res.is_err() {
@@ -323,6 +325,11 @@ impl BluetoothInterface {
                 } else if !is_discovery && discovery_active.load(Ordering::SeqCst) {
                     now = SystemTime::now();
                     is_discovery = true;
+                    let res: Result<(), dbus::Error> =
+                        proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+                    if res.is_err() {
+                        println!("error bro");
+                    }
                 }
             }
             res
