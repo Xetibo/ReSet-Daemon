@@ -1,4 +1,4 @@
-use std::{collections::HashMap, thread};
+use std::{collections::HashMap, sync::atomic::Ordering, thread};
 
 use dbus::{arg::PropMap, Path};
 use dbus_crossroads::Crossroads;
@@ -11,7 +11,7 @@ use crate::DaemonData;
 
 use super::network_manager::{
     get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
-    set_connection_settings, start_listener, stop_listener,
+    set_connection_settings, set_wifi_enabled, start_listener, stop_listener,
 };
 
 pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
@@ -26,6 +26,29 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             move |_, d: &mut DaemonData, ()| {
                 let access_points = d.current_n_device.read().unwrap().get_access_points();
                 Ok((access_points,))
+            },
+        );
+        c.method(
+            "SetWifiEnabled",
+            ("enabled",),
+            ("result",),
+            move |_, data, (enabled,): (bool,)| {
+                println!("set wifi to {}", enabled);
+                let active_listener = data.network_listener_active.clone();
+                if enabled {
+                    if !active_listener.load(Ordering::SeqCst) {
+                        let path = data.current_n_device.read().unwrap().dbus_path.clone();
+                        let active_listener = data.network_listener_active.clone();
+                        let device = data.current_n_device.clone();
+                        let connection = data.connection.clone();
+                        thread::spawn(move || {
+                            start_listener(connection, device, path, active_listener)
+                        });
+                    }
+                } else {
+                    stop_listener(active_listener);
+                }
+                Ok((set_wifi_enabled(enabled),))
             },
         );
         c.method(

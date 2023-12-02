@@ -21,7 +21,7 @@ use ReSet_Lib::{
         network::{AccessPoint, ConnectionError, DeviceType},
         network_signals::{AccessPointAdded, AccessPointRemoved},
     },
-    utils::{call_system_dbus_method, get_system_dbus_property},
+    utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},
 };
 
 use crate::utils::MaskedPropMap;
@@ -428,6 +428,20 @@ pub fn get_associations_of_active_connection(
         None
     };
     (devices, access_point)
+}
+
+pub fn set_wifi_enabled(enabled: bool) -> bool {
+    let result = set_system_dbus_property(
+        "org.freedesktop.NetworkManager",
+        Path::from("/org/freedesktop/NetworkManager"),
+        "org.freedesktop.NetworkManager",
+        "WirelessEnabled",
+        (enabled,),
+    );
+    if result.is_err() {
+        return false;
+    }
+    true
 }
 
 pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
