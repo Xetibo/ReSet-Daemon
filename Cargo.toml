@@ -1,6 +1,6 @@
 [package]
 name = "reset_daemon"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2021"
 description = "ReSet Daemon library and runner."
 repository = "https://github.com/Xetibo/ReSet-Daemon"
