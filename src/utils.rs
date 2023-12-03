@@ -91,9 +91,10 @@ impl DaemonData {
                 message: "Could not get any wifi devices",
             });
         }
-        let current_n_device = n_devices
-            .pop()
-            .unwrap_or(Arc::new(RwLock::new(Device::new(Path::from("/"), String::from("empty")))));
+        let current_n_device = n_devices.pop().unwrap_or(Arc::new(RwLock::new(Device::new(
+            Path::from("/"),
+            String::from("empty"),
+        ))));
         let b_interface_opt = BluetoothInterface::create(conn.clone());
         let b_interface: BluetoothInterface = if let Some(b_interface_opt) = b_interface_opt {
             b_interface_opt
@@ -118,7 +119,7 @@ impl DaemonData {
             bluetooth_listener_active: Arc::new(AtomicBool::new(false)),
             connection: conn,
             handle,
-            clients: HashMap::new(), 
+            clients: HashMap::new(),
         })
     }
 }

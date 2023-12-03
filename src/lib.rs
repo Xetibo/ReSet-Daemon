@@ -129,7 +129,6 @@ fn setup_base(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData>
             },
         );
         c.method("Shutdown", (), (), move |_, data: &mut DaemonData, ()| {
-            println!("called shutdown");
             data.b_interface.unregister_agent();
             data.handle.abort();
             exit(0);

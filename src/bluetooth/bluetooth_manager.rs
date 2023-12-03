@@ -1,8 +1,5 @@
 use std::{
     collections::HashMap,
-    mem,
-    ops::Deref,
-    rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -223,7 +220,6 @@ impl BluetoothInterface {
         let changed_ref = self.connection.clone();
         let discovery_active = self.in_discovery.clone();
         thread::spawn(move || {
-            println!("starting listener");
             if active_listener.load(Ordering::SeqCst) {
                 discovery_active.store(true, Ordering::SeqCst);
                 return Ok(());
@@ -276,7 +272,6 @@ impl BluetoothInterface {
                 move |_: PropertiesChanged, _, msg| {
                     if let Some(path) = msg.path() {
                         let path = Path::from(path.to_string());
-                        println!("event on {}", path.clone());
                         let map = get_bluetooth_device_properties(&path);
                         let device_opt = bluetooth_device_from_map(&path, &map);
 
@@ -316,28 +311,18 @@ impl BluetoothInterface {
                     is_discovery = false;
                     let res: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
-                    if res.is_err() {
-                        println!("error bro");
-                    }
-                    println!("stopping discovery");
+                    if res.is_err() {}
                 }
                 if !active_listener.load(Ordering::SeqCst) {
                     discovery_active.store(false, Ordering::SeqCst);
-                    let res: Result<(), dbus::Error> =
+                    let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
-                    if res.is_err() {
-                        println!("error bro");
-                    }
-                    println!("shutting down");
                     break;
                 } else if !is_discovery && discovery_active.load(Ordering::SeqCst) {
                     now = SystemTime::now();
                     is_discovery = true;
-                    let res: Result<(), dbus::Error> =
+                    let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
-                    if res.is_err() {
-                        println!("error bro");
-                    }
                 }
             }
             res
@@ -359,7 +344,6 @@ impl BluetoothInterface {
         if !self.registered {
             self.register_agent();
         }
-        println!("called pair on {}", device.clone());
         call_system_dbus_method::<(), ()>(
             "org.bluez",
             device,

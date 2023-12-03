@@ -4,7 +4,7 @@ use dbus::{arg::PropMap, Path};
 use dbus_crossroads::Crossroads;
 use ReSet_Lib::{
     network::network::{AccessPoint, WifiDevice},
-    utils::{call_system_dbus_method, get_system_dbus_property},
+    utils::call_system_dbus_method,
 };
 
 use crate::DaemonData;
@@ -33,7 +33,6 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             ("enabled",),
             ("result",),
             move |_, data, (enabled,): (bool,)| {
-                println!("set wifi to {}", enabled);
                 let active_listener = data.network_listener_active.clone();
                 if enabled {
                     if !active_listener.load(Ordering::SeqCst) {
@@ -107,7 +106,6 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                         active_access_point,
                     });
                 }
-                dbg!(devices.clone());
                 Ok((devices,))
             },
         );
@@ -174,7 +172,6 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                     .unwrap()
                     .disconnect_from_current();
                 if res.is_err() {
-                    println!("error bro");
                     return Ok((false,));
                 }
                 Ok((true,))
