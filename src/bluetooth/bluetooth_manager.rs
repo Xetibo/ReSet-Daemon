@@ -22,7 +22,7 @@ use dbus::{
 use dbus_tokio::connection;
 use ReSet_Lib::{
     bluetooth::{
-        bluetooth::BluetoothDevice,
+        bluetooth::{BluetoothAdapter, BluetoothDevice},
         bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
     },
     signals::PropertiesChanged,
@@ -31,19 +31,13 @@ use ReSet_Lib::{
 
 use crate::utils::{FullMaskedPropMap, MaskedPropMap};
 
-#[derive(Debug, Clone)]
-struct BluetoothAdapter {
-    path: Path<'static>,
-}
-
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct BluetoothInterface {
-    adapters: Vec<BluetoothAdapter>,
-    current_adapter: BluetoothAdapter,
+    pub adapters: Vec<BluetoothAdapter>,
+    pub current_adapter: BluetoothAdapter,
     devices: HashMap<Path<'static>, BluetoothDevice>,
     enabled: bool,
-    real: bool,
     registered: bool,
     in_discovery: Arc<AtomicBool>,
     connection: Arc<SyncConnection>,
@@ -142,6 +136,20 @@ pub fn bluetooth_device_from_map(path: &Path<'static>, map: &PropMap) -> Option<
     })
 }
 
+pub fn adapter_from_map(path: &Path<'static>, map: &PropMap) -> BluetoothAdapter {
+    let alias = arg::cast::<String>(&map.get("Alias").unwrap().0)
+        .unwrap()
+        .clone();
+    let powered = *arg::cast::<bool>(&map.get("Powered").unwrap().0).unwrap();
+    let discoverable = *arg::cast::<bool>(&map.get("Discoverable").unwrap().0).unwrap();
+    BluetoothAdapter {
+        path: path.clone(),
+        alias,
+        powered,
+        discoverable,
+    }
+}
+
 pub fn get_connections() -> Vec<ReSet_Lib::bluetooth::bluetooth::BluetoothDevice> {
     let mut devices = Vec::new();
     let res = get_objects("org.bluez", "/");
@@ -164,10 +172,12 @@ impl BluetoothInterface {
             adapters: Vec::new(),
             current_adapter: BluetoothAdapter {
                 path: Path::from("/"),
+                alias: "none".to_string(),
+                powered: false,
+                discoverable: false,
             },
             devices: HashMap::new(),
             enabled: false,
-            real: false,
             registered: false,
             in_discovery: Arc::new(AtomicBool::new(false)),
             connection: connection::new_session_sync().unwrap().1,
@@ -186,18 +196,17 @@ impl BluetoothInterface {
             if map.is_none() {
                 continue;
             }
-            adapters.push(BluetoothAdapter { path: path.clone() });
+            adapters.push(adapter_from_map(path, map.unwrap()));
         }
         if adapters.is_empty() {
             return None;
         }
-        let current_adapter = adapters.pop().unwrap();
+        let current_adapter = adapters.last().unwrap().clone();
         let mut interface = Self {
             adapters,
             current_adapter,
             devices: HashMap::new(),
             enabled: false,
-            real: true,
             registered: false,
             in_discovery: Arc::new(AtomicBool::new(false)),
             connection: conn,
@@ -208,7 +217,7 @@ impl BluetoothInterface {
 
     pub fn start_bluetooth_listener(&self, duration: u64, active_listener: Arc<AtomicBool>) {
         let path = self.current_adapter.path.clone();
-        let path_loop = self.current_adapter.path.clone();
+        // let path_loop = self.current_adapter.path.clone();
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
@@ -265,9 +274,8 @@ impl BluetoothInterface {
             let res = conn.add_match(
                 bluetooth_device_changed,
                 move |_: PropertiesChanged, _, msg| {
-                    let path_owned: Option<Path<'static>> = unsafe { mem::transmute(msg.path()) };
-                    // I don't even....
-                    if let Some(path) = path_owned {
+                    if let Some(path) = msg.path() {
+                        let path = Path::from(path.to_string());
                         println!("event on {}", path.clone());
                         let map = get_bluetooth_device_properties(&path);
                         let device_opt = bluetooth_device_from_map(&path, &map);

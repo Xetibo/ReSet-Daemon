@@ -93,7 +93,7 @@ impl DaemonData {
         }
         let current_n_device = n_devices
             .pop()
-            .unwrap_or(Arc::new(RwLock::new(Device::new(Path::from("/")))));
+            .unwrap_or(Arc::new(RwLock::new(Device::new(Path::from("/"), String::from("empty")))));
         let b_interface_opt = BluetoothInterface::create(conn.clone());
         let b_interface: BluetoothInterface = if let Some(b_interface_opt) = b_interface_opt {
             b_interface_opt

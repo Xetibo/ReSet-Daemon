@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::atomic::Ordering, thread};
 use dbus::{arg::PropMap, Path};
 use dbus_crossroads::Crossroads;
 use ReSet_Lib::{
-    network::network::AccessPoint,
+    network::network::{AccessPoint, WifiDevice},
     utils::{call_system_dbus_method, get_system_dbus_property},
 };
 
@@ -52,50 +52,67 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             },
         );
         c.method(
-            "GetCurrentNetworkDevice",
+            "GetCurrentWifiDevice",
             (),
-            ("path", "name"),
+            ("device",),
             move |_, d: &mut DaemonData, ()| {
-                let path = d.current_n_device.read().unwrap().dbus_path.clone();
-                let name = get_system_dbus_property::<(), String>(
-                    "org.freedesktop.NetworkManager",
-                    path.clone(),
-                    "org.freedesktop.NetworkManager.Device",
-                    "Interface",
-                );
-                Ok((path, name.unwrap_or_else(|_| String::from(""))))
+                let path: Path<'static>;
+                let name: String;
+                {
+                    let device = d.current_n_device.read().unwrap();
+                    path = device.dbus_path.clone();
+                    name = device.name.clone();
+                }
+                let active_access_point;
+                let active_access_point_opt =
+                    d.current_n_device.read().unwrap().access_point.clone();
+                if let Some(active_access_point_opt) = active_access_point_opt {
+                    active_access_point = active_access_point_opt.dbus_path;
+                } else {
+                    active_access_point = Path::from("/");
+                }
+                Ok((WifiDevice {
+                    path,
+                    name,
+                    active_access_point,
+                },))
             },
         );
         c.method(
-            "GetAllNetworkDevices",
+            "GetAllWifiDevices",
             (),
             ("devices",),
             move |_, d: &mut DaemonData, ()| {
                 let mut devices = Vec::new();
                 let device_paths = get_wifi_devices();
                 for device in device_paths {
-                    let path = device.read().unwrap().dbus_path.clone();
-                    let name = get_system_dbus_property::<(), String>(
-                        "org.freedesktop.NetworkManager",
-                        path.clone(),
-                        "org.freedesktop.NetworkManager.Device",
-                        "Interface",
-                    );
-                    devices.push((path, name.unwrap_or_else(|_| String::from(""))));
+                    let path: Path<'static>;
+                    let name: String;
+                    {
+                        let device = device.read().unwrap();
+                        path = device.dbus_path.clone();
+                        name = device.name.clone();
+                    }
+                    let active_access_point;
+                    let active_access_point_opt =
+                        d.current_n_device.read().unwrap().access_point.clone();
+                    if let Some(active_access_point_opt) = active_access_point_opt {
+                        active_access_point = active_access_point_opt.dbus_path;
+                    } else {
+                        active_access_point = Path::from("/");
+                    }
+                    devices.push(WifiDevice {
+                        path,
+                        name,
+                        active_access_point,
+                    });
                 }
-                let path = d.current_n_device.read().unwrap().dbus_path.clone();
-                let name = get_system_dbus_property::<(), String>(
-                    "org.freedesktop.NetworkManager",
-                    path.clone(),
-                    "org.freedesktop.NetworkManager.Device",
-                    "Interface",
-                );
-                devices.push((path, name.unwrap_or_else(|_| String::from(""))));
+                dbg!(devices.clone());
                 Ok((devices,))
             },
         );
         c.method(
-            "SetNetworkDevice",
+            "SetWifiDevice",
             ("path",),
             ("result",),
             move |_, d: &mut DaemonData, (path,): (Path<'static>,)| {
@@ -157,6 +174,7 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                     .unwrap()
                     .disconnect_from_current();
                 if res.is_err() {
+                    println!("error bro");
                     return Ok((false,));
                 }
                 Ok((true,))

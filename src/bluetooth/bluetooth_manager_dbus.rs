@@ -2,7 +2,7 @@ use std::{rc::Rc, sync::atomic::Ordering};
 
 use dbus::Path;
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
+use ReSet_Lib::bluetooth::bluetooth::{BluetoothAdapter, BluetoothDevice};
 
 use crate::DaemonData;
 
@@ -66,6 +66,32 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                     return Ok((false,));
                 }
                 Ok((res.is_ok(),))
+            },
+        );
+        c.method(
+            "GetBluetoothAdapters",
+            (),
+            ("adapters",),
+            move |_, d: &mut DaemonData, ()| Ok((d.b_interface.adapters.clone(),)),
+        );
+        c.method(
+            "GetCurrentBluetoothAdapter",
+            (),
+            ("adapter",),
+            move |_, d: &mut DaemonData, ()| Ok((d.b_interface.current_adapter.clone(),)),
+        );
+        c.method(
+            "SetBluetoothAdapter",
+            ("path",),
+            ("result",),
+            move |_, d: &mut DaemonData, (path,): (Path<'static>,)| {
+                for adapter in d.b_interface.adapters.iter() {
+                    if adapter.path == path {
+                        d.b_interface.current_adapter = adapter.clone();
+                        return Ok((true,));
+                    }
+                }
+                Ok((false,))
             },
         );
         c.method(
