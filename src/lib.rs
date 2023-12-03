@@ -90,10 +90,10 @@ pub async fn run_daemon() {
         data,
     );
 
-    // register bluetooth agent before listening to calls
     let data: &mut DaemonData = cross
         .data_mut(&Path::from("/org/Xetibo/ReSetDaemon"))
         .unwrap();
+    // register bluetooth agent before listening to calls
     data.b_interface.register_agent();
 
     conn.start_receive(

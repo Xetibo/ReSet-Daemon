@@ -1,12 +1,12 @@
-use std::{rc::Rc, sync::atomic::Ordering};
+use std::sync::atomic::Ordering;
 
 use dbus::Path;
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::bluetooth::bluetooth::{BluetoothAdapter, BluetoothDevice};
+use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
 
 use crate::DaemonData;
 
-use super::bluetooth_manager::get_connections;
+use super::bluetooth_manager::{get_connections, set_adapter_enabled};
 
 pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetBluetooth", |c| {
@@ -25,7 +25,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             move |mut ctx, cross, (duration,): (u32,)| {
                 // TODO handle duration
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                data.b_interface.start_bluetooth_discovery();
+                let _ = data.b_interface.start_bluetooth_discovery();
                 async move { ctx.reply(Ok(())) }
             },
         );
@@ -96,29 +96,39 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             },
         );
         c.method(
-            "ConnectToBluethoothDevice",
-            ("device",),
+            "SetBluetoothAdapterEnabled",
+            ("path", "enabled"),
             ("result",),
-            move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
-                let res = d.b_interface.connect_to(device);
-                if res.is_err() {
-                    return Ok((false,));
-                }
-                Ok((true,))
+            move |_, _, (path, enabled): (Path<'static>, bool)| {
+                Ok((set_adapter_enabled(path, enabled),))
             },
         );
         c.method(
-            "PairWithBluetoothDevice",
+            "ConnectToBluetoothDevice",
             ("device",),
             ("result",),
             move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
-                let res = d.b_interface.pair_with(device);
-                if res.is_err() {
-                    return Ok((false,));
-                }
+                println!("connecting");
+                d.b_interface.connect_to(device);
                 Ok((true,))
             },
         );
+        // TODO pairing does not work this way
+        // figure out how pairing works
+        // c.method(
+        //     "PairWithBluetoothDevice",
+        //     ("device",),
+        //     ("result",),
+        //     move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
+        //         println!("pair called");
+        //         let res = d.b_interface.pair_with(device);
+        //         // if res.is_err() {
+        //         // println!("pair called");
+        //         //     return Ok((false,));
+        //         // }
+        //         Ok((true,))
+        //     },
+        // );
         c.method(
             "DisconnectFromBluetoothDevice",
             ("device",),

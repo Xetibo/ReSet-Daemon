@@ -163,6 +163,9 @@ pub fn get_connections() -> Vec<ReSet_Lib::bluetooth::bluetooth::BluetoothDevice
     devices
 }
 
+#[allow(dead_code)]
+// pairing is currently not used
+// TODO handle pairing according to bluetooth rules
 impl BluetoothInterface {
     pub fn empty() -> Self {
         Self {
@@ -329,29 +332,34 @@ impl BluetoothInterface {
         });
     }
 
-    pub fn connect_to(&self, device: Path<'static>) -> Result<(), dbus::Error> {
-        call_system_dbus_method::<(), ()>(
-            "org.bluez",
-            device,
-            "Connect",
-            "org.bluez.Device1",
-            (),
-            1000,
-        )
+    pub fn connect_to(&self, device: Path<'static>) {
+        thread::spawn(move || {
+            let _ = call_system_dbus_method::<(), ()>(
+                "org.bluez",
+                device,
+                "Connect",
+                "org.bluez.Device1",
+                (),
+                10000,
+            );
+        });
     }
 
-    pub fn pair_with(&mut self, device: Path<'static>) -> Result<(), dbus::Error> {
+    pub fn pair_with(&mut self, device: Path<'static>) {
         if !self.registered {
             self.register_agent();
         }
-        call_system_dbus_method::<(), ()>(
-            "org.bluez",
-            device,
-            "Pair",
-            "org.bluez.Device1",
-            (),
-            10000,
-        )
+        thread::spawn(move || {
+            let res = call_system_dbus_method::<(), ()>(
+                "org.bluez",
+                device,
+                "Pair",
+                "org.bluez.Device1",
+                (),
+                10000,
+            );
+            dbg!(res);
+        });
     }
 
     pub fn disconnect(&self, device: Path<'static>) -> Result<(), dbus::Error> {
@@ -470,6 +478,14 @@ fn get_bluetooth_device_properties(path: &Path<'static>) -> PropMap {
         return PropMap::new();
     }
     res.unwrap().0
+}
+
+pub fn set_adapter_enabled(path: Path<'static>, enabled: bool) -> bool {
+    let res = set_system_dbus_property("org.bluez", path, "org.bluez.Adapter1", "Powered", enabled);
+    if res.is_err() {
+        return false;
+    }
+    true
 }
 
 // command needed to understand anything about bluetooth
