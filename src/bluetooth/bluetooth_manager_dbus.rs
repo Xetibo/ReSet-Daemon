@@ -2,12 +2,13 @@ use std::sync::atomic::Ordering;
 
 use dbus::Path;
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::bluetooth::bluetooth::{BluetoothAdapter, BluetoothDevice};
+use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
 
 use crate::DaemonData;
 
 use super::bluetooth_manager::{
-    get_bluetooth_adapter, get_connections, set_adapter_enabled, set_adapter_discoverable, set_adapter_pairable,
+    get_bluetooth_adapter, get_connections, set_adapter_discoverable, set_adapter_enabled,
+    set_adapter_pairable,
 };
 
 pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {

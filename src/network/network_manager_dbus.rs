@@ -7,7 +7,7 @@ use ReSet_Lib::{
     utils::call_system_dbus_method,
 };
 
-use crate::DaemonData;
+use crate::{DaemonData, utils::get_wifi_status};
 
 use super::network_manager::{
     get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
@@ -26,6 +26,14 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             move |_, d: &mut DaemonData, ()| {
                 let access_points = d.current_n_device.read().unwrap().get_access_points();
                 Ok((access_points,))
+            },
+        );
+        c.method(
+            "GetWifiStatus",
+            (),
+            ("status",),
+            move |_, _, ()| {
+                Ok((get_wifi_status(),))
             },
         );
         c.method(

@@ -5,7 +5,7 @@ use std::{
         Arc,
     },
     thread,
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 use dbus::{
@@ -355,7 +355,8 @@ impl BluetoothInterface {
             self.register_agent();
         }
         thread::spawn(move || {
-            let res = call_system_dbus_method::<(), ()>(
+            // TODO handle this error later on? If so how?
+            let _ = call_system_dbus_method::<(), ()>(
                 "org.bluez",
                 device,
                 "Pair",
@@ -509,13 +510,8 @@ pub fn set_adapter_discoverable(path: Path<'static>, enabled: bool) -> bool {
 
 pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
     dbg!(path.clone());
-    let res = set_system_dbus_property(
-        "org.bluez",
-        path,
-        "org.bluez.Adapter1",
-        "Pairable",
-        enabled,
-    );
+    let res =
+        set_system_dbus_property("org.bluez", path, "org.bluez.Adapter1", "Pairable", enabled);
     if res.is_err() {
         return false;
     }

@@ -17,6 +17,7 @@ use tokio::task::JoinHandle;
 use ReSet_Lib::{
     audio::audio::{Card, InputStream, OutputStream, Sink, Source},
     network::network::Error,
+    utils::get_system_dbus_property,
 };
 
 use crate::{
@@ -122,4 +123,17 @@ impl DaemonData {
             clients: HashMap::new(),
         })
     }
+}
+
+pub fn get_wifi_status() -> bool {
+    let res = get_system_dbus_property::<(), bool>(
+        "org.freedesktop.NetworkManager",
+        Path::from("/org/freedesktop/NetworkManager"),
+        "org.freedesktop.NetworkManager",
+        "WirelessEnabled",
+    );
+    if res.is_err() {
+        return false;
+    }
+    true
 }
