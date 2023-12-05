@@ -2,11 +2,13 @@ use std::sync::atomic::Ordering;
 
 use dbus::Path;
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
+use ReSet_Lib::bluetooth::bluetooth::{BluetoothAdapter, BluetoothDevice};
 
 use crate::DaemonData;
 
-use super::bluetooth_manager::{get_connections, set_adapter_enabled};
+use super::bluetooth_manager::{
+    get_bluetooth_adapter, get_connections, set_adapter_enabled, set_adapter_discoverable, set_adapter_pairable,
+};
 
 pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetBluetooth", |c| {
@@ -18,68 +20,55 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.signal::<(), _>("PassKeyRequested", ());
         c.signal::<(u32, u16), _>("DisplayPassKey", ("passkey", "entered"));
         c.signal::<(), _>("PinCodeRequested", ());
-        c.method_with_cr_async(
-            "StartBluetoothScan",
-            ("duration",),
-            (),
-            move |mut ctx, cross, (duration,): (u32,)| {
-                // TODO handle duration
-                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let _ = data.b_interface.start_bluetooth_discovery();
-                async move { ctx.reply(Ok(())) }
-            },
-        );
-        c.method_with_cr_async(
-            "StopBluetoothScan",
-            ("duration",),
-            (),
-            move |mut ctx, cross, (duration,): (u32,)| {
-                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let active_listener = data.network_listener_active.clone();
-                data.b_interface
-                    .start_bluetooth_listener(duration as u64, active_listener);
-                async move { ctx.reply(Ok(())) }
-            },
-        );
+        c.method_with_cr_async("StartBluetoothScan", (), (), move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            let _ = data.b_interface.start_bluetooth_discovery();
+            async move { ctx.reply(Ok(())) }
+        });
+        c.method_with_cr_async("StopBluetoothScan", (), (), move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            let _ = data.b_interface.stop_bluetooth_discovery();
+            async move { ctx.reply(Ok(())) }
+        });
         c.method_with_cr_async(
             "StartBluetoothListener",
-            ("duration",),
             (),
-            move |mut ctx, cross, (duration,): (u32,)| {
+            (),
+            move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let active_listener = data.network_listener_active.clone();
-                data.b_interface
-                    .start_bluetooth_listener(duration as u64, active_listener);
+                data.b_interface.start_bluetooth_listener(active_listener);
                 async move { ctx.reply(Ok(())) }
             },
         );
         c.method(
             "StopBluetoothListener",
             (),
-            ("result",),
+            (),
             move |_, d: &mut DaemonData, ()| {
-                let active_listener = d.network_listener_active.clone();
-                if !active_listener.load(Ordering::SeqCst) {
-                    return Ok((false,));
-                }
-                let res = d.b_interface.stop_bluetooth_discovery();
-                if res.is_err() {
-                    return Ok((false,));
-                }
-                Ok((res.is_ok(),))
+                d.network_listener_active.store(false, Ordering::SeqCst);
+                Ok(())
             },
         );
         c.method(
             "GetBluetoothAdapters",
             (),
             ("adapters",),
-            move |_, d: &mut DaemonData, ()| Ok((d.b_interface.adapters.clone(),)),
+            move |_, d: &mut DaemonData, ()| {
+                let mut adapters = Vec::new();
+                for path in d.b_interface.adapters.iter() {
+                    adapters.push(get_bluetooth_adapter(path));
+                }
+                Ok((adapters,))
+            },
         );
         c.method(
             "GetCurrentBluetoothAdapter",
             (),
             ("adapter",),
-            move |_, d: &mut DaemonData, ()| Ok((d.b_interface.current_adapter.clone(),)),
+            move |_, d: &mut DaemonData, ()| {
+                Ok((get_bluetooth_adapter(&d.b_interface.current_adapter),))
+            },
         );
         c.method(
             "SetBluetoothAdapter",
@@ -87,7 +76,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             ("result",),
             move |_, d: &mut DaemonData, (path,): (Path<'static>,)| {
                 for adapter in d.b_interface.adapters.iter() {
-                    if adapter.path == path {
+                    if *adapter == path {
                         d.b_interface.current_adapter = adapter.clone();
                         return Ok((true,));
                     }
@@ -101,6 +90,22 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             ("result",),
             move |_, _, (path, enabled): (Path<'static>, bool)| {
                 Ok((set_adapter_enabled(path, enabled),))
+            },
+        );
+        c.method(
+            "SetBluetoothAdapterVisibility",
+            ("path", "enabled"),
+            ("result",),
+            move |_, _, (path, enabled): (Path<'static>, bool)| {
+                Ok((set_adapter_discoverable(path, enabled),))
+            },
+        );
+        c.method(
+            "SetBluetoothAdapterPairability",
+            ("path", "enabled"),
+            ("result",),
+            move |_, _, (path, enabled): (Path<'static>, bool)| {
+                Ok((set_adapter_pairable(path, enabled),))
             },
         );
         c.method(

@@ -454,7 +454,7 @@ pub fn set_wifi_enabled(enabled: bool) -> bool {
         Path::from("/org/freedesktop/NetworkManager"),
         "org.freedesktop.NetworkManager",
         "WirelessEnabled",
-        (enabled,),
+        enabled,
     );
     if result.is_err() {
         return false;

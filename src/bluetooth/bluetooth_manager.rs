@@ -31,8 +31,8 @@ use crate::utils::{FullMaskedPropMap, MaskedPropMap};
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct BluetoothInterface {
-    pub adapters: Vec<BluetoothAdapter>,
-    pub current_adapter: BluetoothAdapter,
+    pub adapters: Vec<Path<'static>>,
+    pub current_adapter: Path<'static>,
     devices: HashMap<Path<'static>, BluetoothDevice>,
     enabled: bool,
     registered: bool,
@@ -139,12 +139,32 @@ pub fn adapter_from_map(path: &Path<'static>, map: &PropMap) -> BluetoothAdapter
         .clone();
     let powered = *arg::cast::<bool>(&map.get("Powered").unwrap().0).unwrap();
     let discoverable = *arg::cast::<bool>(&map.get("Discoverable").unwrap().0).unwrap();
+    let pairable = *arg::cast::<bool>(&map.get("Pairable").unwrap().0).unwrap();
     BluetoothAdapter {
         path: path.clone(),
         alias,
         powered,
         discoverable,
+        pairable,
     }
+}
+
+pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
+    let res = call_system_dbus_method::<(&str,), (PropMap,)>(
+        "org.bluez",
+        path.clone(),
+        "GetAll",
+        "org.freedesktop.DBus.Properties",
+        ("org.bluez.Adapter1",),
+        1000,
+    );
+    let map = if let Ok(res) = res {
+        res.0
+    } else {
+        PropMap::new()
+    };
+    dbg!(&map);
+    adapter_from_map(path, &map)
 }
 
 pub fn get_connections() -> Vec<ReSet_Lib::bluetooth::bluetooth::BluetoothDevice> {
@@ -170,12 +190,7 @@ impl BluetoothInterface {
     pub fn empty() -> Self {
         Self {
             adapters: Vec::new(),
-            current_adapter: BluetoothAdapter {
-                path: Path::from("/"),
-                alias: "none".to_string(),
-                powered: false,
-                discoverable: false,
-            },
+            current_adapter: Path::from("/"),
             devices: HashMap::new(),
             enabled: false,
             registered: false,
@@ -196,7 +211,7 @@ impl BluetoothInterface {
             if map.is_none() {
                 continue;
             }
-            adapters.push(adapter_from_map(path, map.unwrap()));
+            adapters.push(path.clone());
         }
         if adapters.is_empty() {
             return None;
@@ -215,9 +230,9 @@ impl BluetoothInterface {
         Some(interface)
     }
 
-    pub fn start_bluetooth_listener(&self, duration: u64, active_listener: Arc<AtomicBool>) {
-        let path = self.current_adapter.path.clone();
-        // let path_loop = self.current_adapter.path.clone();
+    pub fn start_bluetooth_listener(&self, active_listener: Arc<AtomicBool>) {
+        let path = self.current_adapter.clone();
+        // let path_loop = self.current_adapter.clone();
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
@@ -305,24 +320,14 @@ impl BluetoothInterface {
                 proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
             let mut is_discovery = true;
-            let mut now = SystemTime::now();
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
-                if is_discovery && now.elapsed().unwrap() > Duration::from_millis(duration) {
-                    discovery_active.store(false, Ordering::SeqCst);
-                    // TODO handle dynamic changing
-                    is_discovery = false;
-                    let res: Result<(), dbus::Error> =
-                        proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
-                    if res.is_err() {}
-                }
                 if !active_listener.load(Ordering::SeqCst) {
                     discovery_active.store(false, Ordering::SeqCst);
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                     break;
                 } else if !is_discovery && discovery_active.load(Ordering::SeqCst) {
-                    now = SystemTime::now();
                     is_discovery = true;
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
@@ -358,7 +363,6 @@ impl BluetoothInterface {
                 (),
                 10000,
             );
-            dbg!(res);
         });
     }
 
@@ -376,7 +380,7 @@ impl BluetoothInterface {
     pub fn set_bluetooth(&mut self, value: bool) {
         let res = set_system_dbus_property(
             "org.bluez",
-            self.current_adapter.path.clone(),
+            self.current_adapter.clone(),
             "org.bluez.Adapter1",
             "Powered",
             value,
@@ -432,7 +436,7 @@ impl BluetoothInterface {
         }
         call_system_dbus_method::<(), ()>(
             "org.bluez",
-            self.current_adapter.path.clone(),
+            self.current_adapter.clone(),
             "StartDiscovery",
             "org.bluez.Adapter1",
             (),
@@ -446,7 +450,7 @@ impl BluetoothInterface {
         }
         call_system_dbus_method::<(), ()>(
             "org.bluez",
-            self.current_adapter.path.clone(),
+            self.current_adapter.clone(),
             "StopDiscovery",
             "org.bluez.Adapter1",
             (),
@@ -457,7 +461,7 @@ impl BluetoothInterface {
     pub fn remove_device_pairing(&self, path: Path<'static>) -> Result<(), dbus::Error> {
         call_system_dbus_method::<(Path<'static>,), ()>(
             "org.bluez",
-            self.current_adapter.path.clone(),
+            self.current_adapter.clone(),
             "RemoveDevice",
             "org.bluez.Adapter1",
             (path,),
@@ -482,6 +486,36 @@ fn get_bluetooth_device_properties(path: &Path<'static>) -> PropMap {
 
 pub fn set_adapter_enabled(path: Path<'static>, enabled: bool) -> bool {
     let res = set_system_dbus_property("org.bluez", path, "org.bluez.Adapter1", "Powered", enabled);
+    if res.is_err() {
+        return false;
+    }
+    true
+}
+
+pub fn set_adapter_discoverable(path: Path<'static>, enabled: bool) -> bool {
+    dbg!(path.clone());
+    let res = set_system_dbus_property(
+        "org.bluez",
+        path,
+        "org.bluez.Adapter1",
+        "Discoverable",
+        enabled,
+    );
+    if res.is_err() {
+        return false;
+    }
+    true
+}
+
+pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
+    dbg!(path.clone());
+    let res = set_system_dbus_property(
+        "org.bluez",
+        path,
+        "org.bluez.Adapter1",
+        "Pairable",
+        enabled,
+    );
     if res.is_err() {
         return false;
     }
