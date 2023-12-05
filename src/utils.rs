@@ -135,5 +135,5 @@ pub fn get_wifi_status() -> bool {
     if res.is_err() {
         return false;
     }
-    true
+    res.unwrap()
 }
