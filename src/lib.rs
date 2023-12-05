@@ -110,6 +110,15 @@ pub async fn run_daemon() {
 
 fn setup_base(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     cross.register("org.Xetibo.ReSetDaemon", |c| {
+        c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
+            // later, this should be handled dymanically -> plugin check
+            Ok((vec!["Bluetooth", "Wifi", "Audio"],))
+        });
+        c.method("APIVersion", (), ("api-version",), move |_, _, ()| {
+            // let the client handle the mismatch -> e.g. they decide if they want to keep using
+            // the current daemon or not.
+            Ok(("0.3.9",))
+        });
         c.method(
             "RegisterClient",
             ("client_name",),
