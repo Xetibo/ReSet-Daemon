@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use dbus::channel::Sender as dbus_sender;
 use dbus::nonblock::SyncConnection;
 use dbus::{Message, Path};
+use pulse::context::introspect::Introspector;
 use pulse::context::subscribe::{InterestMaskSet, Operation};
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
@@ -212,8 +213,10 @@ impl PulseServer {
         match message {
             AudioRequest::ListSinks => self.get_sinks(),
             AudioRequest::GetDefaultSink => self.get_default_sink(),
+            AudioRequest::GetDefaultSinkName => self.get_default_sink_name(),
             AudioRequest::ListSources => self.get_sources(),
             AudioRequest::GetDefaultSource => self.get_default_source(),
+            AudioRequest::GetDefaultSourceName => self.get_default_source_name(),
             AudioRequest::ListInputStreams => self.get_input_streams(),
             AudioRequest::ListOutputStreams => self.get_output_streams(),
             AudioRequest::SetInputStreamMute(index, muted) => {
@@ -260,26 +263,12 @@ impl PulseServer {
     pub fn get_default_sink(&self) {
         self.mainloop.borrow_mut().lock();
         let introspector = self.context.borrow().introspect();
-        let sink = Rc::new(RefCell::new(Vec::new()));
+        let sink = Rc::new(RefCell::new(Sink::default()));
         let sink_ref = sink.clone();
-        let sink_name = Rc::new(RefCell::new(String::from("")));
-        let sink_name_ref = sink_name.clone();
         let ml_ref = Rc::clone(&self.mainloop);
-        let ml_ref_info = Rc::clone(&self.mainloop);
-        let result = introspector.get_server_info(move |result| {
-            if result.default_sink_name.is_some() {
-                let mut borrow = sink_name_ref.borrow_mut();
-                *borrow = String::from(result.default_sink_name.clone().unwrap());
-                unsafe {
-                    (*ml_ref_info.as_ptr()).signal(false);
-                }
-            }
-        });
-        while result.get_state() != pulse::operation::State::Done {
-            self.mainloop.borrow_mut().wait();
-        }
+        let sink_name = self.no_lock_get_default_sink_name(&introspector);
         if sink_name.borrow().is_empty() {
-            // let _ = self.sender.send(AudioResponse::BoolResponse(false));
+            let _ = self.sender.send(AudioResponse::Error);
             self.mainloop.borrow_mut().unlock();
             return;
         }
@@ -288,7 +277,7 @@ impl PulseServer {
                 sink_name.take().as_str(),
                 move |result| match result {
                     ListResult::Item(item) => {
-                        sink_ref.borrow_mut().push(item.into());
+                        sink_ref.replace(item.into());
                     }
                     ListResult::Error => unsafe {
                         (*ml_ref.as_ptr()).signal(true);
@@ -301,21 +290,69 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self
-            .sender
-            .send(AudioResponse::DefaultSink(sink.take().pop().unwrap()));
+        let _ = self.sender.send(AudioResponse::DefaultSink(sink.take()));
         self.mainloop.borrow_mut().unlock();
     }
 
-    pub fn get_default_source(&self) {
+    pub fn get_default_sink_name(&self) {
         self.mainloop.borrow_mut().lock();
         let introspector = self.context.borrow().introspect();
-        let source = Rc::new(RefCell::new(Vec::new()));
-        let source_ref = source.clone();
+        let source_name = self.no_lock_get_default_sink_name(&introspector);
+        if source_name.borrow().is_empty() {
+            let _ = self.sender.send(AudioResponse::Error);
+            self.mainloop.borrow_mut().unlock();
+            return;
+        }
+        let _ = self
+            .sender
+            .send(AudioResponse::DefaultSinkName(source_name.take()));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn no_lock_get_default_sink_name(
+        &self,
+        introspector: &Introspector,
+    ) -> Rc<RefCell<String>> {
+        let ml_ref_info = Rc::clone(&self.mainloop);
+        let sink_name = Rc::new(RefCell::new(String::from("")));
+        let sink_name_ref = sink_name.clone();
+        let result = introspector.get_server_info(move |result| {
+            if result.default_sink_name.is_some() {
+                let mut borrow = sink_name_ref.borrow_mut();
+                *borrow = String::from(result.default_sink_name.clone().unwrap());
+                unsafe {
+                    (*ml_ref_info.as_ptr()).signal(false);
+                }
+            }
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        sink_name
+    }
+
+    pub fn get_default_source_name(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let source_name = self.no_lock_get_default_source_name(&introspector);
+        if source_name.borrow().is_empty() {
+            let _ = self.sender.send(AudioResponse::Error);
+            self.mainloop.borrow_mut().unlock();
+            return;
+        }
+        let _ = self
+            .sender
+            .send(AudioResponse::DefaultSourceName(source_name.take()));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn no_lock_get_default_source_name(
+        &self,
+        introspector: &Introspector,
+    ) -> Rc<RefCell<String>> {
+        let ml_ref_info = Rc::clone(&self.mainloop);
         let source_name = Rc::new(RefCell::new(String::from("")));
         let source_name_ref = source_name.clone();
-        let ml_ref = Rc::clone(&self.mainloop);
-        let ml_ref_info = Rc::clone(&self.mainloop);
         let result = introspector.get_server_info(move |result| {
             if result.default_source_name.is_some() {
                 let mut borrow = source_name_ref.borrow_mut();
@@ -328,8 +365,18 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
+        source_name
+    }
+
+    pub fn get_default_source(&self) {
+        self.mainloop.borrow_mut().lock();
+        let introspector = self.context.borrow().introspect();
+        let source = Rc::new(RefCell::new(Source::default()));
+        let source_ref = source.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let source_name = self.no_lock_get_default_source_name(&introspector);
         if source_name.borrow().is_empty() {
-            // let _ = self.sender.send(AudioResponse::BoolResponse(false));
+            let _ = self.sender.send(AudioResponse::Error);
             self.mainloop.borrow_mut().unlock();
             return;
         }
@@ -337,7 +384,7 @@ impl PulseServer {
             introspector.get_source_info_by_name(source_name.take().as_str(), move |result| {
                 match result {
                     ListResult::Item(item) => {
-                        source_ref.borrow_mut().push(item.into());
+                        source_ref.replace(item.into());
                     }
                     ListResult::Error => unsafe {
                         (*ml_ref.as_ptr()).signal(true);
@@ -352,7 +399,7 @@ impl PulseServer {
         }
         let _ = self
             .sender
-            .send(AudioResponse::DefaultSource(source.take().pop().unwrap()));
+            .send(AudioResponse::DefaultSource(source.take()));
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -484,9 +531,7 @@ impl PulseServer {
             .set_default_sink(&sink, move |error: bool| unsafe {
                 (*ml_ref.as_ptr()).signal(!error);
             });
-        while result.get_state() != pulse::operation::State::Done
-            && result.get_state() != pulse::operation::State::Cancelled
-        {
+        while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
         self.mainloop.borrow_mut().unlock();

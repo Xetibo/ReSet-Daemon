@@ -92,6 +92,25 @@ pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
             },
         );
         c.method_with_cr_async(
+            "GetDefaultSinkName",
+            (),
+            ("sink_name",),
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.audio_sender.send(AudioRequest::GetDefaultSinkName);
+                let response = data.audio_receiver.recv();
+                let sink_name = if let Ok(response) = response {
+                    match response {
+                        AudioResponse::DefaultSinkName(s) => s,
+                        _ => String::from(""),
+                    }
+                } else {
+                    String::from("")
+                };
+                async move { ctx.reply(Ok((sink_name,))) }
+            },
+        );
+        c.method_with_cr_async(
             "GetDefaultSource",
             (),
             ("default_source",),
@@ -113,6 +132,25 @@ pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
                     Err(dbus::MethodErr::failed("Could not get default source"))
                 };
                 async move { ctx.reply(response) }
+            },
+        );
+        c.method_with_cr_async(
+            "GetDefaultSourceName",
+            (),
+            ("source_name",),
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let _ = data.audio_sender.send(AudioRequest::GetDefaultSourceName);
+                let response = data.audio_receiver.recv();
+                let source_name = if let Ok(response) = response {
+                    match response {
+                        AudioResponse::DefaultSourceName(s) => s,
+                        _ => String::from(""),
+                    }
+                } else {
+                    String::from("")
+                };
+                async move { ctx.reply(Ok((source_name,))) }
             },
         );
         c.method_with_cr_async("ListSinks", (), ("sinks",), move |mut ctx, cross, ()| {

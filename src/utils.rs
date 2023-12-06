@@ -35,11 +35,13 @@ pub type FullMaskedPropMap = HashMap<
 pub enum AudioRequest {
     ListSources,
     GetDefaultSource,
+    GetDefaultSourceName,
     SetSourceVolume(u32, u16, u32),
     SetSourceMute(u32, bool),
     SetDefaultSource(String),
     ListSinks,
     GetDefaultSink,
+    GetDefaultSinkName,
     SetSinkVolume(u32, u16, u32),
     SetSinkMute(u32, bool),
     SetDefaultSink(String),
@@ -59,11 +61,14 @@ pub enum AudioRequest {
 pub enum AudioResponse {
     DefaultSink(Sink),
     DefaultSource(Source),
+    DefaultSinkName(String),
+    DefaultSourceName(String),
     Sources(Vec<Source>),
     Sinks(Vec<Sink>),
     InputStreams(Vec<InputStream>),
     OutputStreams(Vec<OutputStream>),
     Cards(Vec<Card>),
+    Error,
 }
 
 pub struct DaemonData {

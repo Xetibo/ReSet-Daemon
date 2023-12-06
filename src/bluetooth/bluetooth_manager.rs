@@ -289,9 +289,12 @@ impl BluetoothInterface {
                 bluetooth_device_changed,
                 move |_: PropertiesChanged, _, msg| {
                     if let Some(path) = msg.path() {
-                        let path = Path::from(path.to_string());
+                        let string = path.to_string();
+                            dbg!(&string);
+                        let path = Path::from(string);
                         let map = get_bluetooth_device_properties(&path);
                         let device_opt = bluetooth_device_from_map(&path, &map);
+                        dbg!(&device_opt);
 
                         if let Some(device) = device_opt {
                             let msg = Message::signal(
