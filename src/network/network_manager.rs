@@ -558,6 +558,7 @@ impl Device {
         access_points
     }
 
+    #[allow(dead_code)]
     pub fn set_active_access_point(&mut self) {
         let interface = "org.freedesktop.NetworkManager.Device.Wireless";
         let conn = Connection::new_system().unwrap();

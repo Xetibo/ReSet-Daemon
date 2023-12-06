@@ -18,7 +18,6 @@
 /// a: `Vec<T>` an array of something
 #[allow(non_snake_case)]
 pub mod API {
-    use crate::network::network_manager::Device;
     use dbus::{arg::PropMap, Path};
     use std::collections::HashMap;
     use ReSet_Lib::{
@@ -66,6 +65,14 @@ pub mod API {
     /// ### WifiDevice
     /// The WifiDevice has the following DBus signature: oso\
     /// `Path<'static>,String, Path<'static>`
+    ///
+    /// ## Events
+    /// Removed events are done with paths since the actual data behind the specific object is
+    /// already removed.
+    ///
+    /// AccessPointChanged -> AccessPoint\
+    /// AccessPointAdded -> AccessPoint\
+    /// AccessPointRemoved -> Path<'static>\
     ///
     pub trait WirelessAPI {
         ///
@@ -153,6 +160,23 @@ pub mod API {
     /// The BluetoothAdapter has the following DBus signature: osbbb\
     /// `Path<'static>, String, bool, bool, bool`
     ///
+    /// ## Events
+    /// Removed events are done with paths since the actual data behind the specific object is
+    /// already removed.
+    ///
+    /// BluetoothDeviceAdded -> BluetoothDevice\
+    /// BluetoothDeviceRemoved -> Path<'static>\
+    /// BluetoothDeviceChanged -> BluetoothDevice
+    ///
+    /// ## Agent Events
+    /// NOTE Currently unused
+    ///
+    /// PincodeRequested -> ()\
+    /// DisplayPinCode -> ()\
+    /// PassKeyRequested -> ()\
+    /// DisplayPassKey -> (u32, u16)\
+    /// PinCodeRequested -> ()
+    ///
     pub trait BluetoothAPI {
         ///
         /// Starts searching for Bluetooth devices.\
@@ -239,6 +263,24 @@ pub mod API {
     /// ### Card
     /// The Card has the following DBus signature: a(ussuqaubb)\
     /// `Vec<(u32, String, String, u32, u16, Vec<u32>, bool, bool)>`
+    ///
+    /// ## Events
+    /// Removed events are done with paths since the actual data behind the specific object is
+    /// already removed.
+    ///
+    /// SinkChanged -> Sink\
+    /// SinkAdded -> Sink\
+    /// SinkRemoved -> Path<'static>\
+    /// SourceChanged -> Source\
+    /// SourceAdded -> Source\
+    /// SourceRemoved -> Path<'static>\
+    /// InputStreamChanged -> InputStream\
+    /// InputStreamAdded -> InputStream\
+    /// InputStreamRemoved -> Path<'static>\
+    /// OutputStreamChanged -> OutputStream\
+    /// OutputStreamAdded -> OutputStream\
+    /// OutputStreamRemoved -> Path<'static>
+    ///
     pub trait AudioAPI {
         ///
         /// Starts the event listener and the worker for audio.\

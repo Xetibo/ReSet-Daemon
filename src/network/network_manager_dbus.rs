@@ -7,7 +7,7 @@ use ReSet_Lib::{
     utils::call_system_dbus_method,
 };
 
-use crate::{DaemonData, utils::get_wifi_status};
+use crate::{utils::get_wifi_status, DaemonData};
 
 use super::network_manager::{
     get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
@@ -16,9 +16,9 @@ use super::network_manager::{
 
 pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.Xetibo.ReSetWireless", |c| {
+        c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));
-        c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
         c.method(
             "ListAccessPoints",
             (),
@@ -28,14 +28,9 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                 Ok((access_points,))
             },
         );
-        c.method(
-            "GetWifiStatus",
-            (),
-            ("status",),
-            move |_, _, ()| {
-                Ok((get_wifi_status(),))
-            },
-        );
+        c.method("GetWifiStatus", (), ("status",), move |_, _, ()| {
+            Ok((get_wifi_status(),))
+        });
         c.method(
             "SetWifiEnabled",
             ("enabled",),
