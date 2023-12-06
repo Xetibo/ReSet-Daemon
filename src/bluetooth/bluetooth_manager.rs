@@ -17,10 +17,10 @@ use dbus::{
     Error, Message, Path,
 };
 use dbus_tokio::connection;
-use ReSet_Lib::{
+use re_set_lib::{
     bluetooth::{
-        bluetooth::{BluetoothAdapter, BluetoothDevice},
         bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
+        bluetooth_structures::{BluetoothAdapter, BluetoothDevice},
     },
     signals::PropertiesChanged,
     utils::{call_system_dbus_method, set_system_dbus_property},
@@ -167,7 +167,7 @@ pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
     adapter_from_map(path, &map)
 }
 
-pub fn get_connections() -> Vec<ReSet_Lib::bluetooth::bluetooth::BluetoothDevice> {
+pub fn get_connections() -> Vec<re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice> {
     let mut devices = Vec::new();
     let res = get_objects("org.bluez", "/");
     if res.is_err() {

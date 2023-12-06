@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 
 use dbus::Path;
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::bluetooth::bluetooth::BluetoothDevice;
+use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
 
 use crate::DaemonData;
 

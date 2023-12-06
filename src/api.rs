@@ -19,12 +19,12 @@
 #[allow(non_snake_case)]
 pub mod API {
     use dbus::{arg::PropMap, Path};
-    use std::collections::HashMap;
-    use ReSet_Lib::{
-        audio::audio::{Card, InputStream, OutputStream, Sink, Source},
-        bluetooth::bluetooth::{BluetoothAdapter, BluetoothDevice},
-        network::network::{AccessPoint, WifiDevice},
+    use re_set_lib::{
+        audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source},
+        bluetooth::bluetooth_structures::{BluetoothAdapter, BluetoothDevice},
+        network::network_structures::{AccessPoint, WifiDevice},
     };
+    use std::collections::HashMap;
 
     /// # Base API
     /// Simple API for connectivety checks and functionality check.

@@ -13,12 +13,12 @@ use dbus::{
     nonblock::SyncConnection,
     Path,
 };
-use tokio::task::JoinHandle;
-use ReSet_Lib::{
-    audio::audio::{Card, InputStream, OutputStream, Sink, Source},
-    network::network::Error,
+use re_set_lib::{
+    audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source},
+    network::network_structures::Error,
     utils::get_system_dbus_property,
 };
+use tokio::task::JoinHandle;
 
 use crate::{
     bluetooth::bluetooth_manager::{BluetoothAgent, BluetoothInterface},
@@ -88,7 +88,7 @@ impl DaemonData {
     pub async fn create(handle: JoinHandle<()>, conn: Arc<SyncConnection>) -> Result<Self, Error> {
         let mut n_devices = get_wifi_devices();
         if n_devices.is_empty() {
-            return Err(ReSet_Lib::network::network::Error {
+            return Err(re_set_lib::network::network_structures::Error {
                 message: "Could not get any wifi devices",
             });
         }

@@ -2,8 +2,8 @@ use std::{collections::HashMap, sync::atomic::Ordering, thread};
 
 use dbus::{arg::PropMap, Path};
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::{
-    network::network::{AccessPoint, WifiDevice},
+use re_set_lib::{
+    network::network_structures::{AccessPoint, WifiDevice},
     utils::call_system_dbus_method,
 };
 

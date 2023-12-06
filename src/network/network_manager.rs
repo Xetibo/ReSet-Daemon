@@ -16,10 +16,10 @@ use dbus::{
     nonblock::SyncConnection,
     Message, Path,
 };
-use ReSet_Lib::{
+use re_set_lib::{
     network::{
-        network::{AccessPoint, ConnectionError, DeviceType, WifiDevice},
         network_signals::{AccessPointAdded, AccessPointRemoved},
+        network_structures::{AccessPoint, ConnectionError, DeviceType, WifiDevice},
     },
     signals::PropertiesChanged,
     utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},

@@ -8,7 +8,7 @@ use std::{
 };
 
 use dbus_crossroads::Crossroads;
-use ReSet_Lib::audio::audio::{Card, InputStream, OutputStream, Sink, Source};
+use re_set_lib::audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source};
 
 use crate::{
     utils::{AudioRequest, AudioResponse},

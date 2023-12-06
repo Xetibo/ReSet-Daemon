@@ -3,6 +3,10 @@ use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
 };
+#[cfg(test)]
+use re_set_lib::audio::audio_structures::Sink;
+#[allow(unused_imports)]
+use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
 use std::{
     hint,
     sync::{
@@ -13,10 +17,6 @@ use std::{
 #[allow(unused_imports)]
 use std::{thread, time::Duration};
 use tokio::runtime;
-#[cfg(test)]
-use ReSet_Lib::audio::audio::Sink;
-#[allow(unused_imports)]
-use ReSet_Lib::audio::audio::{InputStream, OutputStream, Source};
 
 #[allow(dead_code)]
 static START_DAEMON: Once = Once::new();

@@ -16,7 +16,7 @@ use pulse::{
     mainloop::threaded::Mainloop,
     proplist::Proplist,
 };
-use ReSet_Lib::audio::audio::{InputStream, OutputStream, Sink, Source};
+use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
 
 use crate::{AudioRequest, AudioResponse};
 
