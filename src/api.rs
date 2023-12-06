@@ -23,8 +23,8 @@ pub mod API {
     use std::collections::HashMap;
     use ReSet_Lib::{
         audio::audio::{Card, InputStream, OutputStream, Sink, Source},
-        bluetooth::bluetooth::BluetoothDevice,
-        network::network::AccessPoint,
+        bluetooth::bluetooth::{BluetoothAdapter, BluetoothDevice},
+        network::network::{AccessPoint, WifiDevice},
     };
 
     /// # Base API
@@ -34,9 +34,21 @@ pub mod API {
     ///
     #[allow(dead_code, non_snake_case)]
     pub trait BaseAPI {
-        /// A simple connectivety check
-        /// Used in the ReSet application in order to launch a standalone daemon.
-        fn Check() -> bool;
+        ///
+        /// Returns all capabilities of the daemon as strings
+        fn GetCapabilities() -> Vec<String>;
+        ///
+        /// Register the client to the daemon.\
+        /// This is mainly useful for clients that want to ensure the daemon is running before
+        /// starting calls.\
+        /// Later on this can be expanded for more functionality.
+        fn RegisterClient(client_name: String) -> bool;
+        ///
+        /// Deletes the entry for this client from the daemon.
+        fn UnregisterClient(client_name: String) -> bool;
+        ///
+        /// Shuts down the daemon.
+        fn Shutdown();
     }
 
     /// # Wireless Manager API
@@ -48,23 +60,34 @@ pub mod API {
     /// ## Types
     ///
     /// ### AccessPoint
-    /// The AccessPoint has the following DBus signature: ayyoobb\
-    /// `Vec<u8>, u8, Path<'static>, Path<'static>, bool, bool`
+    /// The AccessPoint has the following DBus signature: ayyoob\
+    /// `Vec<u8>, u8, Path<'static>, Path<'static>, bool`
+    ///
+    /// ### WifiDevice
+    /// The WifiDevice has the following DBus signature: oso\
+    /// `Path<'static>,String, Path<'static>`
     ///
     pub trait WirelessAPI {
         ///
         /// Returns all access points for the current wireless network device.
         fn ListAccessPoints() -> Vec<AccessPoint>;
         ///
+        /// A check that returns the current status of Wifi.\
+        /// Returns a bool as a result of the operation.
+        fn GetWifiStatus() -> bool;
+        ///
+        /// Enables or disables Wifi for the entire system.
+        fn SetWifiEnabled(enabled: bool) -> bool;
+        ///
         /// Returns the dbus path of the current wireless network device, as well as the name.
-        fn GetCurrentNetworkDevice() -> (Path<'static>, String);
+        fn GetCurrentWifiDevice() -> WifiDevice;
         ///
         /// Returns all available wireless network devices.
-        fn GetAllNetworkDevices() -> Vec<Device>;
+        fn GetAllWifiDevices() -> Vec<WifiDevice>;
         ///
         /// Sets the current network device based on the dbus path of the device.\
         /// Returns true on success and false on error.
-        fn SetNetworkDevice(device: Path<'static>) -> bool;
+        fn SetWifiDevice(device: Path<'static>) -> bool;
         ///
         /// Connects to an access point that has a known connection inside the NetworkManager.\
         /// Note, for a new access point, use the ConnectToNewAccessPoint function.\
@@ -122,20 +145,45 @@ pub mod API {
     ///
     /// ## Types
     ///
-    /// ### Device
-    /// The Device has the following DBus signature: nsobbbbs\
-    /// `u16, String, Path<'static>, bool, bool, bool, bool, String`
+    /// ### BluetoothDevice
+    /// The BluetoothDevice has the following DBus signature: onssobbbbbss\
+    /// `Path<'static>, u16, String, String, Path<'static>, bool, bool, bool, bool, bool, String, String`
+    ///
+    /// ### BluetoothAdapter
+    /// The BluetoothAdapter has the following DBus signature: osbbb\
+    /// `Path<'static>, String, bool, bool, bool`
     ///
     pub trait BluetoothAPI {
-        /// Starts the listener for BLuetooth events for a specified duration.\
-        /// Repeatedly starting the network listener twice will simply return an error on consecutive
-        /// tries.\
-        /// Returns true on success and false on error.
-        fn StartBluetoothSearch(duration: i32) -> bool;
+        ///
+        /// Starts searching for Bluetooth devices.\
+        /// Note this is without a listener, you would have to manually request bluetooth devices.
+        fn StartBluetoothSearch();
+        ///
+        /// Stops searching for Bluetooth devices.
+        fn StopBluetoothSearch();
+        ///
+        /// Starts the listener for Bluetooth events for a specified duration.\
+        /// Repeatedly starting the network listener while already active will do nothing.
+        fn StartBluetoothListener();
         ///
         /// Stops the listener for BLuetooth events.\
-        /// Returns true on success and false on error.
-        fn StopBluetoothSearch() -> bool;
+        fn StopBluetoothListener();
+        ///
+        /// Returns the currently available Bluetooth adapters.
+        fn GetBluetoothAdapters() -> Vec<BluetoothAdapter>;
+        ///
+        /// Returns the current default Bluetooth adapter.
+        fn GetCurrentBluetoothAdapter() -> BluetoothAdapter;
+        ///
+        /// Sets the default bluetooth adapter.\
+        /// The path can be found inside the BluetoothAdapter struct.
+        fn SetBluetoothAdapter(path: Path<'static>) -> bool;
+        ///
+        /// Sets the discoverability of a specific Bluetooth adapter.
+        fn SetBluetoothAdapterDiscoverability(path: Path<'static>, enabled: bool) -> bool;
+        ///
+        /// Sets the pairability of a specific Bluetooth adapter.
+        fn SetBluetoothAdapterPairability(path: Path<'static>, enabled: bool) -> bool;
         ///
         /// Connects to a Bluetooth device given the DBus path.\
         /// Note that this requires an existing pairing.\
@@ -145,16 +193,20 @@ pub mod API {
         /// Pairs with a Bluetooth device given the DBus path.\
         /// Initiates the pairing process which is handled by the Bluetooth Agent.\
         /// Returns true on success and false on error.
+        /// NOTE: THIS IS CURRENTLY DISABLED!
         fn PairWithBluetoothDevice(path: Path<'static>) -> bool;
         ///
         /// Disconnects a Bluetooth device given the DBus path.
         /// Returns true on success and false on error.
         fn DisconnectFromBluetoothDevice(path: Path<'static>) -> bool;
         ///
+        /// This will remove the pairing on the Bluetooth device.
+        fn RemoveDevicePairing(path: Path<'static>) -> bool;
+        ///
         /// Returns all connected Bluetooth devices.
         /// The first part of the HashMap is the DBus path of the object, the second the object
         /// itself.
-        fn GetConnectedBluetoothDevices() -> HashMap<Path<'static>, BluetoothDevice>;
+        fn GetConnectedBluetoothDevices() -> Vec<BluetoothDevice>;
     }
 
     /// # Audio Manager API

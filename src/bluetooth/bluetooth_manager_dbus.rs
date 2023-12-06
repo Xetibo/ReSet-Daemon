@@ -94,7 +94,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             },
         );
         c.method(
-            "SetBluetoothAdapterVisibility",
+            "SetBluetoothAdapterDiscoverability",
             ("path", "enabled"),
             ("result",),
             move |_, _, (path, enabled): (Path<'static>, bool)| {
