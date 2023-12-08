@@ -10,7 +10,7 @@ use std::{
 
 use dbus::{
     arg::{self, prop_cast, PropMap, RefArg, Variant},
-    blocking::Connection,
+    blocking::{Connection, stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged},
     channel::Sender,
     message::SignalArgs,
     nonblock::SyncConnection,
@@ -21,7 +21,6 @@ use re_set_lib::{
         network_signals::{AccessPointAdded, AccessPointRemoved},
         network_structures::{AccessPoint, ConnectionError, DeviceType, WifiDevice},
     },
-    signals::PropertiesChanged,
     utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},
 };
 
@@ -83,28 +82,28 @@ pub fn start_listener(
     let access_point_removed =
         AccessPointRemoved::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
             .static_clone();
-    let mut access_point_changed = PropertiesChanged::match_rule(
+    let mut access_point_changed = PropertiesPropertiesChanged::match_rule(
         Some(&"org.freedesktop.NetworkManager".into()),
         Some(&Path::from("/org/freedesktop/NetworkManager/AccessPoint")),
     )
     .static_clone();
     access_point_changed.path_is_namespace = true;
-    let mut wifi_device_event = PropertiesChanged::match_rule(
+    let mut wifi_device_event = PropertiesPropertiesChanged::match_rule(
         Some(&"org.freedesktop.NetworkManager".into()),
         Some(&Path::from("/org/freedesktop/NetworkManager/Devices")),
     )
     .static_clone();
     wifi_device_event.path_is_namespace = true;
-    let active_connection_event = PropertiesChanged::match_rule(
+    let active_connection_event = PropertiesPropertiesChanged::match_rule(
         Some(&"org.freedesktop.NetworkManager".into()),
         Some(&Path::from("/org/freedesktop/NetworkManager")),
     )
     .static_clone();
     let res = conn.add_match(
         access_point_changed,
-        move |ir: PropertiesChanged, _, msg| {
-            let strength: Option<&u8> = prop_cast(&ir.map, "Strength");
-            let ssid: Option<&Vec<u8>> = prop_cast(&ir.map, "Ssid");
+        move |ir: PropertiesPropertiesChanged, _, msg| {
+            let strength: Option<&u8> = prop_cast(&ir.changed_properties, "Strength");
+            let ssid: Option<&Vec<u8>> = prop_cast(&ir.changed_properties, "Ssid");
             if strength.is_none() && ssid.is_none() {
                 return true;
             }
@@ -128,8 +127,8 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    let res = conn.add_match(wifi_device_event, move |ir: PropertiesChanged, conn, _| {
-        let active_access_point: Option<&Path<'static>> = prop_cast(&ir.map, "ActiveAccessPoint");
+    let res = conn.add_match(wifi_device_event, move |ir: PropertiesPropertiesChanged, conn, _| {
+        let active_access_point: Option<&Path<'static>> = prop_cast(&ir.changed_properties, "ActiveAccessPoint");
         if let Some(active_access_point) = active_access_point {
             let active_access_point = active_access_point.clone();
             if active_access_point != Path::from("/") {
@@ -172,8 +171,8 @@ pub fn start_listener(
     }
     let res = conn.add_match(
         active_connection_event,
-        move |ir: PropertiesChanged, conn, _| {
-            let connections: Option<&Vec<Path<'static>>> = prop_cast(&ir.map, "ActiveConnections");
+        move |ir: PropertiesPropertiesChanged, conn, _| {
+            let connections: Option<&Vec<Path<'static>>> = prop_cast(&ir.changed_properties, "ActiveConnections");
             if let Some(connections) = connections {
                 for connection in connections {
                     let (devices, access_point) =

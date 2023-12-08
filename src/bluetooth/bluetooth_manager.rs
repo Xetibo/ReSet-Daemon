@@ -10,7 +10,7 @@ use std::{
 
 use dbus::{
     arg::{self, prop_cast, PropMap, RefArg, Variant},
-    blocking::Connection,
+    blocking::{stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged, Connection},
     channel::Sender,
     message::SignalArgs,
     nonblock::SyncConnection,
@@ -22,7 +22,6 @@ use re_set_lib::{
         bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
         bluetooth_structures::{BluetoothAdapter, BluetoothDevice},
     },
-    signals::PropertiesChanged,
     utils::{call_system_dbus_method, set_system_dbus_property},
 };
 
@@ -163,7 +162,6 @@ pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
     } else {
         PropMap::new()
     };
-    dbg!(&map);
     adapter_from_map(path, &map)
 }
 
@@ -243,42 +241,51 @@ impl BluetoothInterface {
                 return Ok(());
             }
             let conn = Connection::new_system().unwrap();
-            let proxy = conn.with_proxy("org.bluez", path, Duration::from_millis(1000));
-            let mr =
+            let bluetooth_device_added =
                 BluetoothDeviceAdded::match_rule(Some(&"org.bluez".into()), None).static_clone();
-            let mrb =
+            let bluetooth_device_removed =
                 BluetoothDeviceRemoved::match_rule(Some(&"org.bluez".into()), None).static_clone();
-            let bluetooth_device_changed =
-                PropertiesChanged::match_rule(Some(&"org.bluez".into()), None).static_clone();
-            let res = conn.add_match(mr, move |ir: BluetoothDeviceAdded, _, _| {
-                let device = convert_device(&ir.object, &ir.interfaces);
-                if let Some(device) = device {
-                    let msg = Message::signal(
-                        &Path::from("/org/Xetibo/ReSetDaemon"),
-                        &"org.Xetibo.ReSetBluetooth".into(),
-                        &"BluetoothDeviceAdded".into(),
-                    )
-                    .append1(device);
-                    let _ = added_ref.send(msg);
-                }
-                true
-            });
+            let mut bluetooth_device_changed = PropertiesPropertiesChanged::match_rule(
+                Some(&"org.bluez".into()),
+                Some(&path.clone()),
+            )
+            .static_clone();
+            bluetooth_device_changed.path_is_namespace = true;
+            let res = conn.add_match(
+                bluetooth_device_added,
+                move |ir: BluetoothDeviceAdded, _, _| {
+                    let device = convert_device(&ir.object, &ir.interfaces);
+                    if let Some(device) = device {
+                        let msg = Message::signal(
+                            &Path::from("/org/Xetibo/ReSetDaemon"),
+                            &"org.Xetibo.ReSetBluetooth".into(),
+                            &"BluetoothDeviceAdded".into(),
+                        )
+                        .append1(device);
+                        let _ = added_ref.send(msg);
+                    }
+                    true
+                },
+            );
             if res.is_err() {
                 return Err(dbus::Error::new_custom(
                     "SignalMatchFailed",
                     "Failed to match signal on bluez.",
                 ));
             }
-            let res = conn.add_match(mrb, move |ir: BluetoothDeviceRemoved, _, _| {
-                let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetBluetooth".into(),
-                    &"BluetoothDeviceRemoved".into(),
-                )
-                .append1(ir.object);
-                let _ = removed_ref.send(msg);
-                true
-            });
+            let res = conn.add_match(
+                bluetooth_device_removed,
+                move |ir: BluetoothDeviceRemoved, _, _| {
+                    let msg = Message::signal(
+                        &Path::from("/org/Xetibo/ReSetDaemon"),
+                        &"org.Xetibo.ReSetBluetooth".into(),
+                        &"BluetoothDeviceRemoved".into(),
+                    )
+                    .append1(ir.object);
+                    let _ = removed_ref.send(msg);
+                    true
+                },
+            );
             if res.is_err() {
                 return Err(dbus::Error::new_custom(
                     "SignalMatchFailed",
@@ -287,14 +294,17 @@ impl BluetoothInterface {
             }
             let res = conn.add_match(
                 bluetooth_device_changed,
-                move |_: PropertiesChanged, _, msg| {
+                move |ir: PropertiesPropertiesChanged, _, msg| {
+                    if ir.interface_name != "org.bluez.Device1" {
+                        // Here we only want to match on bluetooth device signals, the rest can be
+                        // ignored.
+                        return true;
+                    }
                     if let Some(path) = msg.path() {
                         let string = path.to_string();
-                            dbg!(&string);
                         let path = Path::from(string);
                         let map = get_bluetooth_device_properties(&path);
                         let device_opt = bluetooth_device_from_map(&path, &map);
-                        dbg!(&device_opt);
 
                         if let Some(device) = device_opt {
                             let msg = Message::signal(
@@ -303,7 +313,7 @@ impl BluetoothInterface {
                                 &"BluetoothDeviceChanged".into(),
                             )
                             .append1(device);
-                            let _ = changed_ref.send(msg);
+                            let _ = changed_ref.clone().send(msg);
                             true
                         } else {
                             false
@@ -319,6 +329,8 @@ impl BluetoothInterface {
                     "Failed to match signal on bluez.",
                 ));
             }
+            let other = Connection::new_system().unwrap();
+            let proxy = other.with_proxy("org.bluez", path.clone(), Duration::from_millis(1000));
             let res: Result<(), dbus::Error> =
                 proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
@@ -329,6 +341,7 @@ impl BluetoothInterface {
                     discovery_active.store(false, Ordering::SeqCst);
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                    println!("stopping this shit");
                     break;
                 } else if !is_discovery && discovery_active.load(Ordering::SeqCst) {
                     is_discovery = true;

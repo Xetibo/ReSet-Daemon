@@ -294,8 +294,18 @@ pub mod API {
         /// Returns the default sink(speaker, headphones, etc.) from pulseaudio.\
         fn GetDefaultSink() -> Sink;
         ///
-        /// Returns the default source(speaker, headphones, etc.) from pulseaudio.\
+        /// Returns the default sink name(speaker, headphones, etc.) from pulseaudio.\
+        /// This is mainly useful for checking if an event given sink is the default one, as this
+        /// information is not within the sink struct for performance reasons.
+        fn GetDefaultSinkName() -> String;
+        ///
+        /// Returns the default source(microphone) from pulseaudio.\
         fn GetDefaultSource() -> Source;
+        ///
+        /// Returns the default source name(microphone) from pulseaudio.\
+        /// This is mainly useful for checking if an event given source is the default one, as this
+        /// information is not within the source struct for performance reasons.
+        fn GetDefaultSourceName() -> String;
         ///
         /// Returns all current sinks.
         fn ListSinks() -> Vec<Sink>;
