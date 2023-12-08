@@ -228,9 +228,8 @@ impl BluetoothInterface {
         Some(interface)
     }
 
-    pub fn start_bluetooth_listener(&self, active_listener: Arc<AtomicBool>) {
+    pub fn start_bluetooth_listener(&self, active_listener: Arc<AtomicBool>, active_scan: Arc<AtomicBool>) {
         let path = self.current_adapter.clone();
-        // let path_loop = self.current_adapter.clone();
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
@@ -334,19 +333,22 @@ impl BluetoothInterface {
             let res: Result<(), dbus::Error> =
                 proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
+            active_scan.store(true, Ordering::SeqCst);
             let mut is_discovery = true;
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
                 if !active_listener.load(Ordering::SeqCst) {
-                    discovery_active.store(false, Ordering::SeqCst);
+                    active_scan.store(false, Ordering::SeqCst);
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
-                    println!("stopping this shit");
                     break;
-                } else if !is_discovery && discovery_active.load(Ordering::SeqCst) {
+                } else if !is_discovery && active_scan.load(Ordering::SeqCst) {
                     is_discovery = true;
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+                } else if is_discovery && !active_scan.load(Ordering::SeqCst) {
+                    let _: Result<(), dbus::Error> =
+                        proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                 }
             }
             res
@@ -462,9 +464,6 @@ impl BluetoothInterface {
     }
 
     pub fn stop_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
-        if !self.in_discovery.load(Ordering::SeqCst) {
-            return Ok(());
-        }
         call_system_dbus_method::<(), ()>(
             "org.bluez",
             self.current_adapter.clone(),
@@ -510,7 +509,6 @@ pub fn set_adapter_enabled(path: Path<'static>, enabled: bool) -> bool {
 }
 
 pub fn set_adapter_discoverable(path: Path<'static>, enabled: bool) -> bool {
-    dbg!(path.clone());
     let res = set_system_dbus_property(
         "org.bluez",
         path,
@@ -525,7 +523,6 @@ pub fn set_adapter_discoverable(path: Path<'static>, enabled: bool) -> bool {
 }
 
 pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
-    dbg!(path.clone());
     let res =
         set_system_dbus_property("org.bluez", path, "org.bluez.Adapter1", "Pairable", enabled);
     if res.is_err() {

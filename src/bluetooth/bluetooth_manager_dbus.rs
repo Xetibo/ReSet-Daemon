@@ -24,10 +24,12 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.method_with_cr_async("StartBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             let _ = data.b_interface.start_bluetooth_discovery();
+            data.bluetooth_scan_active.store(true, Ordering::SeqCst);
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async("StopBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            data.bluetooth_scan_active.store(false, Ordering::SeqCst);
             let _ = data.b_interface.stop_bluetooth_discovery();
             async move { ctx.reply(Ok(())) }
         });
@@ -37,8 +39,10 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             (),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let active_listener = data.network_listener_active.clone();
-                data.b_interface.start_bluetooth_listener(active_listener);
+                let active_listener = data.bluetooth_listener_active.clone();
+                let active_scan = data.bluetooth_scan_active.clone();
+                data.b_interface
+                    .start_bluetooth_listener(active_listener, active_scan);
                 async move { ctx.reply(Ok(())) }
             },
         );
