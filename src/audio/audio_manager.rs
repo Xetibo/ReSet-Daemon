@@ -522,33 +522,70 @@ impl PulseServer {
         self.mainloop.borrow_mut().unlock();
     }
 
-    pub fn set_default_sink(&self, sink: String) {
+    pub fn set_default_sink(&self, sink_name: String) {
         self.mainloop.borrow_mut().lock();
+        let mut context = self.context.borrow_mut();
+        let sink: Rc<RefCell<Sink>> = Rc::new(RefCell::new(Sink::default()));
+        let sink_ref = sink.clone();
         let ml_ref = Rc::clone(&self.mainloop);
-        let result = self
-            .context
-            .borrow_mut()
-            .set_default_sink(&sink, move |error: bool| unsafe {
-                (*ml_ref.as_ptr()).signal(!error);
+        let ml_ref_response = Rc::clone(&self.mainloop);
+        let result = context.set_default_sink(&sink_name, move |error: bool| unsafe {
+            (*ml_ref.as_ptr()).signal(!error);
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let introspector = context.introspect();
+        let result = introspector.get_sink_info_by_name(&sink_name, move |result| match result {
+            ListResult::Item(item) => {
+                sink_ref.replace(item.into());
+            }
+            ListResult::Error => unsafe {
+                (*ml_ref_response.as_ptr()).signal(true);
+            },
+            ListResult::End => unsafe {
+                (*ml_ref_response.as_ptr()).signal(false);
+            },
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let _ = self.sender.send(AudioResponse::DefaultSink(sink.take()));
+        self.mainloop.borrow_mut().unlock();
+    }
+
+    pub fn set_default_source(&self, source_name: String) {
+        self.mainloop.borrow_mut().lock();
+        let mut context = self.context.borrow_mut();
+        let source: Rc<RefCell<Source>> = Rc::new(RefCell::new(Source::default()));
+        let source_ref = source.clone();
+        let ml_ref = Rc::clone(&self.mainloop);
+        let ml_ref_response = Rc::clone(&self.mainloop);
+        let result = context.set_default_source(&source_name, move |error: bool| unsafe {
+            (*ml_ref.as_ptr()).signal(!error);
+        });
+        while result.get_state() != pulse::operation::State::Done {
+            self.mainloop.borrow_mut().wait();
+        }
+        let introspector = context.introspect();
+        let result =
+            introspector.get_source_info_by_name(&source_name, move |result| match result {
+                ListResult::Item(item) => {
+                    source_ref.replace(item.into());
+                }
+                ListResult::Error => unsafe {
+                    (*ml_ref_response.as_ptr()).signal(true);
+                },
+                ListResult::End => unsafe {
+                    (*ml_ref_response.as_ptr()).signal(false);
+                },
             });
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        self.mainloop.borrow_mut().unlock();
-    }
-
-    pub fn set_default_source(&self, source: String) {
-        self.mainloop.borrow_mut().lock();
-        let ml_ref = Rc::clone(&self.mainloop);
-        let result =
-            self.context
-                .borrow_mut()
-                .set_default_source(&source, move |error: bool| unsafe {
-                    (*ml_ref.as_ptr()).signal(!error);
-                });
-        while result.get_state() != pulse::operation::State::Done {
-            self.mainloop.borrow_mut().wait();
-        }
+        let _ = self
+            .sender
+            .send(AudioResponse::DefaultSource(source.take()));
         self.mainloop.borrow_mut().unlock();
     }
 

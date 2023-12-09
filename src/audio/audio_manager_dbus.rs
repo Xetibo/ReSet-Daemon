@@ -232,23 +232,35 @@ pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
         c.method_with_cr_async(
             "SetDefaultSink",
             ("sink",),
-            (),
+            ("sink",),
             move |mut ctx, cross, (sink,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data.audio_sender.send(AudioRequest::SetDefaultSink(sink));
-                async move { ctx.reply(Ok(())) }
+                let response = data.audio_receiver.recv();
+                let result = if let Ok(AudioResponse::DefaultSink(response)) = response {
+                    Ok((response,))
+                } else {
+                    Err(dbus::MethodErr::failed("Could not get default sink"))
+                };
+                async move { ctx.reply(result) }
             },
         );
         c.method_with_cr_async(
             "SetDefaultSource",
             ("source",),
-            (),
+            ("source",),
             move |mut ctx, cross, (source,): (String,)| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let _ = data
                     .audio_sender
                     .send(AudioRequest::SetDefaultSource(source));
-                async move { ctx.reply(Ok(())) }
+                let response = data.audio_receiver.recv();
+                let result = if let Ok(AudioResponse::DefaultSource(response)) = response {
+                    Ok((response,))
+                } else {
+                    Err(dbus::MethodErr::failed("Could not get default source"))
+                };
+                async move { ctx.reply(result) }
             },
         );
         c.method_with_cr_async(

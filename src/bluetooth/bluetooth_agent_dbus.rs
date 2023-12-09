@@ -10,7 +10,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             ("device",),
             ("result",),
             move |ctx, d: &mut DaemonData, (_device,): (Path<'static>,)| {
-                println!("pincode requested grengeng!");
+                println!("pincode requested!");
                 if d.bluetooth_agent.in_progress {
                     return Ok(("No pairing in progress.",));
                 }
@@ -20,7 +20,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
                     &"PincodeRequested".into(),
                 );
                 ctx.push_msg(msg);
-                Ok(("grengeng",))
+                Ok(("",))
                 // TODO handle receive with a dynamic dbus function? does that even exist?
             },
         );

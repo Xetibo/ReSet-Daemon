@@ -307,6 +307,16 @@ pub mod API {
         /// information is not within the source struct for performance reasons.
         fn GetDefaultSourceName() -> String;
         ///
+        /// Sets the default sink via name.(this is a pulse audio definition!)\
+        /// The name can be found inside the Sink struct after calling ListSinks() or by listening to
+        /// events.
+        fn SetDefaultSink(sink: String) -> Sink;
+        ///
+        /// Sets the default sink via name.(this is a pulse audio definition!)\
+        /// The name can be found inside the Sink struct after calling ListSinks() or by listening to
+        /// events.
+        fn SetDefaultSource(source: String) -> Source;
+        ///
         /// Returns all current sinks.
         fn ListSinks() -> Vec<Sink>;
         ///
@@ -332,16 +342,6 @@ pub mod API {
         /// True -> muted, False -> unmuted\
         /// The index can be found within the Sink datastructure.
         fn SetSinkMute(index: u32, muted: bool);
-        ///
-        /// Sets the default sink via name.(this is a pulse audio definition!)\
-        /// The name can be found inside the Sink struct after calling ListSinks() or by listening to
-        /// events.
-        fn SetDefaultSink(sink: String);
-        ///
-        /// Sets the default sink via name.(this is a pulse audio definition!)\
-        /// The name can be found inside the Sink struct after calling ListSinks() or by listening to
-        /// events.
-        fn SetDefaultSource(source: String);
         ///
         /// Sets the default volume of the source on all channels to the specified value.\
         /// Currently ReSet does not offer individual channel volumes. (This will be added later)\
