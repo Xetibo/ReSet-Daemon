@@ -199,7 +199,7 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                         "Could not get settings for this connection.",
                     ));
                 }
-                Ok(res.unwrap())
+                Ok((res.unwrap(),))
             },
         );
         c.method(

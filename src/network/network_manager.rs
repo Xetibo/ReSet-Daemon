@@ -10,11 +10,11 @@ use std::{
 
 use dbus::{
     arg::{self, prop_cast, PropMap, RefArg, Variant},
-    blocking::{Connection, stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged},
+    blocking::{stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged, Connection},
     channel::Sender,
     message::SignalArgs,
     nonblock::SyncConnection,
-    Message, Path,
+    Message, MethodErr, Path,
 };
 use re_set_lib::{
     network::{
@@ -127,42 +127,46 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    let res = conn.add_match(wifi_device_event, move |ir: PropertiesPropertiesChanged, conn, _| {
-        let active_access_point: Option<&Path<'static>> = prop_cast(&ir.changed_properties, "ActiveAccessPoint");
-        if let Some(active_access_point) = active_access_point {
-            let active_access_point = active_access_point.clone();
-            if active_access_point != Path::from("/") {
-                let parsed_access_point = get_access_point_properties(active_access_point);
-                let mut device = device_ref.write().unwrap();
-                device.access_point = Some(parsed_access_point.clone());
-                let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetWireless".into(),
-                    &"WifiDeviceChanged".into(),
-                )
-                .append1(WifiDevice {
-                    path: device.dbus_path.clone(),
-                    name: device.name.clone(),
-                    active_access_point: parsed_access_point.dbus_path,
-                });
-                let _ = active_access_point_changed_ref.send(msg);
-            } else {
-                let device = device_ref.write().unwrap();
-                let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetWireless".into(),
-                    &"WifiDeviceChanged".into(),
-                )
-                .append1(WifiDevice {
-                    path: device.dbus_path.clone(),
-                    name: device.name.clone(),
-                    active_access_point: Path::from("/"),
-                });
-                let _ = active_access_point_changed_ref.send(msg);
+    let res = conn.add_match(
+        wifi_device_event,
+        move |ir: PropertiesPropertiesChanged, conn, _| {
+            let active_access_point: Option<&Path<'static>> =
+                prop_cast(&ir.changed_properties, "ActiveAccessPoint");
+            if let Some(active_access_point) = active_access_point {
+                let active_access_point = active_access_point.clone();
+                if active_access_point != Path::from("/") {
+                    let parsed_access_point = get_access_point_properties(active_access_point);
+                    let mut device = device_ref.write().unwrap();
+                    device.access_point = Some(parsed_access_point.clone());
+                    let msg = Message::signal(
+                        &Path::from("/org/Xetibo/ReSetDaemon"),
+                        &"org.Xetibo.ReSetWireless".into(),
+                        &"WifiDeviceChanged".into(),
+                    )
+                    .append1(WifiDevice {
+                        path: device.dbus_path.clone(),
+                        name: device.name.clone(),
+                        active_access_point: parsed_access_point.dbus_path,
+                    });
+                    let _ = active_access_point_changed_ref.send(msg);
+                } else {
+                    let device = device_ref.write().unwrap();
+                    let msg = Message::signal(
+                        &Path::from("/org/Xetibo/ReSetDaemon"),
+                        &"org.Xetibo.ReSetWireless".into(),
+                        &"WifiDeviceChanged".into(),
+                    )
+                    .append1(WifiDevice {
+                        path: device.dbus_path.clone(),
+                        name: device.name.clone(),
+                        active_access_point: Path::from("/"),
+                    });
+                    let _ = active_access_point_changed_ref.send(msg);
+                }
             }
-        }
-        true
-    });
+            true
+        },
+    );
     if res.is_err() {
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
@@ -172,7 +176,8 @@ pub fn start_listener(
     let res = conn.add_match(
         active_connection_event,
         move |ir: PropertiesPropertiesChanged, conn, _| {
-            let connections: Option<&Vec<Path<'static>>> = prop_cast(&ir.changed_properties, "ActiveConnections");
+            let connections: Option<&Vec<Path<'static>>> =
+                prop_cast(&ir.changed_properties, "ActiveConnections");
             if let Some(connections) = connections {
                 for connection in connections {
                     let (devices, access_point) =
@@ -302,15 +307,32 @@ pub fn list_connections() -> Vec<Path<'static>> {
     result
 }
 
-pub fn get_connection_settings(path: Path<'static>) -> Result<(MaskedPropMap,), dbus::Error> {
-    call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
+pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbus::Error> {
+    let res = call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
-        path,
+        path.clone(),
         "GetSettings",
         "org.freedesktop.NetworkManager.Settings.Connection",
         (),
         1000,
-    )
+    );
+    if res.is_err() {
+        return Err(MethodErr::invalid_arg("Could not get settings from connection").into());
+    }
+    let mut map = res.unwrap().0;
+    let second_res = call_system_dbus_method::<(&str,), (HashMap<String, PropMap>,)>(
+        "org.freedesktop.NetworkManager",
+        path,
+        "GetSecrets",
+        "org.freedesktop.NetworkManager.Settings.Connection",
+        ("",),
+        1000,
+    );
+    if second_res.is_err() {
+        return Ok(map);
+    }
+    map.extend(second_res.unwrap().0);
+    Ok(map)
 }
 
 pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, PropMap>) -> bool {
@@ -337,7 +359,7 @@ pub fn set_password(path: Path<'static>, password: String) {
     if res.is_err() {
         return;
     }
-    let (mut settings,) = res.unwrap();
+    let mut settings = res.unwrap();
     settings
         .get_mut("802-11-wireless-security")
         .unwrap()
@@ -477,7 +499,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         if res.is_err() {
             continue;
         }
-        let (settings,) = res.unwrap();
+        let settings = res.unwrap();
         let settings = settings.get("802-11-wireless");
         if let Some(settings) = settings {
             let ssid: &Vec<u8> = arg::prop_cast(settings, "ssid").unwrap();

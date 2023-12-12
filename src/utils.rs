@@ -68,7 +68,6 @@ pub enum AudioResponse {
     InputStreams(Vec<InputStream>),
     OutputStreams(Vec<OutputStream>),
     Cards(Vec<Card>),
-    BoolResponse(bool),
     Error,
 }
 
