@@ -34,17 +34,18 @@ use crate::{
 /// #[tokio::main]
 /// pub async fn main() {
 ///     run_daemon().await;
+/// // The path defined your namespace for the DBus daemon
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon(true, "org.Git.YourApp"));
-/// // the boolean flag is used to define
+/// tokio::task::spawn(run_daemon("org.Git.YourApp"));
+/// // The path defined your namespace for the DBus daemon
 /// // your other code here...
 /// ```
-pub async fn run_daemon(standalone: bool, namespace: &'static str) {
+pub async fn run_daemon(namespace: &'static str) {
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -62,11 +63,9 @@ pub async fn run_daemon(standalone: bool, namespace: &'static str) {
     }
     let data = data.unwrap();
 
-    if !standalone {
-        conn.request_name("org.Xetibo.ReSet.Daemon", false, true, false)
-            .await
-            .unwrap();
-    }
+    conn.request_name("org.Xetibo.ReSet.Daemon", false, true, false)
+        .await
+        .unwrap();
     let mut cross = Crossroads::new();
     cross.set_async_support(Some((
         conn.clone(),
@@ -95,9 +94,7 @@ pub async fn run_daemon(standalone: bool, namespace: &'static str) {
         data,
     );
 
-    let data: &mut DaemonData = cross
-        .data_mut(&Path::from(path))
-        .unwrap();
+    let data: &mut DaemonData = cross.data_mut(&Path::from(path)).unwrap();
     // register bluetooth agent before listening to calls
     data.b_interface.register_agent();
 
