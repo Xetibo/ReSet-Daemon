@@ -81,7 +81,7 @@ pub async fn run_daemon(standalone: bool, namespace: &'static str) {
     let bluetooth_agent = setup_bluetooth_agent(&mut cross);
     let audio_manager = setup_audio_manager(&mut cross, namespace.to_string());
 
-    let path = String::from("/") + &namespace.replace('.', "/");
+    let path = String::from("/") + &namespace.replace('.', "/") + "/Daemon";
 
     cross.insert(
         path.clone(),
@@ -117,7 +117,7 @@ fn setup_base(
     cross: &mut Crossroads,
     namespace: String,
 ) -> dbus_crossroads::IfaceToken<DaemonData> {
-    cross.register(namespace, |c| {
+    cross.register(namespace + ".Daemon", |c| {
         c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
             // later, this should be handled dymanically -> plugin check
             Ok((vec!["Bluetooth", "Wifi", "Audio"],))
