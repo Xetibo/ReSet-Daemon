@@ -47,7 +47,7 @@ fn setup() {
     if COUNTER.fetch_add(1, Ordering::SeqCst) < 1 {
         thread::spawn(|| {
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
-            rt.spawn(run_daemon());
+            rt.spawn(run_daemon(false, "org.Xetibo.ReSetDaemon"));
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }

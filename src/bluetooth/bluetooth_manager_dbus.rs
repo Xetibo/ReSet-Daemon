@@ -11,8 +11,8 @@ use super::bluetooth_manager::{
     set_adapter_pairable,
 };
 
-pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    let token = cross.register("org.Xetibo.ReSetBluetooth", |c| {
+pub fn setup_bluetooth_manager(cross: &mut Crossroads, namespace: String) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register(namespace + ".Bluetooth", |c| {
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
         c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceChanged", ("device",));

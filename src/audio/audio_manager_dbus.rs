@@ -17,9 +17,12 @@ use crate::{
 
 use super::audio_manager::PulseServer;
 
-pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+pub fn setup_audio_manager(
+    cross: &mut Crossroads,
+    namespace: String,
+) -> dbus_crossroads::IfaceToken<DaemonData> {
     // TODO handle errors on the now not bool returning functions
-    let token = cross.register("org.Xetibo.ReSetAudio", |c| {
+    let token = cross.register(namespace + ".Audio", |c| {
         c.signal::<(Sink,), _>("SinkChanged", ("sink",));
         c.signal::<(Sink,), _>("SinkAdded", ("sink",));
         c.signal::<(u32,), _>("SinkRemoved", ("sink",));

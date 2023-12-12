@@ -14,8 +14,8 @@ use super::network_manager::{
     set_connection_settings, set_wifi_enabled, start_listener, stop_listener,
 };
 
-pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    let token = cross.register("org.Xetibo.ReSetWireless", |c| {
+pub fn setup_wireless_manager(cross: &mut Crossroads, namespace: String) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register(namespace + ".Wireless", |c| {
         c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));

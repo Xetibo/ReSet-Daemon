@@ -40,10 +40,11 @@ use crate::{
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon());
+/// tokio::task::spawn(run_daemon(true, "org.Git.YourApp"));
+/// // the boolean flag is used to define
 /// // your other code here...
 /// ```
-pub async fn run_daemon() {
+pub async fn run_daemon(standalone: bool, namespace: &'static str) {
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -61,9 +62,11 @@ pub async fn run_daemon() {
     }
     let data = data.unwrap();
 
-    conn.request_name("org.Xetibo.ReSetDaemon", false, true, false)
-        .await
-        .unwrap();
+    if !standalone {
+        conn.request_name("org.Xetibo.ReSet.Daemon", false, true, false)
+            .await
+            .unwrap();
+    }
     let mut cross = Crossroads::new();
     cross.set_async_support(Some((
         conn.clone(),
@@ -72,14 +75,16 @@ pub async fn run_daemon() {
         }),
     )));
 
-    let base = setup_base(&mut cross);
-    let wireless_manager = setup_wireless_manager(&mut cross);
-    let bluetooth_manager = setup_bluetooth_manager(&mut cross);
+    let base = setup_base(&mut cross, namespace.to_string());
+    let wireless_manager = setup_wireless_manager(&mut cross, namespace.to_string());
+    let bluetooth_manager = setup_bluetooth_manager(&mut cross, namespace.to_string());
     let bluetooth_agent = setup_bluetooth_agent(&mut cross);
-    let audio_manager = setup_audio_manager(&mut cross);
+    let audio_manager = setup_audio_manager(&mut cross, namespace.to_string());
+
+    let path = String::from("/") + &namespace.replace('.', "/");
 
     cross.insert(
-        "/org/Xetibo/ReSetDaemon",
+        path.clone(),
         &[
             base,
             wireless_manager,
@@ -91,7 +96,7 @@ pub async fn run_daemon() {
     );
 
     let data: &mut DaemonData = cross
-        .data_mut(&Path::from("/org/Xetibo/ReSetDaemon"))
+        .data_mut(&Path::from(path))
         .unwrap();
     // register bluetooth agent before listening to calls
     data.b_interface.register_agent();
@@ -108,8 +113,11 @@ pub async fn run_daemon() {
     unreachable!()
 }
 
-fn setup_base(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    cross.register("org.Xetibo.ReSetDaemon", |c| {
+fn setup_base(
+    cross: &mut Crossroads,
+    namespace: String,
+) -> dbus_crossroads::IfaceToken<DaemonData> {
+    cross.register(namespace, |c| {
         c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
             // later, this should be handled dymanically -> plugin check
             Ok((vec!["Bluetooth", "Wifi", "Audio"],))
