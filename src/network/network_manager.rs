@@ -325,13 +325,20 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
         path,
         "GetSecrets",
         "org.freedesktop.NetworkManager.Settings.Connection",
-        ("",),
+        ("802-11-wireless-security",),
         1000,
     );
     if second_res.is_err() {
         return Ok(map);
     }
-    map.extend(second_res.unwrap().0);
+
+    map.get_mut("802-11-wireless-security").unwrap().extend(
+        second_res
+            .unwrap()
+            .0
+            .remove("802-11-wireless-security")
+            .unwrap(),
+    );
     Ok(map)
 }
 
@@ -502,7 +509,8 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         let settings = res.unwrap();
         let settings = settings.get("802-11-wireless");
         if let Some(settings) = settings {
-            let ssid: &Vec<u8> = arg::prop_cast(settings, "ssid").unwrap();
+            let x = &Vec::new();
+            let ssid: &Vec<u8> = arg::prop_cast(settings, "ssid").unwrap_or(x);
             let ssid = ssid.clone();
             wifi_connections.push((connection, ssid));
         }
