@@ -24,7 +24,7 @@ use re_set_lib::{
     utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},
 };
 
-use crate::utils::{MaskedPropMap, DBUS_PATH, WIRELESS};
+use crate::utils::{DaemonData, MaskedPropMap, DBUS_PATH, WIRELESS};
 
 #[derive(Debug)]
 pub struct Device {
@@ -476,7 +476,7 @@ pub fn get_associations_of_active_connection(
     (devices, access_point)
 }
 
-pub fn set_wifi_enabled(enabled: bool) -> bool {
+pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
     let result = set_system_dbus_property(
         "org.freedesktop.NetworkManager",
         Path::from("/org/freedesktop/NetworkManager"),
@@ -486,6 +486,14 @@ pub fn set_wifi_enabled(enabled: bool) -> bool {
     );
     if result.is_err() {
         return false;
+    }
+    if enabled {
+        let devices = get_wifi_devices();
+        if devices.is_empty() {
+            return false;
+        }
+        data.current_n_device = devices.last().unwrap().clone();
+        data.n_devices = devices;
     }
     true
 }

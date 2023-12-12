@@ -7,7 +7,10 @@ use re_set_lib::{
     utils::call_system_dbus_method,
 };
 
-use crate::{utils::{get_wifi_status, WIRELESS}, DaemonData};
+use crate::{
+    utils::{get_wifi_status, WIRELESS},
+    DaemonData,
+};
 
 use super::network_manager::{
     get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
@@ -19,6 +22,7 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
         c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));
+        c.signal::<(WifiDevice,), _>("WifiDeviceChanged", ("device",));
         c.method(
             "ListAccessPoints",
             (),
@@ -50,7 +54,7 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                 } else {
                     stop_listener(active_listener);
                 }
-                Ok((set_wifi_enabled(enabled),))
+                Ok((set_wifi_enabled(enabled, data),))
             },
         );
         c.method(
