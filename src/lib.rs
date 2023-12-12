@@ -61,7 +61,7 @@ pub async fn run_daemon() {
     }
     let data = data.unwrap();
 
-    conn.request_name("org.Xetibo.ReSet.Daemon", false, true, false)
+    conn.request_name(BASE, false, true, false)
         .await
         .unwrap();
     let mut cross = Crossroads::new();
