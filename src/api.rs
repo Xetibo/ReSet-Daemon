@@ -29,7 +29,7 @@ pub mod API {
     /// # Base API
     /// Simple API for connectivety checks and functionality check.
     ///
-    /// DBus interface name: org.Xetibo.ReSetDaemon
+    /// DBus interface name: org.Xetibo.ReSet.Daemon
     ///
     #[allow(dead_code, non_snake_case)]
     pub trait BaseAPI {
@@ -54,7 +54,7 @@ pub mod API {
     /// The wireless manager handles connecting, disconnecting, configuring, saving and removing of wireless network
     /// connections.
     ///
-    /// DBus interface name: org.Xetibo.ReSetWireless
+    /// DBus interface name: org.Xetibo.ReSet.Wireless
     ///
     /// ## Types
     ///
@@ -148,7 +148,7 @@ pub mod API {
     /// # Bluetooth Manager API
     /// Handles connecting and disconnecting Bluetooth devices.
     ///
-    /// DBus interface name: org.Xetibo.ReSetBluetooth
+    /// DBus interface name: org.Xetibo.ReSet.Bluetooth
     ///
     /// ## Types
     ///
@@ -240,7 +240,7 @@ pub mod API {
     /// Pulse cards.
     ///
     /// ## Interface
-    /// DBus interface name: org.Xetibo.ReSetAudio
+    /// DBus interface name: org.Xetibo.ReSet.Audio
     ///
     /// ## Types
     ///

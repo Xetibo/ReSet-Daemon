@@ -11,7 +11,7 @@ use dbus_crossroads::Crossroads;
 use re_set_lib::audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source};
 
 use crate::{
-    utils::{AudioRequest, AudioResponse},
+    utils::{AudioRequest, AudioResponse, AUDIO},
     DaemonData,
 };
 
@@ -19,10 +19,9 @@ use super::audio_manager::PulseServer;
 
 pub fn setup_audio_manager(
     cross: &mut Crossroads,
-    namespace: String,
 ) -> dbus_crossroads::IfaceToken<DaemonData> {
     // TODO handle errors on the now not bool returning functions
-    let token = cross.register(namespace + ".Audio", |c| {
+    let token = cross.register(AUDIO, |c| {
         c.signal::<(Sink,), _>("SinkChanged", ("sink",));
         c.signal::<(Sink,), _>("SinkAdded", ("sink",));
         c.signal::<(u32,), _>("SinkRemoved", ("sink",));

@@ -13,7 +13,7 @@ use std::{
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
-use utils::{AudioRequest, AudioResponse};
+use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
@@ -22,7 +22,7 @@ use crate::{
         bluetooth_manager_dbus::setup_bluetooth_manager,
     },
     network::network_manager_dbus::setup_wireless_manager,
-    utils::DaemonData,
+    utils::{DaemonData, DBUS_PATH},
 };
 
 /// # Running the daemon as a library function
@@ -34,18 +34,16 @@ use crate::{
 /// #[tokio::main]
 /// pub async fn main() {
 ///     run_daemon().await;
-/// // The path defined your namespace for the DBus daemon
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon("org.Git.YourApp"));
-/// // The path defined your namespace for the DBus daemon
+/// tokio::task::spawn(run_daemon());
 /// // your other code here...
 /// ```
-pub async fn run_daemon(namespace: &'static str) {
+pub async fn run_daemon() {
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -74,16 +72,15 @@ pub async fn run_daemon(namespace: &'static str) {
         }),
     )));
 
-    let base = setup_base(&mut cross, namespace.to_string());
-    let wireless_manager = setup_wireless_manager(&mut cross, namespace.to_string());
-    let bluetooth_manager = setup_bluetooth_manager(&mut cross, namespace.to_string());
+    let base = setup_base(&mut cross);
+    let wireless_manager = setup_wireless_manager(&mut cross);
+    let bluetooth_manager = setup_bluetooth_manager(&mut cross);
     let bluetooth_agent = setup_bluetooth_agent(&mut cross);
-    let audio_manager = setup_audio_manager(&mut cross, namespace.to_string());
+    let audio_manager = setup_audio_manager(&mut cross);
 
-    let path = String::from("/") + &namespace.replace('.', "/") + "/Daemon";
 
     cross.insert(
-        path.clone(),
+        DBUS_PATH,
         &[
             base,
             wireless_manager,
@@ -94,7 +91,7 @@ pub async fn run_daemon(namespace: &'static str) {
         data,
     );
 
-    let data: &mut DaemonData = cross.data_mut(&Path::from(path)).unwrap();
+    let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
     // register bluetooth agent before listening to calls
     data.b_interface.register_agent();
 
@@ -112,9 +109,8 @@ pub async fn run_daemon(namespace: &'static str) {
 
 fn setup_base(
     cross: &mut Crossroads,
-    namespace: String,
 ) -> dbus_crossroads::IfaceToken<DaemonData> {
-    cross.register(namespace + ".Daemon", |c| {
+    cross.register(BASE, |c| {
         c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
             // later, this should be handled dymanically -> plugin check
             Ok((vec!["Bluetooth", "Wifi", "Audio"],))

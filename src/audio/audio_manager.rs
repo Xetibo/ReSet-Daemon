@@ -19,6 +19,7 @@ use pulse::{
 };
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
 
+use crate::utils::{DBUS_PATH, AUDIO};
 use crate::{AudioRequest, AudioResponse};
 
 pub struct PulseServer {
@@ -41,7 +42,7 @@ impl PulseServer {
         proplist
             .set_str(
                 pulse::proplist::properties::APPLICATION_NAME,
-                "org.Xetibo.ReSetAudio",
+                AUDIO,
             )
             .unwrap();
 
@@ -795,8 +796,8 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
     match operation {
         Operation::New => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"SinkAdded".into(),
             )
             .append1(sink);
@@ -804,8 +805,8 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"SinkChanged".into(),
             )
             .append1(sink);
@@ -817,8 +818,8 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
 
 fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from("/org/Xetibo/ReSetDaemon"),
-        &"org.Xetibo.ReSetAudio".into(),
+        &Path::from(DBUS_PATH),
+        &AUDIO.into(),
         &"SinkRemoved".into(),
     )
     .append1(index);
@@ -829,8 +830,8 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
     match operation {
         Operation::New => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"SourceAdded".into(),
             )
             .append1(source);
@@ -838,8 +839,8 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"SourceChanged".into(),
             )
             .append1(source);
@@ -851,8 +852,8 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
 
 fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from("/org/Xetibo/ReSetDaemon"),
-        &"org.Xetibo.ReSetAudio".into(),
+        &Path::from(DBUS_PATH),
+        &AUDIO.into(),
         &"SourceRemoved".into(),
     )
     .append1(index);
@@ -867,8 +868,8 @@ fn handle_input_stream_events(
     match operation {
         Operation::New => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"InputStreamAdded".into(),
             )
             .append1(input_stream);
@@ -876,8 +877,8 @@ fn handle_input_stream_events(
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"InputStreamChanged".into(),
             )
             .append1(input_stream);
@@ -889,8 +890,8 @@ fn handle_input_stream_events(
 
 fn handle_input_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from("/org/Xetibo/ReSetDaemon"),
-        &"org.Xetibo.ReSetAudio".into(),
+        &Path::from(DBUS_PATH),
+        &AUDIO.into(),
         &"InputStreamRemoved".into(),
     )
     .append1(index);
@@ -905,8 +906,8 @@ fn handle_output_stream_events(
     match operation {
         Operation::New => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"OutputStreamAdded".into(),
             )
             .append1(output_stream);
@@ -914,8 +915,8 @@ fn handle_output_stream_events(
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetAudio".into(),
+                &Path::from(DBUS_PATH),
+                &AUDIO.into(),
                 &"OutputStreamChanged".into(),
             )
             .append1(output_stream);
@@ -927,8 +928,8 @@ fn handle_output_stream_events(
 
 fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from("/org/Xetibo/ReSetDaemon"),
-        &"org.Xetibo.ReSetAudio".into(),
+        &Path::from(DBUS_PATH),
+        &AUDIO.into(),
         &"OutputStreamRemoved".into(),
     )
     .append1(index);

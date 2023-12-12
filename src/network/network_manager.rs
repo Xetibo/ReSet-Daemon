@@ -24,7 +24,7 @@ use re_set_lib::{
     utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},
 };
 
-use crate::utils::MaskedPropMap;
+use crate::utils::{MaskedPropMap, DBUS_PATH, WIRELESS};
 
 #[derive(Debug)]
 pub struct Device {
@@ -111,8 +111,8 @@ pub fn start_listener(
             if path.contains("/org/freedesktop/NetworkManager/AccessPoint/") {
                 let access_point = get_access_point_properties(Path::from(path));
                 let msg = Message::signal(
-                    &Path::from("/org/Xetibo/ReSetDaemon"),
-                    &"org.Xetibo.ReSetWireless".into(),
+                    &Path::from(DBUS_PATH),
+                    &WIRELESS.into(),
                     &"AccessPointChanged".into(),
                 )
                 .append1(access_point);
@@ -139,8 +139,8 @@ pub fn start_listener(
                     let mut device = device_ref.write().unwrap();
                     device.access_point = Some(parsed_access_point.clone());
                     let msg = Message::signal(
-                        &Path::from("/org/Xetibo/ReSetDaemon"),
-                        &"org.Xetibo.ReSetWireless".into(),
+                        &Path::from(DBUS_PATH),
+                        &WIRELESS.into(),
                         &"WifiDeviceChanged".into(),
                     )
                     .append1(WifiDevice {
@@ -152,8 +152,8 @@ pub fn start_listener(
                 } else {
                     let device = device_ref.write().unwrap();
                     let msg = Message::signal(
-                        &Path::from("/org/Xetibo/ReSetDaemon"),
-                        &"org.Xetibo.ReSetWireless".into(),
+                        &Path::from(DBUS_PATH),
+                        &WIRELESS.into(),
                         &"WifiDeviceChanged".into(),
                     )
                     .append1(WifiDevice {
@@ -202,8 +202,8 @@ pub fn start_listener(
     }
     let res = conn.add_match(access_point_added, move |ir: AccessPointAdded, conn, _| {
         let msg = Message::signal(
-            &Path::from("/org/Xetibo/ReSetDaemon"),
-            &"org.Xetibo.ReSetWireless".into(),
+            &Path::from(DBUS_PATH),
+            &WIRELESS.into(),
             &"AccessPointAdded".into(),
         )
         .append1(get_access_point_properties(ir.access_point));
@@ -220,8 +220,8 @@ pub fn start_listener(
         access_point_removed,
         move |ir: AccessPointRemoved, conn, _| {
             let msg = Message::signal(
-                &Path::from("/org/Xetibo/ReSetDaemon"),
-                &"org.Xetibo.ReSetWireless".into(),
+                &Path::from(DBUS_PATH),
+                &WIRELESS.into(),
                 &"AccessPointRemoved".into(),
             )
             .append1(ir.access_point);

@@ -1,4 +1,8 @@
-use crate::run_daemon;
+#[allow(unused_imports)]
+use crate::{
+    run_daemon,
+    utils::{AUDIO, BASE, BLUETOOTH, DBUS_PATH, WIRELESS},
+};
 use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
@@ -33,11 +37,7 @@ fn call_session_dbus_method<
 ) -> Result<O, dbus::Error> {
     let conn = Connection::new_session();
     let conn = conn.unwrap();
-    let proxy = conn.with_proxy(
-        "org.Xetibo.ReSetDaemon",
-        "/org/Xetibo/ReSetDaemon",
-        Duration::from_millis(2000),
-    );
+    let proxy = conn.with_proxy(BASE, DBUS_PATH, Duration::from_millis(2000));
     let result: Result<O, dbus::Error> = proxy.method_call(proxy_name, function, params);
     result
 }
@@ -47,7 +47,7 @@ fn setup() {
     if COUNTER.fetch_add(1, Ordering::SeqCst) < 1 {
         thread::spawn(|| {
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
-            rt.spawn(run_daemon("org.Xetibo.ReSetDaemon"));
+            rt.spawn(run_daemon());
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }
@@ -60,7 +60,7 @@ fn setup() {
 async fn test_check() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), ()>("Check", "org.Xetibo.ReSetDaemon", ());
+    let res = call_session_dbus_method::<(), ()>("Check", BASE, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -69,7 +69,7 @@ async fn test_check() {
 async fn test_audio_listener() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), ()>("StartAudioListener", "org.Xetibo.ReSetAudio", ());
+    let res = call_session_dbus_method::<(), ()>("StartAudioListener", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -78,8 +78,7 @@ async fn test_audio_listener() {
 async fn test_wireless_listener() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res =
-        call_session_dbus_method::<(), ()>("StartNetworkListener", "org.Xetibo.ReSetWireless", ());
+    let res = call_session_dbus_method::<(), ()>("StartNetworkListener", WIRELESS, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -88,11 +87,7 @@ async fn test_wireless_listener() {
 async fn test_bluetooth_listener() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(u32,), ()>(
-        "StartBluetoothListener",
-        "org.Xetibo.ReSetBluetooth",
-        (5,),
-    );
+    let res = call_session_dbus_method::<(u32,), ()>("StartBluetoothListener", BLUETOOTH, (5,));
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -101,8 +96,7 @@ async fn test_bluetooth_listener() {
 async fn test_get_sinks() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res =
-        call_session_dbus_method::<(), (Vec<Sink>,)>("ListSinks", "org.Xetibo.ReSetAudio", ());
+    let res = call_session_dbus_method::<(), (Vec<Sink>,)>("ListSinks", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -111,8 +105,7 @@ async fn test_get_sinks() {
 async fn test_get_default_sink() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res =
-        call_session_dbus_method::<(), (Sink,)>("GetDefaultSink", "org.Xetibo.ReSetAudio", ());
+    let res = call_session_dbus_method::<(), (Sink,)>("GetDefaultSink", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -121,8 +114,7 @@ async fn test_get_default_sink() {
 async fn test_get_default_source() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res =
-        call_session_dbus_method::<(), (Source,)>("GetDefaultSource", "org.Xetibo.ReSetAudio", ());
+    let res = call_session_dbus_method::<(), (Source,)>("GetDefaultSource", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -131,8 +123,7 @@ async fn test_get_default_source() {
 async fn test_get_sources() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res =
-        call_session_dbus_method::<(), (Vec<Source>,)>("ListSources", "org.Xetibo.ReSetAudio", ());
+    let res = call_session_dbus_method::<(), (Vec<Source>,)>("ListSources", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -141,11 +132,7 @@ async fn test_get_sources() {
 async fn test_get_input_streams() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), (Vec<InputStream>,)>(
-        "ListInputStreams",
-        "org.Xetibo.ReSetAudio",
-        (),
-    );
+    let res = call_session_dbus_method::<(), (Vec<InputStream>,)>("ListInputStreams", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -154,11 +141,7 @@ async fn test_get_input_streams() {
 async fn test_get_output_streams() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>(
-        "ListOutputStreams",
-        "org.Xetibo.ReSetAudio",
-        (),
-    );
+    let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>("ListOutputStreams", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }

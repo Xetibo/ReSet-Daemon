@@ -2,5 +2,5 @@ use reset_daemon::run_daemon;
 
 #[tokio::main]
 pub async fn main() {
-    run_daemon("org.Xetibo.ReSet").await;
+    run_daemon().await;
 }

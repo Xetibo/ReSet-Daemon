@@ -4,15 +4,15 @@ use dbus::Path;
 use dbus_crossroads::Crossroads;
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
 
-use crate::DaemonData;
+use crate::{DaemonData, utils::BLUETOOTH};
 
 use super::bluetooth_manager::{
     get_bluetooth_adapter, get_connections, set_adapter_discoverable, set_adapter_enabled,
     set_adapter_pairable,
 };
 
-pub fn setup_bluetooth_manager(cross: &mut Crossroads, namespace: String) -> dbus_crossroads::IfaceToken<DaemonData> {
-    let token = cross.register(namespace + ".Bluetooth", |c| {
+pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
+    let token = cross.register(BLUETOOTH, |c| {
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceAdded", ("device",));
         c.signal::<(Path<'static>,), _>("BluetoothDeviceRemoved", ("path",));
         c.signal::<(BluetoothDevice,), _>("BluetoothDeviceChanged", ("device",));

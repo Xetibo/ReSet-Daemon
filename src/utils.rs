@@ -25,6 +25,12 @@ use crate::{
     network::network_manager::{get_wifi_devices, Device},
 };
 
+pub static DBUS_PATH: &str = "/org/Xetibo/ReSet/Daemon";
+pub static WIRELESS: &str = "org.Xetibo.ReSet.Wireless";
+pub static BLUETOOTH: &str = "org.Xetibo.ReSet.Bluetooth";
+pub static AUDIO: &str = "org.Xetibo.ReSet.Audio";
+pub static BASE: &str = "org.Xetibo.ReSet.Daemon";
+
 pub type MaskedPropMap = HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>;
 
 pub type FullMaskedPropMap = HashMap<
