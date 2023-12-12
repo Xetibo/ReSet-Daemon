@@ -228,7 +228,11 @@ impl BluetoothInterface {
         Some(interface)
     }
 
-    pub fn start_bluetooth_listener(&self, active_listener: Arc<AtomicBool>, active_scan: Arc<AtomicBool>) {
+    pub fn start_bluetooth_listener(
+        &self,
+        active_listener: Arc<AtomicBool>,
+        active_scan: Arc<AtomicBool>,
+    ) {
         let path = self.current_adapter.clone();
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
