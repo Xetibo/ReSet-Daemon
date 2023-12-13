@@ -73,6 +73,9 @@ pub mod API {
     /// AccessPointChanged -> AccessPoint\
     /// AccessPointAdded -> AccessPoint\
     /// AccessPointRemoved -> Path<'static>\
+    /// WifiDeviceChanged -> WifiDevice\
+    /// called after disabling wifi in order to provide functionality.\
+    /// ResetWifiDevices -> Vec<WifiDevices>\
     ///
     pub trait WirelessAPI {
         ///
@@ -284,7 +287,7 @@ pub mod API {
     pub trait AudioAPI {
         ///
         /// Starts the event listener and the worker for audio.\
-        /// Repeatedly starting the network listener twice will not do aynthing.
+        /// Repeatedly starting the audio listener twice will not do aynthing.
         fn StartAudioListener();
         ///
         /// Stop the audio event listener.\
