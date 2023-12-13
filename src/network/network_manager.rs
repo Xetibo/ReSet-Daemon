@@ -297,19 +297,6 @@ pub fn get_device_type(path: String) -> DeviceType {
     DeviceType::from_u32(result)
 }
 
-pub fn list_connections() -> Vec<Path<'static>> {
-    let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-        "org.freedesktop.NetworkManager",
-        "/org/freedesktop/NetworkManager/Settings".into(),
-        "ListConnections",
-        "org.freedesktop.NetworkManager.Settings",
-        (),
-        1000,
-    );
-    let (result,): (Vec<Path<'static>>,) = result.unwrap();
-    result
-}
-
 pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbus::Error> {
     let res = call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
