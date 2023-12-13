@@ -13,7 +13,7 @@ jobs:
           profile: minimal
           toolchain: nightly
       - name: setup dependencies
-        run: sudo apt install libdbus-1-dev pkg-config libpulse-dev -y
+        run: sudo apt install libdbus-1-dev pkg-config libpulse-dev network-manager dbus pulseaudio -y
       - name: Build
         run: cargo build --release --verbose
       - name: Release
