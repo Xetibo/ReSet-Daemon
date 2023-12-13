@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::network_manager::{
-    get_connection_settings, get_stored_connections, get_wifi_devices, list_connections,
+    get_connection_settings, get_stored_connections, get_wifi_devices,
     set_connection_settings, set_wifi_enabled, start_listener, stop_listener,
 };
 
@@ -184,10 +184,6 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                 Ok((true,))
             },
         );
-        c.method("ListConnections", (), ("result",), move |_, _, ()| {
-            let res = list_connections();
-            Ok((res,))
-        });
         c.method("ListStoredConnections", (), ("result",), move |_, _, ()| {
             let res = get_stored_connections();
             Ok((res,))

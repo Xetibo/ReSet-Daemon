@@ -113,9 +113,6 @@ pub mod API {
         /// Returns true on success and false on error.
         fn DisconnectFromCurrentAccessPoint() -> bool;
         ///
-        /// brudi wat
-        fn ListConnections() -> Vec<Path<'static>>;
-        ///
         /// Returns the stored connections for the currently selected wireless device from NetworkManager.\
         /// Returns dbus invalid arguments on error.
         fn ListStoredConnections() -> Vec<(Path<'static>, Vec<u8>)>;
