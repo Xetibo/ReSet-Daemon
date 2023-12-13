@@ -51,7 +51,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             (),
             (),
             move |_, d: &mut DaemonData, ()| {
-                d.network_listener_active.store(false, Ordering::SeqCst);
+                d.bluetooth_listener_active.store(false, Ordering::SeqCst);
                 Ok(())
             },
         );

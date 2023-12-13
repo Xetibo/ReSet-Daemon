@@ -290,6 +290,9 @@ pub fn get_device_type(path: String) -> DeviceType {
         "org.freedesktop.NetworkManager.Device",
         "DeviceType",
     );
+    if result.is_err() {
+        return DeviceType::DUMMY;
+    }
     let result = result.unwrap();
     DeviceType::from_u32(result)
 }

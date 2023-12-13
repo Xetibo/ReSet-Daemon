@@ -237,6 +237,7 @@ impl BluetoothInterface {
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
+
         let discovery_active = self.in_discovery.clone();
         thread::spawn(move || {
             if active_listener.load(Ordering::SeqCst) {
