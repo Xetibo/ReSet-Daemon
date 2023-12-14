@@ -9,7 +9,7 @@ use std::{
 };
 
 use dbus::{
-    arg::{RefArg, Variant},
+    arg::{self, RefArg, Variant},
     nonblock::SyncConnection,
     Path,
 };
@@ -149,4 +149,16 @@ pub fn get_wifi_status() -> bool {
         return false;
     }
     res.unwrap()
+}
+
+pub fn convert_bluetooth_map_bool(map_key: Option<&Variant<Box<dyn RefArg>>>) -> bool {
+    if let Some(bonded_opt) = map_key {
+        if let Some(bonded) = arg::cast::<bool>(&bonded_opt.0) {
+            *bonded
+        } else {
+            false
+        }
+    } else {
+        false
+    }
 }

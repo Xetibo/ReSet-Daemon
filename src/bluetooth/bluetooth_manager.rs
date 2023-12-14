@@ -25,7 +25,9 @@ use re_set_lib::{
     utils::{call_system_dbus_method, set_system_dbus_property},
 };
 
-use crate::utils::{FullMaskedPropMap, MaskedPropMap, DBUS_PATH, BLUETOOTH};
+use crate::utils::{
+    convert_bluetooth_map_bool, FullMaskedPropMap, MaskedPropMap, BLUETOOTH, DBUS_PATH,
+};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -96,16 +98,22 @@ pub fn bluetooth_device_from_map(path: &Path<'static>, map: &PropMap) -> Option<
     } else {
         String::from("")
     };
-    let alias = arg::cast::<String>(&map.get("Alias").unwrap().0)
-        .unwrap()
-        .clone();
-    let adapter = arg::cast::<Path<'static>>(&map.get("Adapter").unwrap().0)
-        .unwrap()
-        .clone();
-    let trusted = *arg::cast::<bool>(&map.get("Trusted").unwrap().0).unwrap();
-    let blocked = *arg::cast::<bool>(&map.get("Blocked").unwrap().0).unwrap();
-    let bonded = *arg::cast::<bool>(&map.get("Bonded").unwrap().0).unwrap();
-    let paired = *arg::cast::<bool>(&map.get("Paired").unwrap().0).unwrap();
+    let alias_opt: Option<&String> = prop_cast(map, "Alias");
+    let alias = if let Some(alias_opt) = alias_opt {
+        alias_opt.clone()
+    } else {
+        String::from("")
+    };
+    let adapter_opt: Option<&Path<'static>> = prop_cast(map, "Adapter");
+    let adapter = if let Some(adapter_opt) = adapter_opt {
+        adapter_opt.clone()
+    } else {
+        return None;
+    };
+    let trusted = convert_bluetooth_map_bool(map.get("Trusted"));
+    let bonded = convert_bluetooth_map_bool(map.get("Bonded"));
+    let blocked = convert_bluetooth_map_bool(map.get("Blocked"));
+    let paired = convert_bluetooth_map_bool(map.get("Paired"));
     let connected_opt: Option<&bool> = prop_cast(map, "Connected");
     let icon_opt: Option<&String> = prop_cast(map, "Icon");
     let icon = if let Some(icon_opt) = icon_opt {
@@ -113,9 +121,12 @@ pub fn bluetooth_device_from_map(path: &Path<'static>, map: &PropMap) -> Option<
     } else {
         String::from("")
     };
-    let address = arg::cast::<String>(&map.get("Address").unwrap().0)
-        .unwrap()
-        .clone();
+    let address_opt: Option<&String> = prop_cast(map, "Address");
+    let address = if let Some(address_opt) = address_opt {
+        address_opt.clone()
+    } else {
+        String::from("")
+    };
     Some(BluetoothDevice {
         path: path.clone(),
         rssi,
