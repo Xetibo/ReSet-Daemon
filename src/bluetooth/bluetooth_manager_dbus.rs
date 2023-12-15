@@ -118,7 +118,6 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             ("device",),
             ("result",),
             move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
-                println!("connecting");
                 d.b_interface.connect_to(device);
                 Ok((true,))
             },
