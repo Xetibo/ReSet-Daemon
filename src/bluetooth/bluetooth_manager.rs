@@ -14,7 +14,7 @@ use dbus::{
     channel::Sender,
     message::SignalArgs,
     nonblock::SyncConnection,
-    Error, Message, Path,
+    Error, Message, MethodErr, Path,
 };
 use dbus_tokio::connection;
 use re_set_lib::{
@@ -249,10 +249,9 @@ impl BluetoothInterface {
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
 
-        let discovery_active = self.in_discovery.clone();
         thread::spawn(move || {
             if active_listener.load(Ordering::SeqCst) {
-                discovery_active.store(true, Ordering::SeqCst);
+                active_scan.store(true, Ordering::SeqCst);
                 return Ok(());
             }
             let conn = Connection::new_system().unwrap();
@@ -363,6 +362,7 @@ impl BluetoothInterface {
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
                 } else if is_discovery && !active_scan.load(Ordering::SeqCst) {
+                    is_discovery = false;
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                 }
@@ -465,10 +465,14 @@ impl BluetoothInterface {
         true
     }
 
-    pub fn start_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
-        if self.in_discovery.load(Ordering::SeqCst) {
-            return Ok(());
+    pub fn start_bluetooth_discovery(
+        &self,
+        scan_active: Arc<AtomicBool>,
+    ) -> Result<(), dbus::Error> {
+        if scan_active.load(Ordering::SeqCst) {
+            return Err(MethodErr::failed("Already active").into());
         }
+        scan_active.store(false, Ordering::SeqCst);
         call_system_dbus_method::<(), ()>(
             "org.bluez",
             self.current_adapter.clone(),
