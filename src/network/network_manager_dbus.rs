@@ -13,8 +13,8 @@ use crate::{
 };
 
 use super::network_manager::{
-    get_connection_settings, get_stored_connections, get_wifi_devices,
-    set_connection_settings, set_wifi_enabled, start_listener, stop_listener,
+    get_connection_settings, get_stored_connections, get_wifi_devices, set_connection_settings,
+    set_wifi_enabled, start_listener, stop_listener,
 };
 
 pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
@@ -73,9 +73,9 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                 let active_access_point_opt =
                     d.current_n_device.read().unwrap().access_point.clone();
                 if let Some(active_access_point_opt) = active_access_point_opt {
-                    active_access_point = active_access_point_opt.dbus_path;
+                    active_access_point = active_access_point_opt.ssid;
                 } else {
-                    active_access_point = Path::from("/");
+                    active_access_point = Vec::new();
                 }
                 Ok((WifiDevice {
                     path,
@@ -103,9 +103,9 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                     let active_access_point_opt =
                         d.current_n_device.read().unwrap().access_point.clone();
                     if let Some(active_access_point_opt) = active_access_point_opt {
-                        active_access_point = active_access_point_opt.dbus_path;
+                        active_access_point = active_access_point_opt.ssid;
                     } else {
-                        active_access_point = Path::from("/");
+                        active_access_point = Vec::new();
                     }
                     devices.push(WifiDevice {
                         path,

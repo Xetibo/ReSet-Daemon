@@ -146,7 +146,7 @@ pub fn start_listener(
                     .append1(WifiDevice {
                         path: device.dbus_path.clone(),
                         name: device.name.clone(),
-                        active_access_point: parsed_access_point.dbus_path,
+                        active_access_point: parsed_access_point.ssid,
                     });
                     let _ = active_access_point_changed_ref.send(msg);
                 } else {
@@ -159,7 +159,7 @@ pub fn start_listener(
                     .append1(WifiDevice {
                         path: device.dbus_path.clone(),
                         name: device.name.clone(),
-                        active_access_point: Path::from("/"),
+                        active_access_point: Vec::new(),
                     });
                     let _ = active_access_point_changed_ref.send(msg);
                 }
@@ -264,6 +264,10 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
         (),
         1000,
     );
+    if result.is_err() {
+        println!("Error: Failed to retrieve network devices from NetworkManager.");
+        return Vec::new();
+    }
     let (result,) = result.unwrap();
     let mut devices = Vec::new();
     for path in result {
