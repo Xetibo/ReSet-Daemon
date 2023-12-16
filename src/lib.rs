@@ -13,6 +13,7 @@ use std::{
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
+use re_set_lib::utils::call_system_dbus_method;
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -70,18 +71,25 @@ pub async fn run_daemon() {
         }),
     )));
 
-    let wifi_enabled: bool;
-    let bluetooth_enabled: bool;
+    let res = call_system_dbus_method::<(), ()>(
+        "org.freedesktop.NetworkManager",
+        Path::from("/org/freedesktop/NetworkManager"),
+        "Introspect",
+        "org.freedesktop.DBus.Introspectable",
+        (),
+        1,
+    );
+    let wifi_enabled = if let Ok(_) = res { true } else { false };
+    let res = call_system_dbus_method::<(), ()>(
+        "org.bluez",
+        Path::from("/org/bluez"),
+        "Introspect",
+        "org.freedesktop.DBus.Introspectable",
+        (),
+        1,
+    );
+    let bluetooth_enabled = if let Ok(_) = res { true } else { false };
 
-    {
-        let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
-        wifi_enabled = data.current_n_device.read().unwrap().dbus_path != Path::from("/");
-        bluetooth_enabled = data.b_interface.current_adapter != Path::from("/");
-        if data.b_interface.current_adapter != Path::from("/") {
-            // register bluetooth agent before listening to calls
-            data.b_interface.register_agent();
-        }
-    }
 
     let mut features = Vec::new();
     let mut feature_strings = Vec::new();
@@ -99,6 +107,14 @@ pub async fn run_daemon() {
     features.push(setup_base(&mut cross, feature_strings));
 
     cross.insert(DBUS_PATH, &features, data);
+
+    {
+        let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
+        if data.b_interface.current_adapter != Path::from("/") {
+            // register bluetooth agent before listening to calls
+            data.b_interface.register_agent();
+        }
+    }
 
     conn.start_receive(
         MatchRule::new_method_call(),
