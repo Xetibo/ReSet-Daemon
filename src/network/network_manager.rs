@@ -69,6 +69,11 @@ pub fn start_listener(
     path: Path<'static>,
     active_listener: Arc<AtomicBool>,
 ) -> Result<(), dbus::Error> {
+    {
+        if device.read().unwrap().dbus_path == Path::from("/") {
+            return Ok(());
+        }
+    }
     let access_point_added_ref = connection.clone();
     let access_point_removed_ref = connection.clone();
     let device_ref_access_point = device.clone();
