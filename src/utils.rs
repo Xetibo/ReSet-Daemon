@@ -98,12 +98,8 @@ unsafe impl Sync for DaemonData {}
 
 impl DaemonData {
     pub async fn create(handle: JoinHandle<()>, conn: Arc<SyncConnection>) -> Result<Self, Error> {
+        // TODO create check for pcs that don't offer wifi
         let mut n_devices = get_wifi_devices();
-        if n_devices.is_empty() {
-            return Err(re_set_lib::network::network_structures::Error {
-                message: "Could not get any wifi devices",
-            });
-        }
         let current_n_device = n_devices.pop().unwrap_or(Arc::new(RwLock::new(Device::new(
             Path::from("/"),
             String::from("empty"),

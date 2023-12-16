@@ -61,9 +61,7 @@ pub async fn run_daemon() {
     }
     let data = data.unwrap();
 
-    conn.request_name(BASE, false, true, false)
-        .await
-        .unwrap();
+    conn.request_name(BASE, false, true, false).await.unwrap();
     let mut cross = Crossroads::new();
     cross.set_async_support(Some((
         conn.clone(),
@@ -72,28 +70,35 @@ pub async fn run_daemon() {
         }),
     )));
 
-    let base = setup_base(&mut cross);
-    let wireless_manager = setup_wireless_manager(&mut cross);
-    let bluetooth_manager = setup_bluetooth_manager(&mut cross);
-    let bluetooth_agent = setup_bluetooth_agent(&mut cross);
-    let audio_manager = setup_audio_manager(&mut cross);
+    let wifi_enabled: bool;
+    let bluetooth_enabled: bool;
 
+    {
+        let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
+        wifi_enabled = data.current_n_device.read().unwrap().dbus_path != Path::from("/");
+        bluetooth_enabled = data.b_interface.current_adapter != Path::from("/");
+        if data.b_interface.current_adapter != Path::from("/") {
+            // register bluetooth agent before listening to calls
+            data.b_interface.register_agent();
+        }
+    }
 
-    cross.insert(
-        DBUS_PATH,
-        &[
-            base,
-            wireless_manager,
-            bluetooth_manager,
-            bluetooth_agent,
-            audio_manager,
-        ],
-        data,
-    );
+    let mut features = Vec::new();
+    let mut feature_strings = Vec::new();
+    if wifi_enabled {
+        features.push(setup_wireless_manager(&mut cross));
+        feature_strings.push("WiFi");
+    }
+    if bluetooth_enabled {
+        features.push(setup_bluetooth_manager(&mut cross));
+        features.push(setup_bluetooth_agent(&mut cross));
+        feature_strings.push("Bluetooth");
+    }
+    features.push(setup_audio_manager(&mut cross));
+    feature_strings.push("Audio");
+    features.push(setup_base(&mut cross, feature_strings));
 
-    let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
-    // register bluetooth agent before listening to calls
-    data.b_interface.register_agent();
+    cross.insert(DBUS_PATH, &features, data);
 
     conn.start_receive(
         MatchRule::new_method_call(),
@@ -109,11 +114,12 @@ pub async fn run_daemon() {
 
 fn setup_base(
     cross: &mut Crossroads,
+    features: Vec<&'static str>,
 ) -> dbus_crossroads::IfaceToken<DaemonData> {
     cross.register(BASE, |c| {
         c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
             // later, this should be handled dymanically -> plugin check
-            Ok((vec!["Bluetooth", "Wifi", "Audio"],))
+            Ok((features.clone(),))
         });
         c.method("APIVersion", (), ("api-version",), move |_, _, ()| {
             // let the client handle the mismatch -> e.g. they decide if they want to keep using
