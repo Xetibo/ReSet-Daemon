@@ -596,6 +596,9 @@ impl Device {
 
     #[allow(dead_code)]
     pub fn set_active_access_point(&mut self) {
+        if self.dbus_path.is_empty() {
+            return;
+        }
         let interface = "org.freedesktop.NetworkManager.Device.Wireless";
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy(
@@ -612,6 +615,9 @@ impl Device {
         &mut self,
         access_point: AccessPoint,
     ) -> Result<(), ConnectionError> {
+        if self.dbus_path.is_empty() {
+            return Err(ConnectionError{ method: "WifiDevice is not valid"});
+        }
         let res = call_system_dbus_method::<
             (Path<'static>, Path<'static>, Path<'static>),
             (Path<'static>,),
@@ -665,6 +671,9 @@ impl Device {
         access_point: AccessPoint,
         password: String,
     ) -> Result<(), ConnectionError> {
+        if self.dbus_path.is_empty() {
+            return Err(ConnectionError{ method: "WifiDevice is not valid"});
+        }
         let mut properties = HashMap::new();
         properties.insert("802-11-wireless-security".to_string(), PropMap::new());
         let password = Box::new(password) as Box<dyn RefArg>;
@@ -719,6 +728,9 @@ impl Device {
     }
 
     pub fn disconnect_from_current(&mut self) -> Result<(), ConnectionError> {
+        if self.dbus_path.is_empty() {
+            return Err(ConnectionError{ method: "WifiDevice is not valid"});
+        }
         let res = get_system_dbus_property::<(), Vec<Path<'static>>>(
             "org.freedesktop.NetworkManager",
             Path::from("/org/freedesktop/NetworkManager"),
