@@ -1,9 +1,3 @@
-use std::{
-    sync::{atomic::Ordering, Arc},
-    thread,
-};
-
-use crossbeam::channel::{unbounded, Receiver, Sender};
 use dbus_crossroads::Crossroads;
 use re_set_lib::audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source};
 
@@ -11,8 +5,6 @@ use crate::{
     utils::{AudioRequest, AudioResponse, AUDIO},
     DaemonData,
 };
-
-use super::audio_manager::PulseServer;
 
 pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     // TODO handle errors on the now not bool returning functions
@@ -29,64 +21,6 @@ pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
         c.signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",));
         c.signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",));
         c.signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",));
-        // aync not possible here
-        c.method(
-            "StartAudioListener",
-            (),
-            (),
-            move |_, data: &mut DaemonData, ()| {
-                if !data.audio_listener_active.load(Ordering::SeqCst) {
-                    data.audio_listener_active.store(true, Ordering::SeqCst);
-                    let (dbus_pulse_sender, pulse_receiver): (
-                        Sender<AudioRequest>,
-                        Receiver<AudioRequest>,
-                    ) = unbounded();
-                    let (pulse_sender, dbus_pulse_receiver): (
-                        Sender<AudioResponse>,
-                        Receiver<AudioResponse>,
-                    ) = unbounded();
-
-                    data.audio_sender = Arc::new(dbus_pulse_sender);
-                    data.audio_receiver = Arc::new(dbus_pulse_receiver);
-                    let connection = data.connection.clone();
-                    let listener_active = data.audio_listener_active.clone();
-                    thread::spawn(move || {
-                        let res = PulseServer::create(pulse_sender, pulse_receiver, connection);
-                        if res.is_err() {
-                            listener_active.store(false, Ordering::SeqCst);
-                            return;
-                        }
-                        listener_active.store(true, Ordering::SeqCst);
-                        res.unwrap().listen_to_messages();
-                    });
-                   let _ = data.audio_receiver.recv(); 
-                }
-                Ok(())
-            },
-        );
-        c.method_with_cr_async("StopAudioListener", (), (), move |mut ctx, cross, ()| {
-            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-            let listener_active = data.audio_listener_active.clone();
-            let sender = data.audio_sender.clone();
-            let receiver = data.audio_receiver.clone();
-            async move {
-                let mut result = false;
-                if listener_active.load(Ordering::SeqCst) {
-                    let _ = sender.send(AudioRequest::StopListener);
-                    let res = receiver.recv();
-                    if res.is_ok() {
-                        result = match res.unwrap() {
-                            AudioResponse::BoolResponse(s) => s,
-                            _ => false,
-                        }
-                    }
-                    if result {
-                        listener_active.store(false, Ordering::SeqCst);
-                    }
-                }
-                ctx.reply(Ok(()))
-            }
-        });
         c.method_with_cr_async(
             "GetDefaultSink",
             (),

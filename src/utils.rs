@@ -1,6 +1,10 @@
 use std::{
     collections::HashMap,
-    sync::{atomic::AtomicBool, Arc, RwLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, RwLock,
+    },
+    thread,
 };
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
@@ -17,6 +21,7 @@ use re_set_lib::{
 use tokio::task::JoinHandle;
 
 use crate::{
+    audio::audio_manager::PulseServer,
     bluetooth::bluetooth_manager::{BluetoothAgent, BluetoothInterface},
     network::network_manager::{get_wifi_devices, Device},
 };
@@ -70,7 +75,6 @@ pub enum AudioResponse {
     InputStreams(Vec<InputStream>),
     OutputStreams(Vec<OutputStream>),
     Cards(Vec<Card>),
-    BoolResponse(bool),
     Error,
 }
 
@@ -96,7 +100,11 @@ unsafe impl Send for DaemonData {}
 unsafe impl Sync for DaemonData {}
 
 impl DaemonData {
-    pub async fn create(handle: JoinHandle<()>, conn: Arc<SyncConnection>) -> Result<Self, Error> {
+    pub fn create(
+        handle: JoinHandle<()>,
+        conn: Arc<SyncConnection>,
+        features: &[&'static str],
+    ) -> Result<Self, Error> {
         // TODO create check for pcs that don't offer wifi
         let mut n_devices = get_wifi_devices();
         let current_n_device = n_devices.pop().unwrap_or(Arc::new(RwLock::new(Device::new(
@@ -110,9 +118,22 @@ impl DaemonData {
             BluetoothInterface::empty()
         };
 
-        let (dbus_pulse_sender, _): (Sender<AudioRequest>, Receiver<AudioRequest>) = unbounded();
-        let (_, dbus_pulse_receiver): (Sender<AudioResponse>, Receiver<AudioResponse>) =
+        let (dbus_pulse_sender, pulse_receiver): (Sender<AudioRequest>, Receiver<AudioRequest>) =
             unbounded();
+        let (pulse_sender, dbus_pulse_receiver): (Sender<AudioResponse>, Receiver<AudioResponse>) =
+            unbounded();
+        let audio_listener_active = Arc::new(AtomicBool::new(false));
+        let audio_listener_ref = audio_listener_active.clone();
+        let connection_ref = conn.clone();
+        if features.contains(&"Audio") {
+            thread::spawn(move || {
+                let res = PulseServer::create(pulse_sender, pulse_receiver, connection_ref);
+                if let Ok(mut res) = res {
+                    audio_listener_ref.store(true, Ordering::SeqCst);
+                    res.listen_to_messages();
+                }
+            });
+        }
 
         Ok(DaemonData {
             n_devices,
@@ -123,7 +144,7 @@ impl DaemonData {
             audio_receiver: Arc::new(dbus_pulse_receiver),
             network_listener_active: Arc::new(AtomicBool::new(false)),
             network_stop_requested: Arc::new(AtomicBool::new(false)),
-            audio_listener_active: Arc::new(AtomicBool::new(false)),
+            audio_listener_active,
             bluetooth_listener_active: Arc::new(AtomicBool::new(false)),
             bluetooth_stop_requested: Arc::new(AtomicBool::new(false)),
             bluetooth_scan_active: Arc::new(AtomicBool::new(false)),

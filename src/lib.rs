@@ -53,12 +53,6 @@ pub async fn run_daemon() {
         panic!("Lost connection to D-Bus: {}", err);
     });
 
-    let data = DaemonData::create(_handle, conn.clone()).await;
-    if data.is_err() {
-        return;
-    }
-    let data = data.unwrap();
-
     conn.request_name(BASE, false, true, false).await.unwrap();
     let mut cross = Crossroads::new();
     cross.set_async_support(Some((
@@ -99,8 +93,16 @@ pub async fn run_daemon() {
         // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
     }
+    // TODO, how to check for audio?
     features.push(setup_audio_manager(&mut cross));
     feature_strings.push("Audio");
+
+    let data = DaemonData::create(_handle, conn.clone(), &feature_strings);
+    if data.is_err() {
+        return;
+    }
+    let data = data.unwrap();
+
     features.push(setup_base(&mut cross, feature_strings));
 
     cross.insert(DBUS_PATH, &features, data);
@@ -162,6 +164,7 @@ fn setup_base(
         c.method("Shutdown", (), (), move |_, data: &mut DaemonData, ()| {
             data.b_interface.unregister_agent();
             data.handle.abort();
+            let _ = data.audio_sender.send(AudioRequest::StopListener);
             exit(0);
             #[allow(unreachable_code)]
             Ok(())

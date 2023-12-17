@@ -189,7 +189,6 @@ impl PulseServer {
 
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
-        let _ = sender.send(AudioResponse::BoolResponse(true));
         Ok(Self {
             mainloop,
             context,
@@ -254,7 +253,6 @@ impl PulseServer {
     }
 
     pub fn stop_listener(&self) {
-        let _ = self.sender.send(AudioResponse::BoolResponse(true));
         self.mainloop.borrow_mut().lock();
         self.mainloop.borrow_mut().stop();
         self.mainloop.borrow_mut().quit(Retval(0));
