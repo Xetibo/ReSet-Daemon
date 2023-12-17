@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use std::{cell::RefCell, ops::Deref, rc::Rc};
 
-use std::sync::mpsc::{Receiver, Sender};
-
+use crossbeam::channel::{Receiver, Sender};
 use dbus::channel::Sender as dbus_sender;
 use dbus::nonblock::SyncConnection;
 use dbus::{Message, Path};
 use pulse::context::introspect::Introspector;
 use pulse::context::subscribe::{InterestMaskSet, Operation};
+use pulse::def::Retval;
+use pulse::mainloop::api::Mainloop as mainloop_api;
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
     self,
@@ -19,7 +20,7 @@ use pulse::{
 };
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
 
-use crate::utils::{DBUS_PATH, AUDIO};
+use crate::utils::{AUDIO, DBUS_PATH};
 use crate::{AudioRequest, AudioResponse};
 
 pub struct PulseServer {
@@ -40,10 +41,7 @@ impl PulseServer {
     ) -> Result<Self, PulseError> {
         let mut proplist = Proplist::new().unwrap();
         proplist
-            .set_str(
-                pulse::proplist::properties::APPLICATION_NAME,
-                AUDIO,
-            )
+            .set_str(pulse::proplist::properties::APPLICATION_NAME, AUDIO)
             .unwrap();
 
         let mainloop = Rc::new(RefCell::new(
@@ -191,6 +189,7 @@ impl PulseServer {
 
         context.borrow_mut().set_state_callback(None);
         mainloop.borrow_mut().unlock();
+        let _ = sender.send(AudioResponse::BoolResponse(true));
         Ok(Self {
             mainloop,
             context,
@@ -208,8 +207,6 @@ impl PulseServer {
         }
     }
 
-    // during development, as more get added => without causing compiler errors
-    #[allow(unreachable_patterns)]
     pub fn handle_message(&self, message: AudioRequest) {
         match message {
             AudioRequest::ListSinks => self.get_sinks(),
@@ -253,12 +250,14 @@ impl PulseServer {
                 self.set_card_profile_of_device(device_index, profile_name)
             }
             AudioRequest::StopListener => self.stop_listener(),
-            _ => {}
         }
     }
 
     pub fn stop_listener(&self) {
+        let _ = self.sender.send(AudioResponse::BoolResponse(true));
+        self.mainloop.borrow_mut().lock();
         self.mainloop.borrow_mut().stop();
+        self.mainloop.borrow_mut().quit(Retval(0));
     }
 
     pub fn get_default_sink(&self) {
@@ -795,21 +794,13 @@ impl PulseServer {
 fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operation) {
     match operation {
         Operation::New => {
-            let msg = Message::signal(
-                &Path::from(DBUS_PATH),
-                &AUDIO.into(),
-                &"SinkAdded".into(),
-            )
-            .append1(sink);
+            let msg = Message::signal(&Path::from(DBUS_PATH), &AUDIO.into(), &"SinkAdded".into())
+                .append1(sink);
             let _ = conn.send(msg);
         }
         Operation::Changed => {
-            let msg = Message::signal(
-                &Path::from(DBUS_PATH),
-                &AUDIO.into(),
-                &"SinkChanged".into(),
-            )
-            .append1(sink);
+            let msg = Message::signal(&Path::from(DBUS_PATH), &AUDIO.into(), &"SinkChanged".into())
+                .append1(sink);
             let _ = conn.send(msg);
         }
         Operation::Removed => (),
@@ -817,24 +808,16 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
 }
 
 fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
-    let msg = Message::signal(
-        &Path::from(DBUS_PATH),
-        &AUDIO.into(),
-        &"SinkRemoved".into(),
-    )
-    .append1(index);
+    let msg = Message::signal(&Path::from(DBUS_PATH), &AUDIO.into(), &"SinkRemoved".into())
+        .append1(index);
     let _ = conn.send(msg);
 }
 
 fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: Operation) {
     match operation {
         Operation::New => {
-            let msg = Message::signal(
-                &Path::from(DBUS_PATH),
-                &AUDIO.into(),
-                &"SourceAdded".into(),
-            )
-            .append1(source);
+            let msg = Message::signal(&Path::from(DBUS_PATH), &AUDIO.into(), &"SourceAdded".into())
+                .append1(source);
             let _ = conn.send(msg);
         }
         Operation::Changed => {

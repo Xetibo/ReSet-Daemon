@@ -1,15 +1,11 @@
 use std::{
     collections::HashMap,
-    rc::Rc,
-    sync::{
-        atomic::AtomicBool,
-        mpsc::{self, Receiver, Sender},
-        Arc, RwLock,
-    },
+    sync::{atomic::AtomicBool, Arc, RwLock},
 };
 
+use crossbeam::channel::{unbounded, Receiver, Sender};
 use dbus::{
-    arg::{self, RefArg, Variant},
+    arg::{self, PropMap, RefArg, Variant},
     nonblock::SyncConnection,
     Path,
 };
@@ -31,7 +27,7 @@ pub const BLUETOOTH: &str = "org.Xetibo.ReSet.Bluetooth";
 pub const AUDIO: &str = "org.Xetibo.ReSet.Audio";
 pub const BASE: &str = "org.Xetibo.ReSet.Daemon";
 
-pub type MaskedPropMap = HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>;
+pub type MaskedPropMap = HashMap<String, PropMap>;
 
 pub type FullMaskedPropMap = HashMap<
     Path<'static>,
@@ -74,6 +70,7 @@ pub enum AudioResponse {
     InputStreams(Vec<InputStream>),
     OutputStreams(Vec<OutputStream>),
     Cards(Vec<Card>),
+    BoolResponse(bool),
     Error,
 }
 
@@ -82,11 +79,13 @@ pub struct DaemonData {
     pub current_n_device: Arc<RwLock<Device>>,
     pub b_interface: BluetoothInterface,
     pub bluetooth_agent: BluetoothAgent,
-    pub audio_sender: Rc<Sender<AudioRequest>>,
-    pub audio_receiver: Rc<Receiver<AudioResponse>>,
+    pub audio_sender: Arc<Sender<AudioRequest>>,
+    pub audio_receiver: Arc<Receiver<AudioResponse>>,
     pub audio_listener_active: Arc<AtomicBool>,
     pub network_listener_active: Arc<AtomicBool>,
+    pub network_stop_requested: Arc<AtomicBool>,
     pub bluetooth_listener_active: Arc<AtomicBool>,
+    pub bluetooth_stop_requested: Arc<AtomicBool>,
     pub bluetooth_scan_active: Arc<AtomicBool>,
     pub clients: HashMap<String, usize>,
     pub connection: Arc<SyncConnection>,
@@ -111,21 +110,22 @@ impl DaemonData {
             BluetoothInterface::empty()
         };
 
-        let (dbus_pulse_sender, _): (Sender<AudioRequest>, Receiver<AudioRequest>) =
-            mpsc::channel();
+        let (dbus_pulse_sender, _): (Sender<AudioRequest>, Receiver<AudioRequest>) = unbounded();
         let (_, dbus_pulse_receiver): (Sender<AudioResponse>, Receiver<AudioResponse>) =
-            mpsc::channel();
+            unbounded();
 
         Ok(DaemonData {
             n_devices,
             current_n_device,
             b_interface,
             bluetooth_agent: BluetoothAgent::new(),
-            audio_sender: Rc::new(dbus_pulse_sender),
-            audio_receiver: Rc::new(dbus_pulse_receiver),
+            audio_sender: Arc::new(dbus_pulse_sender),
+            audio_receiver: Arc::new(dbus_pulse_receiver),
             network_listener_active: Arc::new(AtomicBool::new(false)),
+            network_stop_requested: Arc::new(AtomicBool::new(false)),
             audio_listener_active: Arc::new(AtomicBool::new(false)),
             bluetooth_listener_active: Arc::new(AtomicBool::new(false)),
+            bluetooth_stop_requested: Arc::new(AtomicBool::new(false)),
             bluetooth_scan_active: Arc::new(AtomicBool::new(false)),
             connection: conn,
             handle,

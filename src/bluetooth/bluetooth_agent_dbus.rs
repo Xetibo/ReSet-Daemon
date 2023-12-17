@@ -1,8 +1,12 @@
 use dbus::{Message, Path};
 use dbus_crossroads::Crossroads;
 
-use crate::{DaemonData, utils::{DBUS_PATH, BLUETOOTH}};
+use crate::{
+    utils::{BLUETOOTH, DBUS_PATH},
+    DaemonData,
+};
 
+#[allow(dead_code)]
 pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
     let token = cross.register("org.bluez.Agent1", |c| {
         c.method(

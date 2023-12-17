@@ -23,85 +23,93 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));
         c.signal::<(WifiDevice,), _>("WifiDeviceChanged", ("device",));
-        c.method(
+        c.method_with_cr_async(
             "ListAccessPoints",
             (),
             ("access_points",),
-            move |_, d: &mut DaemonData, ()| {
-                let access_points = d.current_n_device.read().unwrap().get_access_points();
-                Ok((access_points,))
-            },
+            move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let device = data.current_n_device.clone();
+                async move {
+                    let access_points = device.read().unwrap().get_access_points();
+                    ctx.reply(Ok((access_points,)))
+                }
+            }
         );
-        c.method("GetWifiStatus", (), ("status",), move |_, _, ()| {
-            Ok((get_wifi_status(),))
+        c.method_with_cr_async("GetWifiStatus", (), ("status",), move |mut ctx, _, ()| async move {
+            ctx.reply(Ok((get_wifi_status(),)))
         });
+        // needs blocking
         c.method(
             "SetWifiEnabled",
             ("enabled",),
             ("result",),
-            move |_, data, (enabled,): (bool,)| {
+            move |_, data: &mut DaemonData, (enabled,): (bool,)| {
                 let active_listener = data.network_listener_active.clone();
+                let stop_requested = data.network_stop_requested.clone();
                 if enabled {
                     if !active_listener.load(Ordering::SeqCst) {
                         let path = data.current_n_device.read().unwrap().dbus_path.clone();
-                        let active_listener = data.network_listener_active.clone();
                         let device = data.current_n_device.clone();
                         let connection = data.connection.clone();
                         thread::spawn(move || {
-                            start_listener(connection, device, path, active_listener)
+                            start_listener(
+                                connection,
+                                device,
+                                path,
+                                active_listener,
+                                stop_requested,
+                            )
                         });
                     }
                 } else {
-                    stop_listener(active_listener);
+                    stop_listener(stop_requested);
                 }
                 Ok((set_wifi_enabled(enabled, data),))
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "GetCurrentWifiDevice",
             (),
             ("device",),
-            move |_, d: &mut DaemonData, ()| {
-                let path: Path<'static>;
-                let name: String;
-                {
-                    let device = d.current_n_device.read().unwrap();
-                    path = device.dbus_path.clone();
-                    name = device.name.clone();
-                }
+            move |mut ctx, cross, ()| {
+            let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            let device = data.current_n_device.clone();
+                async move {
+                let device = device.read().unwrap();
+                let path = device.dbus_path.clone();
+                let name = device.name.clone();
                 let active_access_point;
                 let active_access_point_opt =
-                    d.current_n_device.read().unwrap().access_point.clone();
+                    device.access_point.clone();
                 if let Some(active_access_point_opt) = active_access_point_opt {
                     active_access_point = active_access_point_opt.ssid;
                 } else {
                     active_access_point = Vec::new();
                 }
-                Ok((WifiDevice {
+                ctx.reply(Ok((WifiDevice {
                     path,
                     name,
                     active_access_point,
-                },))
+                },)))
+                }
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "GetAllWifiDevices",
             (),
             ("devices",),
-            move |_, d: &mut DaemonData, ()| {
+            move |mut ctx, _, ()| {
+                async move {
                 let mut devices = Vec::new();
                 let device_paths = get_wifi_devices();
                 for device in device_paths {
-                    let path: Path<'static>;
-                    let name: String;
-                    {
                         let device = device.read().unwrap();
-                        path = device.dbus_path.clone();
-                        name = device.name.clone();
-                    }
+                        let path = device.dbus_path.clone();
+                        let name = device.name.clone();
                     let active_access_point;
                     let active_access_point_opt =
-                        d.current_n_device.read().unwrap().access_point.clone();
+                        device.access_point.clone();
                     if let Some(active_access_point_opt) = active_access_point_opt {
                         active_access_point = active_access_point_opt.ssid;
                     } else {
@@ -113,9 +121,11 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                         active_access_point,
                     });
                 }
-                Ok((devices,))
+                ctx.reply(Ok((devices,)))
+                }
             },
         );
+        // needs blocking
         c.method(
             "SetWifiDevice",
             ("path",),
@@ -136,85 +146,85 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                 Ok((res,))
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "ConnectToKnownAccessPoint",
             ("access_point",),
             ("result",),
-            move |_, d: &mut DaemonData, (access_point,): (AccessPoint,)| {
-                let res = d
-                    .current_n_device
-                    .write()
-                    .unwrap()
-                    .connect_to_access_point(access_point);
-                if res.is_err() {
-                    return Ok((false,));
+            move |mut ctx, cross, (access_point,): (AccessPoint,)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let device = data.current_n_device.clone();
+                async move {
+                    let res = device
+                        .write()
+                        .unwrap()
+                        .connect_to_access_point(access_point);
+                    ctx.reply(Ok((res.is_ok(),)))
                 }
-                Ok((true,))
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "ConnectToNewAccessPoint",
             ("access_point", "password"),
             ("result",),
-            move |_, d: &mut DaemonData, (access_point, password): (AccessPoint, String)| {
-                let res = d
-                    .current_n_device
-                    .write()
-                    .unwrap()
-                    .add_and_connect_to_access_point(access_point, password);
-                if res.is_err() {
-                    return Ok((false,));
+            move |mut ctx, cross, (access_point, password): (AccessPoint, String)| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let device = data.current_n_device.clone();
+                async move {
+                    let res = device
+                        .write()
+                        .unwrap()
+                        .add_and_connect_to_access_point(access_point, password);
+                    ctx.reply(Ok((res.is_ok(),)))
                 }
-                Ok((true,))
-            },
+            }
         );
-        c.method(
+        c.method_with_cr_async(
             "DisconnectFromCurrentAccessPoint",
             (),
             ("result",),
-            move |_, d: &mut DaemonData, ()| {
-                let res = d
-                    .current_n_device
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let device = data.current_n_device.clone();
+                async move {
+                let res = device
                     .write()
                     .unwrap()
                     .disconnect_from_current();
-                if res.is_err() {
-                    return Ok((false,));
+                    ctx.reply(Ok((res.is_ok(),)))
                 }
-                Ok((true,))
             },
         );
-        c.method("ListStoredConnections", (), ("result",), move |_, _, ()| {
+        c.method_with_cr_async("ListStoredConnections", (), ("result",), move |mut ctx, _, ()| async move {
             let res = get_stored_connections();
-            Ok((res,))
+            ctx.reply(Ok((res,)))
         });
-        c.method(
+        c.method_with_cr_async(
             "GetConnectionSettings",
             ("path",),
             ("result",),
-            move |_, _, (path,): (Path<'static>,)| {
+            move |mut ctx, _, (path,): (Path<'static>,)| async move {
                 let res = get_connection_settings(path);
                 if res.is_err() {
-                    return Err(dbus::MethodErr::invalid_arg(
+                    return ctx.reply(Err(dbus::MethodErr::invalid_arg(
                         "Could not get settings for this connection.",
-                    ));
+                    ),));
                 }
-                Ok((res.unwrap(),))
+                ctx.reply(Ok((res.unwrap(),)))
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "SetConnectionSettings",
             ("path", "settings"),
             ("result",),
-            move |_, _, (path, settings): (Path<'static>, HashMap<String, PropMap>)| {
-                Ok((set_connection_settings(path, settings),))
+            move |mut ctx, _, (path, settings): (Path<'static>, HashMap<String, PropMap>)| async move {
+                ctx.reply(Ok((set_connection_settings(path, settings),)))
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "DeleteConnection",
             ("path",),
             ("result",),
-            move |_, _, (path,): (Path<'static>,)| {
+            move |mut ctx, _, (path,): (Path<'static>,)| async move {
                 let res = call_system_dbus_method::<(), ()>(
                     "org.freedesktop.NetworkManager",
                     path,
@@ -223,10 +233,8 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                     (),
                     1000,
                 );
-                if res.is_err() {
-                    return Ok((false,));
-                }
-                Ok((true,))
+                let result = res.is_ok();
+                ctx.reply(Ok((result,)))
             },
         );
         c.method_with_cr_async(
@@ -237,20 +245,44 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let path = data.current_n_device.read().unwrap().dbus_path.clone();
                 let active_listener = data.network_listener_active.clone();
+                let stop_requested = data.network_stop_requested.clone();
                 let device = data.current_n_device.clone();
                 let connection = data.connection.clone();
-                thread::spawn(move || start_listener(connection, device, path, active_listener));
-                async move { ctx.reply(Ok((true,))) }
+                let mut result = true;
+                {
+                    if device.read().unwrap().dbus_path.is_empty()
+                        || active_listener.load(Ordering::SeqCst)
+                    {
+                        result = false;
+                    } else {
+                        thread::spawn(move || {
+                            let res = start_listener(
+                                connection,
+                                device,
+                                path,
+                                active_listener,
+                                stop_requested,
+                            );
+                            if res.is_err() {
+                                println!("{}", res.err().unwrap());
+                            }
+                        });
+                    }
+                }
+                async move { ctx.reply(Ok((result,))) }
             },
         );
-        c.method(
+        c.method_with_cr_async(
             "StopNetworkListener",
             (),
             ("result",),
-            move |_, data, ()| {
-                let active_listener = data.network_listener_active.clone();
-                stop_listener(active_listener);
-                Ok((true,))
+            move |mut ctx, cross, ()| {
+                let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+                let stop_requested = data.bluetooth_stop_requested.clone();
+                async move {
+                    stop_listener(stop_requested);
+                    ctx.reply(Ok((true,)))
+                }
             },
         );
     });

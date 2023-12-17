@@ -4,7 +4,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, RwLock,
     },
-    thread,
     time::{Duration, SystemTime},
 };
 
@@ -62,21 +61,15 @@ impl Device {
     }
 }
 
-#[allow(unused_variables)]
 pub fn start_listener(
     connection: Arc<SyncConnection>,
     device: Arc<RwLock<Device>>,
     path: Path<'static>,
     active_listener: Arc<AtomicBool>,
+    stop_requested: Arc<AtomicBool>,
 ) -> Result<(), dbus::Error> {
-    {
-        if device.read().unwrap().dbus_path == Path::from("/") {
-            return Ok(());
-        }
-    }
     let access_point_added_ref = connection.clone();
     let access_point_removed_ref = connection.clone();
-    let device_ref_access_point = device.clone();
     let active_access_point_changed_ref = connection.clone();
     let device_ref = device.clone();
     let manager_ref = device.clone();
@@ -134,7 +127,7 @@ pub fn start_listener(
     }
     let res = conn.add_match(
         wifi_device_event,
-        move |ir: PropertiesPropertiesChanged, conn, _| {
+        move |ir: PropertiesPropertiesChanged, _, _| {
             let active_access_point: Option<&Path<'static>> =
                 prop_cast(&ir.changed_properties, "ActiveAccessPoint");
             if let Some(active_access_point) = active_access_point {
@@ -180,7 +173,7 @@ pub fn start_listener(
     }
     let res = conn.add_match(
         active_connection_event,
-        move |ir: PropertiesPropertiesChanged, conn, _| {
+        move |ir: PropertiesPropertiesChanged, _, _| {
             let connections: Option<&Vec<Path<'static>>> =
                 prop_cast(&ir.changed_properties, "ActiveConnections");
             if let Some(connections) = connections {
@@ -205,7 +198,7 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    let res = conn.add_match(access_point_added, move |ir: AccessPointAdded, conn, _| {
+    let res = conn.add_match(access_point_added, move |ir: AccessPointAdded, _, _| {
         let msg = Message::signal(
             &Path::from(DBUS_PATH),
             &WIRELESS.into(),
@@ -221,19 +214,16 @@ pub fn start_listener(
             "Failed to match signal on NetworkManager.",
         ));
     }
-    let res = conn.add_match(
-        access_point_removed,
-        move |ir: AccessPointRemoved, conn, _| {
-            let msg = Message::signal(
-                &Path::from(DBUS_PATH),
-                &WIRELESS.into(),
-                &"AccessPointRemoved".into(),
-            )
-            .append1(ir.access_point);
-            let _ = access_point_removed_ref.send(msg);
-            true
-        },
-    );
+    let res = conn.add_match(access_point_removed, move |ir: AccessPointRemoved, _, _| {
+        let msg = Message::signal(
+            &Path::from(DBUS_PATH),
+            &WIRELESS.into(),
+            &"AccessPointRemoved".into(),
+        )
+        .append1(ir.access_point);
+        let _ = access_point_removed_ref.send(msg);
+        true
+    });
     if res.is_err() {
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
@@ -244,20 +234,20 @@ pub fn start_listener(
     let mut time = SystemTime::now();
     loop {
         let _ = conn.process(Duration::from_millis(1000))?;
-        if !active_listener.load(Ordering::SeqCst) {
-            break;
+        if stop_requested.load(Ordering::SeqCst) {
+            active_listener.store(false, Ordering::SeqCst);
+            stop_requested.store(false, Ordering::SeqCst);
+            return Ok(());
         }
         if time.elapsed().unwrap_or(Duration::from_millis(0)) < Duration::from_secs(10) {
             time = SystemTime::now();
             device.read().unwrap().request_scan();
         }
-        thread::sleep(Duration::from_millis(1000));
     }
-    Ok(())
 }
 
-pub fn stop_listener(active_listener: Arc<AtomicBool>) {
-    active_listener.store(false, Ordering::SeqCst);
+pub fn stop_listener(stop_requested: Arc<AtomicBool>) {
+    stop_requested.store(true, Ordering::SeqCst);
 }
 
 pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
@@ -306,7 +296,7 @@ pub fn get_device_type(path: String) -> DeviceType {
     DeviceType::from_u32(result)
 }
 
-pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbus::Error> {
+pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbus::MethodErr> {
     let res = call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
         "org.freedesktop.NetworkManager",
         path.clone(),
@@ -316,7 +306,9 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
         1000,
     );
     if res.is_err() {
-        return Err(MethodErr::invalid_arg("Could not get settings from connection").into());
+        return Err(MethodErr::invalid_arg(
+            "Could not get settings from connection",
+        ));
     }
     let mut map = res.unwrap().0;
     let second_res = call_system_dbus_method::<(&str,), (HashMap<String, PropMap>,)>(
@@ -616,7 +608,9 @@ impl Device {
         access_point: AccessPoint,
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
-            return Err(ConnectionError{ method: "WifiDevice is not valid"});
+            return Err(ConnectionError {
+                method: "WifiDevice is not valid",
+            });
         }
         let res = call_system_dbus_method::<
             (Path<'static>, Path<'static>, Path<'static>),
@@ -672,7 +666,9 @@ impl Device {
         password: String,
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
-            return Err(ConnectionError{ method: "WifiDevice is not valid"});
+            return Err(ConnectionError {
+                method: "WifiDevice is not valid",
+            });
         }
         let mut properties = HashMap::new();
         properties.insert("802-11-wireless-security".to_string(), PropMap::new());
@@ -729,7 +725,9 @@ impl Device {
 
     pub fn disconnect_from_current(&mut self) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
-            return Err(ConnectionError{ method: "WifiDevice is not valid"});
+            return Err(ConnectionError {
+                method: "WifiDevice is not valid",
+            });
         }
         let res = get_system_dbus_property::<(), Vec<Path<'static>>>(
             "org.freedesktop.NetworkManager",

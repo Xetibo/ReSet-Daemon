@@ -18,10 +18,7 @@ use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
-    bluetooth::{
-        bluetooth_agent_dbus::setup_bluetooth_agent,
-        bluetooth_manager_dbus::setup_bluetooth_manager,
-    },
+    bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
     network::network_manager_dbus::setup_wireless_manager,
     utils::{DaemonData, DBUS_PATH},
 };
@@ -79,7 +76,7 @@ pub async fn run_daemon() {
         (),
         1,
     );
-    let wifi_enabled = if let Ok(_) = res { true } else { false };
+    let wifi_enabled = res.is_ok();
     let res = call_system_dbus_method::<(), ()>(
         "org.bluez",
         Path::from("/org/bluez"),
@@ -88,8 +85,7 @@ pub async fn run_daemon() {
         (),
         1,
     );
-    let bluetooth_enabled = if let Ok(_) = res { true } else { false };
-
+    let bluetooth_enabled = res.is_ok();
 
     let mut features = Vec::new();
     let mut feature_strings = Vec::new();
@@ -99,7 +95,8 @@ pub async fn run_daemon() {
     }
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
-        features.push(setup_bluetooth_agent(&mut cross));
+        // the agent is currently not implemented
+        // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
     }
     features.push(setup_audio_manager(&mut cross));
@@ -108,13 +105,15 @@ pub async fn run_daemon() {
 
     cross.insert(DBUS_PATH, &features, data);
 
-    {
-        let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
-        if data.b_interface.current_adapter != Path::from("/") {
-            // register bluetooth agent before listening to calls
-            data.b_interface.register_agent();
-        }
-    }
+    // register bluetooth agent before start
+    // will be uncommented when agent is fully functional
+    // {
+    //     let data: &mut DaemonData = cross.data_mut(&Path::from(DBUS_PATH)).unwrap();
+    //     if data.b_interface.current_adapter != Path::from("/") {
+    //         // register bluetooth agent before listening to calls
+    //         data.b_interface.register_agent();
+    //     }
+    // }
 
     conn.start_receive(
         MatchRule::new_method_call(),

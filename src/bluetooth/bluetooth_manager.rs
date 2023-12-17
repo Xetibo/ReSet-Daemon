@@ -243,17 +243,18 @@ impl BluetoothInterface {
         &self,
         active_listener: Arc<AtomicBool>,
         active_scan: Arc<AtomicBool>,
-    ) {
+        stop_requested: Arc<AtomicBool>,
+    ) -> bool {
         let path = self.current_adapter.clone();
         let added_ref = self.connection.clone();
         let removed_ref = self.connection.clone();
         let changed_ref = self.connection.clone();
 
+        if active_listener.load(Ordering::SeqCst) {
+            active_scan.store(true, Ordering::SeqCst);
+            return false;
+        }
         thread::spawn(move || {
-            if active_listener.load(Ordering::SeqCst) {
-                active_scan.store(true, Ordering::SeqCst);
-                return Ok(());
-            }
             let conn = Connection::new_system().unwrap();
             let bluetooth_device_added =
                 BluetoothDeviceAdded::match_rule(Some(&"org.bluez".into()), None).static_clone();
@@ -352,8 +353,9 @@ impl BluetoothInterface {
             let mut is_discovery = true;
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
-                if !active_listener.load(Ordering::SeqCst) {
+                if stop_requested.load(Ordering::SeqCst) {
                     active_scan.store(false, Ordering::SeqCst);
+                    stop_requested.store(false, Ordering::SeqCst);
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                     break;
@@ -369,6 +371,7 @@ impl BluetoothInterface {
             }
             res
         });
+        true
     }
 
     pub fn connect_to(&self, device: Path<'static>) {

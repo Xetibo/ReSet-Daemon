@@ -13,3 +13,4 @@ dbus-crossroads = "0.5.2"
 dbus-tokio = "0.7.6"
 tokio = { version = "1.33.0", features = ["rt", "time", "net", "macros", "rt-multi-thread", "sync"] }
 pulse = { version = "2.0", package = "libpulse-binding" }
+crossbeam = "0.8.2"

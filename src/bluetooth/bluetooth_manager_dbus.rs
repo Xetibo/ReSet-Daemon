@@ -4,7 +4,7 @@ use dbus::Path;
 use dbus_crossroads::Crossroads;
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
 
-use crate::{DaemonData, utils::BLUETOOTH};
+use crate::{utils::BLUETOOTH, DaemonData};
 
 use super::bluetooth_manager::{
     get_bluetooth_adapter, get_connections, set_adapter_discoverable, set_adapter_enabled,
@@ -23,7 +23,9 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.signal::<(), _>("PinCodeRequested", ());
         c.method_with_cr_async("StartBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-            let _ = data.b_interface.start_bluetooth_discovery(data.bluetooth_scan_active.clone());
+            let _ = data
+                .b_interface
+                .start_bluetooth_discovery(data.bluetooth_scan_active.clone());
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async("StopBluetoothScan", (), (), move |mut ctx, cross, ()| {
@@ -40,8 +42,12 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
                 let active_listener = data.bluetooth_listener_active.clone();
                 let active_scan = data.bluetooth_scan_active.clone();
-                data.b_interface
-                    .start_bluetooth_listener(active_listener, active_scan);
+                let stop_requested = data.bluetooth_stop_requested.clone();
+                data.b_interface.start_bluetooth_listener(
+                    active_listener,
+                    active_scan,
+                    stop_requested,
+                );
                 async move { ctx.reply(Ok(())) }
             },
         );
@@ -50,7 +56,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             (),
             (),
             move |_, d: &mut DaemonData, ()| {
-                d.bluetooth_listener_active.store(false, Ordering::SeqCst);
+                d.bluetooth_stop_requested.store(true, Ordering::SeqCst);
                 Ok(())
             },
         );
