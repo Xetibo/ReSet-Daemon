@@ -1,5 +1,5 @@
 # ReSet-Daemon
-This is the standalone daemon for [ReSet]().\
+This is the standalone daemon for [ReSet](https://github.com/Xetibo/ReSet).\
 It provides all functionality accessible within ReSet and can also be accessed by any other application via DBus.
 
 ## features
