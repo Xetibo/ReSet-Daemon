@@ -278,7 +278,7 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             ("result",),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let stop_requested = data.bluetooth_stop_requested.clone();
+                let stop_requested = data.network_stop_requested.clone();
                 async move {
                     stop_listener(stop_requested);
                     ctx.reply(Ok((true,)))
