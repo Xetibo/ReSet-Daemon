@@ -141,7 +141,7 @@ fn setup_base(
         c.method("APIVersion", (), ("api-version",), move |_, _, ()| {
             // let the client handle the mismatch -> e.g. they decide if they want to keep using
             // the current daemon or not.
-            Ok(("0.3.9",))
+            Ok(("0.7.1",))
         });
         c.method(
             "RegisterClient",
