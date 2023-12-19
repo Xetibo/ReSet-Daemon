@@ -350,21 +350,19 @@ impl BluetoothInterface {
                 proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
             active_scan.store(true, Ordering::SeqCst);
-            let mut is_discovery = true;
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
                 if stop_requested.load(Ordering::SeqCst) {
                     active_scan.store(false, Ordering::SeqCst);
+                    active_listener.store(false, Ordering::SeqCst);
                     stop_requested.store(false, Ordering::SeqCst);
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                     break;
-                } else if !is_discovery && active_scan.load(Ordering::SeqCst) {
-                    is_discovery = true;
+                } else if active_scan.load(Ordering::SeqCst) {
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
-                } else if is_discovery && !active_scan.load(Ordering::SeqCst) {
-                    is_discovery = false;
+                } else if !active_scan.load(Ordering::SeqCst) {
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                 }
