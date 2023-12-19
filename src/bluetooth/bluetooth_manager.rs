@@ -226,7 +226,7 @@ impl BluetoothInterface {
             return None;
         }
         let current_adapter = adapters.last().unwrap().clone();
-        let mut interface = Self {
+        Some(Self {
             adapters,
             current_adapter,
             devices: HashMap::new(),
@@ -234,9 +234,7 @@ impl BluetoothInterface {
             registered: false,
             in_discovery: Arc::new(AtomicBool::new(false)),
             connection: conn,
-        };
-        interface.set_bluetooth(true);
-        Some(interface)
+        })
     }
 
     pub fn start_bluetooth_listener(
@@ -411,21 +409,6 @@ impl BluetoothInterface {
             (),
             1000,
         )
-    }
-
-    pub fn set_bluetooth(&mut self, value: bool) {
-        let res = set_system_dbus_property(
-            "org.bluez",
-            self.current_adapter.clone(),
-            "org.bluez.Adapter1",
-            "Powered",
-            value,
-        );
-        if res.is_err() {
-            self.enabled = false;
-            return;
-        }
-        self.enabled = value;
     }
 
     pub fn register_agent(&mut self) -> bool {
