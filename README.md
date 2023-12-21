@@ -25,7 +25,4 @@ With potential advancements as a next project, due to this, no major development
 However, there is still a roadmap for this application.
 
 - Plugin System
-- Accessibility Features
 - Better Error handling
-- Customizable shortcuts
-- and more
