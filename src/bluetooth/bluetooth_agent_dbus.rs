@@ -132,7 +132,7 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             Ok(())
         });
         c.method("Release", (), (), move |_, d: &mut DaemonData, ()| {
-            println!("called release?");
+            println!("called release");
             d.bluetooth_agent.in_progress = false;
             Ok(())
         });
