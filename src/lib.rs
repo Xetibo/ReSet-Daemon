@@ -1,6 +1,7 @@
 pub mod api;
 mod audio;
 mod bluetooth;
+mod mock;
 mod network;
 mod tests;
 mod utils;
