@@ -8,7 +8,7 @@ use re_set_lib::{
 };
 
 use crate::{
-    utils::{get_wifi_status, WIRELESS},
+    utils::{get_wifi_status, CONSTANTS},
     DaemonData,
 };
 
@@ -18,7 +18,7 @@ use super::network_manager::{
 };
 
 pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    let token = cross.register(WIRELESS, |c| {
+    let token = cross.register(get_constants!().wireless, |c| {
         c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));

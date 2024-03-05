@@ -1,7 +1,8 @@
+use crate::utils::{Mode, CONSTANTS};
 #[allow(unused_imports)]
 use crate::{
     run_daemon,
-    utils::{AUDIO, BASE, BLUETOOTH, DBUS_PATH, WIRELESS},
+    utils::{AUDIO, BASE},
 };
 use dbus::{
     arg::{AppendAll, ReadAll},
@@ -37,7 +38,11 @@ fn call_session_dbus_method<
 ) -> Result<O, dbus::Error> {
     let conn = Connection::new_session();
     let conn = conn.unwrap();
-    let proxy = conn.with_proxy(BASE, DBUS_PATH, Duration::from_millis(2000));
+    let proxy = conn.with_proxy(
+        BASE,
+        get_constants!().dbus_path,
+        Duration::from_millis(2000),
+    );
     let result: Result<O, dbus::Error> = proxy.method_call(proxy_name, function, params);
     result
 }
@@ -47,7 +52,7 @@ fn setup() {
     if COUNTER.fetch_add(1, Ordering::SeqCst) < 1 {
         thread::spawn(|| {
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
-            rt.spawn(run_daemon());
+            rt.spawn(run_daemon(Mode::Test));
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }
@@ -78,7 +83,8 @@ async fn test_audio_listener() {
 async fn test_wireless_listener() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), ()>("StartNetworkListener", WIRELESS, ());
+    let res =
+        call_session_dbus_method::<(), ()>("StartNetworkListener", get_constants!().wireless, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -87,7 +93,11 @@ async fn test_wireless_listener() {
 async fn test_bluetooth_listener() {
     setup();
     thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(u32,), ()>("StartBluetoothListener", BLUETOOTH, (5,));
+    let res = call_session_dbus_method::<(u32,), ()>(
+        "StartBluetoothListener",
+        get_constants!().bluetooth,
+        (5,),
+    );
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }

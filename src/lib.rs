@@ -1,10 +1,12 @@
+#[macro_use]
+mod macros;
 pub mod api;
 mod audio;
 mod bluetooth;
 mod mock;
 mod network;
 mod tests;
-mod utils;
+pub mod utils;
 
 use std::{
     future::{self},
@@ -15,13 +17,13 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use re_set_lib::utils::call_system_dbus_method;
-use utils::{AudioRequest, AudioResponse, BASE};
+use utils::{setup_constants, AudioRequest, AudioResponse, Mode, BASE};
 
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
     bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
     network::network_manager_dbus::setup_wireless_manager,
-    utils::{DaemonData, DBUS_PATH},
+    utils::{DaemonData, CONSTANTS},
 };
 
 /// # Running the daemon as a library function
@@ -42,7 +44,11 @@ use crate::{
 /// tokio::task::spawn(run_daemon());
 /// // your other code here...
 /// ```
-pub async fn run_daemon() {
+pub async fn run_daemon(mode: Mode) {
+    let res = CONSTANTS.set(setup_constants(mode));
+    if res.is_err() {
+        panic!("Could not setup constants.");
+    }
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -106,7 +112,7 @@ pub async fn run_daemon() {
 
     features.push(setup_base(&mut cross, feature_strings));
 
-    cross.insert(DBUS_PATH, &features, data);
+    cross.insert(get_constants!().dbus_path, &features, data);
 
     // register bluetooth agent before start
     // will be uncommented when agent is fully functional

@@ -13,6 +13,7 @@ use dbus::{
     nonblock::SyncConnection,
     Path,
 };
+use once_cell::sync::{Lazy, OnceCell};
 use re_set_lib::{
     audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source},
     network::network_structures::Error,
@@ -26,9 +27,50 @@ use crate::{
     network::network_manager::{get_wifi_devices, Device},
 };
 
-pub const DBUS_PATH: &str = "/org/Xetibo/ReSet/Daemon";
-pub const WIRELESS: &str = "org.Xetibo.ReSet.Wireless";
-pub const BLUETOOTH: &str = "org.Xetibo.ReSet.Bluetooth";
+pub static CONSTANTS: OnceCell<ConstPaths> = OnceCell::new();
+
+pub fn setup_constants(mode: Mode) -> ConstPaths {
+    match mode {
+        Mode::Test => setup_constants_test(),
+        _ => setup_constants_regular(),
+    }
+}
+
+pub fn setup_constants_test() -> ConstPaths {
+    // TODO: add test options
+    ConstPaths {
+        dbus_path: "",
+        wireless: "",
+        bluetooth: "",
+        audio: "",
+        base: "",
+    }
+}
+
+pub fn setup_constants_regular() -> ConstPaths {
+    ConstPaths {
+        dbus_path: "/org/Xetibo/ReSet/Daemon",
+        wireless: "org.Xetibo.ReSet.Wireless",
+        bluetooth: "org.Xetibo.ReSet.Bluetooth",
+        audio: "org.Xetibo.ReSet.Audio",
+        base: "org.Xetibo.ReSet.Daemon",
+    }
+}
+
+pub enum Mode {
+    Test,
+    Debug,
+    Release,
+}
+
+pub struct ConstPaths {
+    pub dbus_path: &'static str,
+    pub wireless: &'static str,
+    pub bluetooth: &'static str,
+    pub audio: &'static str,
+    pub base: &'static str,
+}
+
 pub const AUDIO: &str = "org.Xetibo.ReSet.Audio";
 pub const BASE: &str = "org.Xetibo.ReSet.Daemon";
 
