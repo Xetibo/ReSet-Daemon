@@ -8,16 +8,19 @@ use crate::mock::{bluetooth::mock_bluetooth_interface, network::mock_network_int
 
 use super::{bluetooth::MockBluetoothData, network::MockNetworkData, variant::MockVariant};
 
-const MOCK_BASE: &str = "org.Xetibo.ReSet.Test";
-const MOCK_DBUS_PATH: &str = "/org/Xetibo/ReSet/Test";
-
-pub async fn start_mock_implementation_server(ready: AtomicBool) {
+pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
     }
-    let (_, conn) = res.unwrap();
-    conn.request_name(MOCK_BASE, false, true, false)
+    let (resource, conn) = res.unwrap();
+
+    let _handle = tokio::spawn(async {
+        let err = resource.await;
+        panic!("Lost connection to D-Bus: {}", err);
+    });
+
+    conn.request_name(BASE_TEST_INTERFACE!(), false, true, false)
         .await
         .unwrap();
     let mut cross = Crossroads::new();
@@ -34,7 +37,7 @@ pub async fn start_mock_implementation_server(ready: AtomicBool) {
     // load all plugin implementations
 
     cross.insert(
-        MOCK_DBUS_PATH,
+        DBUS_PATH_TEST!(),
         &mock_implementations,
         MockTestData {
             network_data: MockNetworkData::new(),
@@ -58,9 +61,9 @@ pub async fn start_mock_implementation_server(ready: AtomicBool) {
 }
 
 pub struct MockTestData {
-    network_data: MockNetworkData,
-    bluetooth_data: MockBluetoothData,
-    plugin_data: HashMap<String, MockVariant>,
+    pub network_data: MockNetworkData,
+    pub bluetooth_data: MockBluetoothData,
+    pub plugin_data: HashMap<String, MockVariant>,
 }
 
 unsafe impl Send for MockTestData {}

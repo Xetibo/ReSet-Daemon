@@ -23,7 +23,7 @@ use re_set_lib::{
     utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},
 };
 
-use crate::utils::{DaemonData, MaskedPropMap, CONSTANTS};
+use crate::utils::{DaemonData, MaskedPropMap};
 
 #[derive(Debug)]
 pub struct Device {
@@ -75,26 +75,26 @@ pub fn start_listener(
     let manager_ref = device.clone();
     let conn = Connection::new_system().unwrap();
     let access_point_added =
-        AccessPointAdded::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
+        AccessPointAdded::match_rule(Some(&NETWORK_INTERFACE!().into()), Some(&path))
             .static_clone();
     let access_point_removed =
-        AccessPointRemoved::match_rule(Some(&"org.freedesktop.NetworkManager".into()), Some(&path))
+        AccessPointRemoved::match_rule(Some(&NETWORK_INTERFACE!().into()), Some(&path))
             .static_clone();
     let mut access_point_changed = PropertiesPropertiesChanged::match_rule(
-        Some(&"org.freedesktop.NetworkManager".into()),
-        Some(&Path::from("/org/freedesktop/NetworkManager/AccessPoint")),
+        Some(&NETWORK_INTERFACE!().into()),
+        Some(&Path::from(NM_ACCESS_POINT_PATH!())),
     )
     .static_clone();
     access_point_changed.path_is_namespace = true;
     let mut wifi_device_event = PropertiesPropertiesChanged::match_rule(
-        Some(&"org.freedesktop.NetworkManager".into()),
-        Some(&Path::from("/org/freedesktop/NetworkManager/Devices")),
+        Some(&NM_INTERFACE!().into()),
+        Some(&Path::from(NM_DEVICES_PATH!())),
     )
     .static_clone();
     wifi_device_event.path_is_namespace = true;
     let active_connection_event = PropertiesPropertiesChanged::match_rule(
-        Some(&"org.freedesktop.NetworkManager".into()),
-        Some(&Path::from("/org/freedesktop/NetworkManager")),
+        Some(&NM_INTERFACE!().into()),
+        Some(&Path::from(NM_PATH!())),
     )
     .static_clone();
     let res = conn.add_match(
@@ -106,11 +106,11 @@ pub fn start_listener(
                 return true;
             }
             let path = msg.path().unwrap().to_string();
-            if path.contains("/org/freedesktop/NetworkManager/AccessPoint/") {
+            if path.contains(NM_ACCESS_POINT_PATH!()) {
                 let access_point = get_access_point_properties(Path::from(path));
                 let msg = Message::signal(
-                    &Path::from(get_constants!().dbus_path),
-                    &get_constants!().wireless.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &NETWORK_INTERFACE!().into(),
                     &"AccessPointChanged".into(),
                 )
                 .append1(access_point);
@@ -137,8 +137,8 @@ pub fn start_listener(
                     let mut device = device_ref.write().unwrap();
                     device.access_point = Some(parsed_access_point.clone());
                     let msg = Message::signal(
-                        &Path::from(get_constants!().dbus_path),
-                        &get_constants!().wireless.into(),
+                        &Path::from(DBUS_PATH!()),
+                        &NETWORK_INTERFACE!().into(),
                         &"WifiDeviceChanged".into(),
                     )
                     .append1(WifiDevice {
@@ -150,8 +150,8 @@ pub fn start_listener(
                 } else {
                     let device = device_ref.write().unwrap();
                     let msg = Message::signal(
-                        &Path::from(get_constants!().dbus_path),
-                        &get_constants!().wireless.into(),
+                        &Path::from(DBUS_PATH!()),
+                        &NETWORK_INTERFACE!().into(),
                         &"WifiDeviceChanged".into(),
                     )
                     .append1(WifiDevice {
@@ -200,8 +200,8 @@ pub fn start_listener(
     }
     let res = conn.add_match(access_point_added, move |ir: AccessPointAdded, _, _| {
         let msg = Message::signal(
-            &Path::from(get_constants!().dbus_path),
-            &get_constants!().wireless.into(),
+            &Path::from(DBUS_PATH!()),
+            &NETWORK_INTERFACE!().into(),
             &"AccessPointAdded".into(),
         )
         .append1(get_access_point_properties(ir.access_point));
@@ -216,8 +216,8 @@ pub fn start_listener(
     }
     let res = conn.add_match(access_point_removed, move |ir: AccessPointRemoved, _, _| {
         let msg = Message::signal(
-            &Path::from(get_constants!().dbus_path),
-            &get_constants!().wireless.into(),
+            &Path::from(DBUS_PATH!()),
+            &NETWORK_INTERFACE!().into(),
             &"AccessPointRemoved".into(),
         )
         .append1(ir.access_point);
@@ -251,25 +251,39 @@ pub fn stop_listener(stop_requested: Arc<AtomicBool>) {
 }
 
 pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
-    let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-        "org.freedesktop.NetworkManager",
-        Path::from("/org/freedesktop/NetworkManager"),
+    // let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
+    // dbus_method!(
+    //     interface,
+    //     Path::from(NM_PATH!()),
+    //     "GetAllDevices",
+    //     NM_INTERFACE!(),
+    //     (),
+    //     1000,
+    // );
+    println!("{}, {}", NM_INTERFACE!(), NM_PATH!());
+    let result = dbus_method!(
+        NM_INTERFACE_BASE!(),
+        Path::from(NM_PATH!()),
         "GetAllDevices",
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         (),
         1000,
+        Vec<Path<'static>>,
     );
+    dbg!(&result);
     if result.is_err() {
         println!("Error: Failed to retrieve network devices from NetworkManager.");
         return Vec::new();
     }
+    println!("THIS WORKED WOW!");
+    dbg!(&result);
     let (result,) = result.unwrap();
     let mut devices = Vec::new();
     for path in result {
         let name = get_system_dbus_property::<(), String>(
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
             path.clone(),
-            "org.freedesktop.NetworkManager.Device",
+            NM_DEVICE_INTERFACE!(),
             "Interface",
         );
         let device_type = get_device_type(path.to_string());
@@ -284,9 +298,9 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
 
 pub fn get_device_type(path: String) -> DeviceType {
     let result = get_system_dbus_property::<(String, String), u32>(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         Path::from(path),
-        "org.freedesktop.NetworkManager.Device",
+        NM_DEVICE_INTERFACE!(),
         "DeviceType",
     );
     if result.is_err() {
@@ -298,10 +312,10 @@ pub fn get_device_type(path: String) -> DeviceType {
 
 pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbus::MethodErr> {
     let res = call_system_dbus_method::<(), (HashMap<String, PropMap>,)>(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         path.clone(),
         "GetSettings",
-        "org.freedesktop.NetworkManager.Settings.Connection",
+        NM_SETTINGS_INTERFACE!(),
         (),
         1000,
     );
@@ -312,10 +326,10 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
     }
     let mut map = res.unwrap().0;
     let second_res = call_system_dbus_method::<(&str,), (HashMap<String, PropMap>,)>(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         path,
         "GetSecrets",
-        "org.freedesktop.NetworkManager.Settings.Connection",
+        NM_SETTINGS_INTERFACE!(),
         ("802-11-wireless-security",),
         1000,
     );
@@ -335,10 +349,10 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
 
 pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, PropMap>) -> bool {
     let result = call_system_dbus_method::<(HashMap<String, PropMap>,), ()>(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         path,
         "Update",
-        "org.freedesktop.NetworkManager.Settings.Connection",
+        NM_SETTINGS_INTERFACE!(),
         (settings,),
         1000,
     );
@@ -363,10 +377,10 @@ pub fn set_password(path: Path<'static>, password: String) {
         .unwrap()
         .insert("password".to_string(), Variant(password));
     let result = call_system_dbus_method::<(HashMap<String, PropMap>,), ()>(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         path,
         "Update",
-        "org.freedesktop.NetworkManager.Settings.Connection",
+        NM_SETTINGS_INTERFACE!(),
         (settings,),
         1000,
     );
@@ -376,10 +390,10 @@ pub fn set_password(path: Path<'static>, password: String) {
 #[allow(dead_code)]
 pub fn get_connection_secrets(path: Path<'static>) {
     let result = call_system_dbus_method::<(String,), (HashMap<String, PropMap>,)>(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         path,
         "GetSecrets",
-        "org.freedesktop.NetworkManager.Settings.Connection",
+        NM_SETTINGS_INTERFACE!(),
         ("802-11-wireless-security".to_string(),),
         1000,
     );
@@ -388,16 +402,19 @@ pub fn get_connection_secrets(path: Path<'static>) {
 }
 
 pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
-    let interface = "org.freedesktop.NetworkManager.AccessPoint";
     let conn = Connection::new_system().unwrap();
     let proxy = conn.with_proxy(
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         path.to_string(),
         Duration::from_millis(1000),
     );
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
-    let ssid: Vec<u8> = proxy.get(interface, "Ssid").unwrap_or_else(|_| Vec::new());
-    let strength: u8 = proxy.get(interface, "Strength").unwrap_or(130);
+    let ssid: Vec<u8> = proxy
+        .get(NM_ACCESS_POINT_INTERFACE!(), "Ssid")
+        .unwrap_or_else(|_| Vec::new());
+    let strength: u8 = proxy
+        .get(NM_ACCESS_POINT_INTERFACE!(), "Strength")
+        .unwrap_or(130);
     let mut associated_connection: Option<Path<'static>> = None;
     let connections = get_stored_connections();
     let mut stored: bool = false;
@@ -421,28 +438,19 @@ pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
 }
 
 pub fn get_active_connections() -> Vec<Path<'static>> {
-    let interface = "org.freedesktop.NetworkManager";
     let conn = Connection::new_system().unwrap();
-    let proxy = conn.with_proxy(
-        "org.freedesktop.NetworkManager",
-        "/org/freedesktop/NetworkManager".to_string(),
-        Duration::from_millis(1000),
-    );
+    let proxy = conn.with_proxy(NM_INTERFACE!(), NM_PATH!(), Duration::from_millis(1000));
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
-    let connections: Vec<Path<'static>> = proxy.get(interface, "ActiveConnections").unwrap();
+    let connections: Vec<Path<'static>> = proxy.get(NM_INTERFACE!(), "ActiveConnections").unwrap();
     connections
 }
 
 pub fn get_associations_of_active_connection(
     path: Path<'static>,
 ) -> (Vec<Path<'static>>, Option<AccessPoint>) {
-    let interface = "org.freedesktop.NetworkManager.Connection.Active";
+    let interface = NM_ACTIVE_CONNECTION_INTERFACE!();
     let conn = Connection::new_system().unwrap();
-    let proxy = conn.with_proxy(
-        "org.freedesktop.NetworkManager",
-        path,
-        Duration::from_millis(1000),
-    );
+    let proxy = conn.with_proxy(NM_INTERFACE!(), path, Duration::from_millis(1000));
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
     let connection: Path<'static> = proxy
         .get(interface, "Connection")
@@ -469,9 +477,9 @@ pub fn get_associations_of_active_connection(
 
 pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
     let result = set_system_dbus_property(
-        "org.freedesktop.NetworkManager",
-        Path::from("/org/freedesktop/NetworkManager"),
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
+        Path::from(NM_PATH!()),
+        NM_INTERFACE!(),
         "WirelessEnabled",
         enabled,
     );
@@ -491,10 +499,10 @@ pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
 
 pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
     let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-        "org.freedesktop.NetworkManager",
-        Path::from("/org/freedesktop/NetworkManager/Settings"),
+        NM_INTERFACE!(),
+        Path::from(NM_SETTINGS_PATH!()),
         "ListConnections",
-        "org.freedesktop.NetworkManager.Settings",
+        NM_SETTINGS_INTERFACE!(),
         (),
         1000,
     );
@@ -519,10 +527,10 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
 
 pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), ConnectionError> {
     let result = call_system_dbus_method::<(Path<'static>,), ()>(
-        "org.freedesktop.NetworkManager",
-        Path::from("/org/freedesktop/NetworkManager"),
+        NM_INTERFACE!(),
+        Path::from(NM_PATH!()),
         "DeactivateConnection",
-        "org.freedesktop.NetworkManager",
+        NM_INTERFACE!(),
         (connection,),
         1000,
     );
@@ -549,10 +557,10 @@ impl Device {
 
     pub fn request_scan(&self) {
         let _ = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
             self.dbus_path.clone(),
             "RequestScan",
-            "org.freedesktop.NetworkManager.Device.Wireless",
+            NM_DEVICE_INTERFACE!(),
             (),
             1000,
         );
@@ -560,10 +568,10 @@ impl Device {
 
     pub fn get_access_points(&self) -> Vec<AccessPoint> {
         let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
             self.dbus_path.clone(),
             "GetAllAccessPoints",
-            "org.freedesktop.NetworkManager.Device.Wireless",
+            NM_DEVICE_INTERFACE!(),
             (),
             1000,
         );
@@ -591,10 +599,10 @@ impl Device {
         if self.dbus_path.is_empty() {
             return;
         }
-        let interface = "org.freedesktop.NetworkManager.Device.Wireless";
+        let interface = NM_DEVICE_INTERFACE!();
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy(
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
             self.dbus_path.clone(),
             Duration::from_millis(1000),
         );
@@ -616,10 +624,10 @@ impl Device {
             (Path<'static>, Path<'static>, Path<'static>),
             (Path<'static>,),
         >(
-            "org.freedesktop.NetworkManager",
-            Path::from("/org/freedesktop/NetworkManager"),
+            NM_INTERFACE!(),
+            Path::from(NM_PATH!()),
             "ActivateConnection",
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
             (
                 access_point.associated_connection,
                 self.dbus_path.clone(),
@@ -636,9 +644,9 @@ impl Device {
         let mut result = 1;
         while result == 1 {
             let res = get_system_dbus_property::<(), u32>(
-                "org.freedesktop.NetworkManager",
+                NM_INTERFACE!(),
                 res.0.clone(),
-                "org.freedesktop.NetworkManager.Connection.Active",
+                NM_ACTIVE_CONNECTION_INTERFACE!(),
                 "State",
             );
             if res.is_err() {
@@ -679,12 +687,12 @@ impl Device {
             .insert("psk".to_string(), Variant(password));
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy(
-            "org.freedesktop.NetworkManager",
-            Path::from("/org/freedesktop/NetworkManager"),
+            NM_INTERFACE!(),
+            Path::from(NM_PATH!()),
             Duration::from_millis(1000),
         );
         let result: Result<(Path<'static>, Path<'static>), dbus::Error> = proxy.method_call(
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
             "AddAndActivateConnection",
             (
                 properties,
@@ -697,9 +705,9 @@ impl Device {
             let mut result = 1;
             while result == 1 {
                 let res = get_system_dbus_property::<(), u32>(
-                    "org.freedesktop.NetworkManager",
+                    NM_INTERFACE!(),
                     connection.clone(),
-                    "org.freedesktop.NetworkManager.Connection.Active",
+                    NM_ACTIVE_CONNECTION_INTERFACE!(),
                     "State",
                 );
                 if res.is_err() {
@@ -730,9 +738,9 @@ impl Device {
             });
         }
         let res = get_system_dbus_property::<(), Vec<Path<'static>>>(
-            "org.freedesktop.NetworkManager",
-            Path::from("/org/freedesktop/NetworkManager"),
-            "org.freedesktop.NetworkManager",
+            NM_INTERFACE!(),
+            Path::from(NM_PATH!()),
+            NM_INTERFACE!(),
             "ActiveConnections",
         );
         if res.is_err() {

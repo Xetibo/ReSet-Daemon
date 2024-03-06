@@ -20,7 +20,7 @@ use pulse::{
 };
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
 
-use crate::utils::{AUDIO, CONSTANTS};
+use crate::utils::AUDIO;
 use crate::{AudioRequest, AudioResponse};
 
 pub struct PulseServer {
@@ -792,13 +792,21 @@ impl PulseServer {
 fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operation) {
     match operation {
         Operation::New => {
-            let msg = Message::signal(&Path::from(get_constants!().dbus_path), &AUDIO.into(), &"SinkAdded".into())
-                .append1(sink);
+            let msg = Message::signal(
+                &Path::from(DBUS_PATH!()),
+                &AUDIO.into(),
+                &"SinkAdded".into(),
+            )
+            .append1(sink);
             let _ = conn.send(msg);
         }
         Operation::Changed => {
-            let msg = Message::signal(&Path::from(get_constants!().dbus_path), &AUDIO.into(), &"SinkChanged".into())
-                .append1(sink);
+            let msg = Message::signal(
+                &Path::from(DBUS_PATH!()),
+                &AUDIO.into(),
+                &"SinkChanged".into(),
+            )
+            .append1(sink);
             let _ = conn.send(msg);
         }
         Operation::Removed => (),
@@ -806,21 +814,29 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
 }
 
 fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
-    let msg = Message::signal(&Path::from(get_constants!().dbus_path), &AUDIO.into(), &"SinkRemoved".into())
-        .append1(index);
+    let msg = Message::signal(
+        &Path::from(DBUS_PATH!()),
+        &AUDIO.into(),
+        &"SinkRemoved".into(),
+    )
+    .append1(index);
     let _ = conn.send(msg);
 }
 
 fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: Operation) {
     match operation {
         Operation::New => {
-            let msg = Message::signal(&Path::from(get_constants!().dbus_path), &AUDIO.into(), &"SourceAdded".into())
-                .append1(source);
+            let msg = Message::signal(
+                &Path::from(DBUS_PATH!()),
+                &AUDIO.into(),
+                &"SourceAdded".into(),
+            )
+            .append1(source);
             let _ = conn.send(msg);
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from(get_constants!().dbus_path),
+                &Path::from(DBUS_PATH!()),
                 &AUDIO.into(),
                 &"SourceChanged".into(),
             )
@@ -833,7 +849,7 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
 
 fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from(get_constants!().dbus_path),
+        &Path::from(DBUS_PATH!()),
         &AUDIO.into(),
         &"SourceRemoved".into(),
     )
@@ -849,7 +865,7 @@ fn handle_input_stream_events(
     match operation {
         Operation::New => {
             let msg = Message::signal(
-                &Path::from(get_constants!().dbus_path),
+                &Path::from(DBUS_PATH!()),
                 &AUDIO.into(),
                 &"InputStreamAdded".into(),
             )
@@ -858,7 +874,7 @@ fn handle_input_stream_events(
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from(get_constants!().dbus_path),
+                &Path::from(DBUS_PATH!()),
                 &AUDIO.into(),
                 &"InputStreamChanged".into(),
             )
@@ -871,7 +887,7 @@ fn handle_input_stream_events(
 
 fn handle_input_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from(get_constants!().dbus_path),
+        &Path::from(DBUS_PATH!()),
         &AUDIO.into(),
         &"InputStreamRemoved".into(),
     )
@@ -887,7 +903,7 @@ fn handle_output_stream_events(
     match operation {
         Operation::New => {
             let msg = Message::signal(
-                &Path::from(get_constants!().dbus_path),
+                &Path::from(DBUS_PATH!()),
                 &AUDIO.into(),
                 &"OutputStreamAdded".into(),
             )
@@ -896,7 +912,7 @@ fn handle_output_stream_events(
         }
         Operation::Changed => {
             let msg = Message::signal(
-                &Path::from(get_constants!().dbus_path),
+                &Path::from(DBUS_PATH!()),
                 &AUDIO.into(),
                 &"OutputStreamChanged".into(),
             )
@@ -909,7 +925,7 @@ fn handle_output_stream_events(
 
 fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     let msg = Message::signal(
-        &Path::from(get_constants!().dbus_path),
+        &Path::from(DBUS_PATH!()),
         &AUDIO.into(),
         &"OutputStreamRemoved".into(),
     )

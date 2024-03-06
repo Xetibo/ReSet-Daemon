@@ -17,13 +17,12 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection::{self};
 use re_set_lib::utils::call_system_dbus_method;
-use utils::{setup_constants, AudioRequest, AudioResponse, Mode, BASE};
+use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
     bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
-    network::network_manager_dbus::setup_wireless_manager,
-    utils::{DaemonData, CONSTANTS},
+    network::network_manager_dbus::setup_wireless_manager, utils::DaemonData,
 };
 
 /// # Running the daemon as a library function
@@ -44,11 +43,7 @@ use crate::{
 /// tokio::task::spawn(run_daemon());
 /// // your other code here...
 /// ```
-pub async fn run_daemon(mode: Mode) {
-    let res = CONSTANTS.set(setup_constants(mode));
-    if res.is_err() {
-        panic!("Could not setup constants.");
-    }
+pub async fn run_daemon() {
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -112,7 +107,7 @@ pub async fn run_daemon(mode: Mode) {
 
     features.push(setup_base(&mut cross, feature_strings));
 
-    cross.insert(get_constants!().dbus_path, &features, data);
+    cross.insert(DBUS_PATH!(), &features, data);
 
     // register bluetooth agent before start
     // will be uncommented when agent is fully functional

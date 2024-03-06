@@ -5,17 +5,21 @@ use re_set_lib::network::network_structures::AccessPoint;
 
 use super::mock_dbus::MockTestData;
 
-const MOCK_NETWORKMANAGER: &str = "org.Xetibo.ReSet.Test.Network";
-const MOCK_NETWORKSETTINGS: &str = "org.Xetibo.ReSet.Test.Settings";
-const MOCK_DEVICES: &str = "org.Xetibo.ReSet.Test.Devices";
-const MOCK_ACCESSPOINTS: &str = "org.Xetibo.ReSet.Test.AccessPoints";
-const MOCK_ACTIVEACCESSPOINT: &str = "org.Xetibo.ReSet.Test.ActiveAccessPoint";
-
 pub fn mock_network_interface(
     cross: &mut Crossroads,
 ) -> Vec<dbus_crossroads::IfaceToken<MockTestData>> {
     let mut tokens = Vec::new();
-    tokens.push(cross.register(MOCK_NETWORKMANAGER, |c| {
+    tokens.push(cross.register(NM_INTERFACE!(), |c| {
+        c.method_with_cr_async(
+            "GetAllDevices",
+            (),
+            ("devices",),
+            move |mut ctx, cross, ()| {
+                let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
+                let devices = data.network_data.devices.clone();
+                async move { ctx.reply(Ok((devices,))) }
+            },
+        );
         c.method_with_cr_async(
             "AddAndActivateConnection",
             ("connection", "device", "specific_object"),
@@ -34,7 +38,34 @@ pub fn mock_network_interface(
             },
         );
     }));
-    tokens.push(cross.register(MOCK_NETWORKSETTINGS, |c| {
+    tokens.push(cross.register(NM_SETTINGS_INTERFACE!(), |c| {
+        c.method_with_cr_async("Test", (), (), move |mut ctx, _, ()| async move {
+            ctx.reply(Ok(()))
+        });
+        c.method_with_cr_async(
+            "ListConnections",
+            (),
+            ("connections",),
+            move |mut ctx, cross, ()| {
+                let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
+                let connections = data.network_data.connections.clone();
+                async move { ctx.reply(Ok((connections,))) }
+            },
+        );
+    }));
+    tokens.push(cross.register(NM_DEVICE_INTERFACE!(), |c| {
+        c.method_with_cr_async(
+            "GetAllAccessPoints",
+            (),
+            ("access_points",),
+            move |mut ctx, cross, ()| {
+                let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
+                let connections = data.network_data.access_points.clone();
+                async move { ctx.reply(Ok((connections,))) }
+            },
+        );
+    }));
+    tokens.push(cross.register(NM_ACCESS_POINT_INTERFACE!(), |c| {
         c.method_with_cr_async(
             "AddAndActivateConnection",
             ("connection",),
@@ -46,31 +77,7 @@ pub fn mock_network_interface(
             },
         );
     }));
-    tokens.push(cross.register(MOCK_DEVICES, |c| {
-        c.method_with_cr_async(
-            "AddAndActivateConnection",
-            ("connection",),
-            ("path",),
-            move |mut ctx, _, (connection,): (Path<'static>,)| async move {
-                // noop
-                let path = Path::from("/");
-                ctx.reply(Ok((path,)))
-            },
-        );
-    }));
-    tokens.push(cross.register(MOCK_ACCESSPOINTS, |c| {
-        c.method_with_cr_async(
-            "AddAndActivateConnection",
-            ("connection",),
-            ("path",),
-            move |mut ctx, _, (connection,): (Path<'static>,)| async move {
-                // noop
-                let path = Path::from("/");
-                ctx.reply(Ok((path,)))
-            },
-        );
-    }));
-    tokens.push(cross.register(MOCK_ACTIVEACCESSPOINT, |c| {
+    tokens.push(cross.register(NM_ACTIVE_CONNECTION_INTERFACE!(), |c| {
         c.method_with_cr_async(
             "AddAndActivateConnection",
             ("connection",),
@@ -86,16 +93,32 @@ pub fn mock_network_interface(
 }
 
 pub struct MockNetworkData {
-    access_points: Vec<AccessPoint>,
-    devices: Vec<Device>,
+    access_points: Vec<Path<'static>>,
+    devices: Vec<Path<'static>>,
+    current_device: Device,
+    connections: Vec<Path<'static>>,
 }
 
 impl MockNetworkData {
     pub fn new() -> Self {
         // TODO: add data for tests
         MockNetworkData {
-            access_points: Vec::new(),
-            devices: Vec::new(),
+            access_points: vec![
+                Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/AccessPoint1"),
+                Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/AccessPoint2"),
+                Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/AccessPoint3"),
+            ],
+            devices: vec![
+                Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/Device1"),
+                Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/Device2"),
+                Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/Device3"),
+            ],
+            current_device: Device::new(Path::from("/"), "none".to_string()),
+            connections: vec![
+                Path::from(NM_DEVICES_PATH!().to_string() + "/Connection1"),
+                Path::from(NM_DEVICES_PATH!().to_string() + "/Connection2"),
+                Path::from(NM_DEVICES_PATH!().to_string() + "/Connection3"),
+            ],
         }
     }
 }

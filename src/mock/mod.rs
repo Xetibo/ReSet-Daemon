@@ -1,5 +1,5 @@
 mod bluetooth;
+pub mod mock_dbus;
 mod network;
 mod sound;
-mod mock_dbus;
 mod variant;

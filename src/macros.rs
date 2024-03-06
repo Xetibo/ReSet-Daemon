@@ -1,23 +1,245 @@
-// #[cfg(test)]
-// macro_rules! CONSTANTS {
-//     () => {
-//         pub const DBUS_PATH: &str = "/org/Xetibo/ReSet/Test";
-//         pub const WIRELESS: &str = "org.Xetibo.ReSet.Test.Network";
-//         pub const BLUETOOTH: &str = "org.Xetibo.ReSet.Test.Bluetooth";
-//     };
-// }
-//
-// #[cfg(debug_assertions)]
-// macro_rules! CONSTANTS {
-//     () => {
-//         pub const DBUS_PATH: &str = "/org/Xetibo/ReSet/Test";
-//         pub const WIRELESS: &str = "org.Xetibo.ReSet.Test.Network";
-//         pub const BLUETOOTH: &str = "org.Xetibo.ReSet.Test.Bluetooth";
-//     };
-// }
-
-macro_rules! get_constants {
+macro_rules! DBUS_PATH {
     () => {
-        CONSTANTS.get().unwrap()
+        "/org/Xetibo/ReSet/Daemon"
     };
+}
+
+macro_rules! DBUS_PATH_TEST {
+    () => {
+        "/org/Xetibo/ReSet/Test"
+    };
+}
+
+macro_rules! NETWORK_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Network"
+    };
+}
+
+macro_rules! NETWORK_TEST_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Network"
+    };
+}
+
+macro_rules! BLUETOOTH_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Bluetooth"
+    };
+}
+
+macro_rules! BLUETOOTH_TEST_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Bluetooth"
+    };
+}
+
+macro_rules! AUDIO_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Audio"
+    };
+}
+
+macro_rules! AUDIO_TEST_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Audio"
+    };
+}
+
+macro_rules! BASE_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Daemon"
+    };
+}
+
+macro_rules! BASE_TEST_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test"
+    };
+}
+
+macro_rules! NM_INTERFACE_BASE {
+    () => {
+        "org.freedesktop.NetworkManager"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_INTERFACE_BASE {
+    () => {
+        "org.Xetibo.ReSet.Test"
+    };
+}
+
+macro_rules! NM_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager"
+    };
+}
+
+macro_rules! NM_SETTINGS_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.Settings.Connection"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_SETTINGS_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.Settings"
+    };
+}
+
+macro_rules! NM_INTERFACE_TEST {
+    () => {
+        "org.freedesktop.NetworkManager.Settings.Connection"
+    };
+}
+
+macro_rules! NM_DEVICE_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.Device.Wireless"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_DEVICE_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.Device"
+    };
+}
+
+macro_rules! NM_ACCESS_POINT_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.AcessPoint"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_ACCESS_POINT_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.AccessPoint"
+    };
+}
+
+macro_rules! NM_ACTIVE_CONNECTION_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.Connection.Active"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_ACTIVE_CONNECTION_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.ActiveConnection"
+    };
+}
+
+macro_rules! NM_PATH {
+    () => {
+        "/org/freedesktop/NetworkManager"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_PATH {
+    () => {
+        "/org/Xetibo/ReSet/Test"
+    };
+}
+
+macro_rules! NM_SETTINGS_PATH {
+    () => {
+        "/org/freedesktop/NetworkManager/Settings"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_SETTINGS_PATH {
+    () => {
+        "/org/Xetibo/ReSet/Test"
+    };
+}
+
+macro_rules! NM_DEVICES_PATH {
+    () => {
+        "/org/freedesktop/NetworkManager/Devices"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_DEVICES_PATH {
+    () => {
+        "/org/Xetibo/ReSet/Test"
+    };
+}
+
+macro_rules! NM_ACCESS_POINT_PATH {
+    () => {
+        "/org/freedesktop/NetworkManager/AcessPoint/"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_ACCESS_POINT_PATH {
+    () => {
+        "/org/Xetibo/ReSet/Test"
+    };
+}
+
+macro_rules! NM_ACTIVE_CONNECTION_PATH {
+    () => {
+        "/org/freedesktop/NetworkManager/ActiveConnection/"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_ACTIVE_CONNECTION_PATH {
+    () => {
+        "/org/Xetibo/ReSet/Test"
+    };
+}
+
+macro_rules! dbus_method {
+    (
+    $name:expr,
+    $object:expr,
+    $function:expr,
+    $proxy_name:expr,
+    $params:expr,
+    $time:expr,
+    $output:ty,
+) => {{
+        let conn = Connection::new_system().unwrap();
+        let proxy = conn.with_proxy($name, $object, Duration::from_millis($time));
+        let result: Result<($output,), dbus::Error> =
+            proxy.method_call($proxy_name, $function, $params);
+        result
+    }};
+}
+
+#[cfg(test)]
+macro_rules! dbus_method {
+    (
+    $name:expr,
+    $object:expr,
+    $function:expr,
+    $proxy_name:expr,
+    $params:expr,
+    $time:expr,
+    $output:ty,
+) => {{
+        let conn = Connection::new_session().unwrap();
+        let proxy = conn.with_proxy($name, $object, Duration::from_millis($time));
+        let result: Result<($output,), dbus::Error> =
+            proxy.method_call($proxy_name, $function, $params);
+        result
+    }};
 }
