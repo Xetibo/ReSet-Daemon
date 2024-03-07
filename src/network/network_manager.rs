@@ -1,10 +1,8 @@
 use std::{
-    collections::HashMap,
-    sync::{
+    collections::HashMap, sync::{
         atomic::{AtomicBool, Ordering},
         Arc, RwLock,
-    },
-    time::{Duration, SystemTime},
+    }, thread, time::{Duration, SystemTime}
 };
 
 use dbus::{
@@ -251,16 +249,6 @@ pub fn stop_listener(stop_requested: Arc<AtomicBool>) {
 }
 
 pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
-    // let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-    // dbus_method!(
-    //     interface,
-    //     Path::from(NM_PATH!()),
-    //     "GetAllDevices",
-    //     NM_INTERFACE!(),
-    //     (),
-    //     1000,
-    // );
-    println!("{}, {}", NM_INTERFACE!(), NM_PATH!());
     let result = dbus_method!(
         NM_INTERFACE_BASE!(),
         Path::from(NM_PATH!()),
@@ -275,16 +263,15 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
         println!("Error: Failed to retrieve network devices from NetworkManager.");
         return Vec::new();
     }
-    println!("THIS WORKED WOW!");
-    dbg!(&result);
     let (result,) = result.unwrap();
     let mut devices = Vec::new();
     for path in result {
-        let name = get_system_dbus_property::<(), String>(
-            NM_INTERFACE!(),
+        let name = dbus_property!(
+            NM_INTERFACE_BASE!(),
             path.clone(),
             NM_DEVICE_INTERFACE!(),
             "Interface",
+            String,
         );
         let device_type = get_device_type(path.to_string());
         if device_type == DeviceType::WIFI {
@@ -297,12 +284,16 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
 }
 
 pub fn get_device_type(path: String) -> DeviceType {
-    let result = get_system_dbus_property::<(String, String), u32>(
-        NM_INTERFACE!(),
+    println!("{}", path);
+    let result = dbus_property!(
+        NM_INTERFACE_BASE!(),
         Path::from(path),
         NM_DEVICE_INTERFACE!(),
         "DeviceType",
+        u32,
     );
+    dbg!(&result);
+
     if result.is_err() {
         return DeviceType::DUMMY;
     }
@@ -402,9 +393,9 @@ pub fn get_connection_secrets(path: Path<'static>) {
 }
 
 pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
-    let conn = Connection::new_system().unwrap();
+    let conn = dbus_connection!();
     let proxy = conn.with_proxy(
-        NM_INTERFACE!(),
+        NM_INTERFACE_BASE!(),
         path.to_string(),
         Duration::from_millis(1000),
     );
@@ -438,19 +429,22 @@ pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
 }
 
 pub fn get_active_connections() -> Vec<Path<'static>> {
-    let conn = Connection::new_system().unwrap();
-    let proxy = conn.with_proxy(NM_INTERFACE!(), NM_PATH!(), Duration::from_millis(1000));
-    use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
-    let connections: Vec<Path<'static>> = proxy.get(NM_INTERFACE!(), "ActiveConnections").unwrap();
-    connections
+    dbus_property!(
+        NM_INTERFACE_BASE!(),
+        NM_PATH!(),
+        NM_INTERFACE!(),
+        "ActiveConnections",
+        Vec<Path<'static>>,
+    )
+    .unwrap()
 }
 
 pub fn get_associations_of_active_connection(
     path: Path<'static>,
 ) -> (Vec<Path<'static>>, Option<AccessPoint>) {
     let interface = NM_ACTIVE_CONNECTION_INTERFACE!();
-    let conn = Connection::new_system().unwrap();
-    let proxy = conn.with_proxy(NM_INTERFACE!(), path, Duration::from_millis(1000));
+    let conn = dbus_connection!();
+    let proxy = conn.with_proxy(NM_INTERFACE_BASE!(), path, Duration::from_millis(1000));
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
     let connection: Path<'static> = proxy
         .get(interface, "Connection")
@@ -477,7 +471,7 @@ pub fn get_associations_of_active_connection(
 
 pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
     let result = set_system_dbus_property(
-        NM_INTERFACE!(),
+        NM_INTERFACE_BASE!(),
         Path::from(NM_PATH!()),
         NM_INTERFACE!(),
         "WirelessEnabled",
@@ -498,13 +492,14 @@ pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
 }
 
 pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
-    let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-        NM_INTERFACE!(),
+    let result = dbus_method!(
+        NM_INTERFACE_BASE!(),
         Path::from(NM_SETTINGS_PATH!()),
         "ListConnections",
         NM_SETTINGS_INTERFACE!(),
         (),
         1000,
+        Vec<Path<'static>>,
     );
     let (result,) = result.unwrap();
     let mut wifi_connections = Vec::new();
@@ -567,14 +562,17 @@ impl Device {
     }
 
     pub fn get_access_points(&self) -> Vec<AccessPoint> {
-        let result = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
-            NM_INTERFACE!(),
+        println!("{}\n{}\n{}", self.dbus_path.clone(), NM_INTERFACE_BASE!(), NM_DEVICE_INTERFACE!());
+        let result = dbus_method!(
+            NM_INTERFACE_BASE!(),
             self.dbus_path.clone(),
             "GetAllAccessPoints",
             NM_DEVICE_INTERFACE!(),
             (),
             1000,
+            Vec<Path<'static>>,
         );
+        dbg!(&result);
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
         let mut known_points = HashMap::new();
@@ -591,6 +589,7 @@ impl Device {
             known_points.insert(access_point.ssid.clone(), 0);
             access_points.push(access_point);
         }
+        dbg!(&access_points);
         access_points
     }
 

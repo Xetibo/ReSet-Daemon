@@ -4,7 +4,7 @@ use dbus::{channel::MatchingReceiver, message::MatchRule};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 
-use crate::mock::{bluetooth::mock_bluetooth_interface, network::mock_network_interface};
+use crate::mock::{bluetooth::mock_bluetooth_interface, network::mock_network_manager};
 
 use super::{bluetooth::MockBluetoothData, network::MockNetworkData, variant::MockVariant};
 
@@ -31,8 +31,15 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
         }),
     )));
 
-    let mut mock_implementations = mock_network_interface(&mut cross);
+    // let mut mock_implementations = mock_network_interface(&mut cross);
+    let mut mock_implementations = Vec::new();
+    let mock_network_manager = mock_network_manager(&mut cross);
     mock_implementations.push(mock_bluetooth_interface(&mut cross));
+    mock_implementations.push(mock_network_manager.network_manager_base);
+    mock_implementations.push(mock_network_manager.network_manager_settings);
+    // mock_implementations.push(mock_network_manager.network_manager_active_connection);
+    // mock_implementations.push(mock_network_manager.network_manager_base);
+    // mock_implementations.push(mock_network_manager.network_manager_base);
     // mock_sound_interface(&mut cross),
     // load all plugin implementations
 
@@ -40,7 +47,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
         DBUS_PATH_TEST!(),
         &mock_implementations,
         MockTestData {
-            network_data: MockNetworkData::new(),
+            network_data: mock_network_manager.network_manager_data, 
             bluetooth_data: MockBluetoothData::new(),
             plugin_data: HashMap::new(),
         },

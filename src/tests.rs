@@ -50,9 +50,13 @@ fn call_session_dbus_method<
 fn setup() {
     if COUNTER.fetch_add(1, Ordering::SeqCst) < 1 {
         thread::spawn(|| {
+            let rt2 = runtime::Runtime::new().expect("Failed to create runtime");
+            rt2.spawn(start_mock_implementation_server(&READY));
+            while !READY.load(Ordering::SeqCst) {
+                hint::spin_loop();
+            }
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
             rt.spawn(run_daemon());
-            rt.spawn(start_mock_implementation_server(&READY));
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }
@@ -85,7 +89,7 @@ async fn test_mock_connection() {
         DBUS_PATH_TEST!(),
         Duration::from_millis(2000),
     );
-    let res: Result<(), dbus::Error> = proxy.method_call(NM_SETTINGS_INTERFACE!(), "Test", ());
+    let res: Result<(), dbus::Error> = proxy.method_call(NM_INTERFACE!(), "Test", ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
@@ -94,24 +98,25 @@ async fn test_mock_connection() {
 // tests receiving a list of connections through both the mock implementation and the ReSet Daemon
 async fn test_list_connections() {
     setup();
-    while !READY.load(Ordering::SeqCst) {
-        hint::spin_loop();
-    }
-    thread::sleep(Duration::from_millis(1000));
-    let res = call_session_dbus_method::<(), (Vec<AccessPoint>,)>(
+    thread::sleep(Duration::from_millis(4000));
+    // loop {}
+    // let res = call_session_dbus_method::<(), (Vec<Path<'static>>,)>(
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
+        10000,
+        Vec<AccessPoint>,
     );
+    dbg!(&res);
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
+    assert!(!res.unwrap().0.is_empty());
     // assert_eq!(
     //     res.unwrap().0,
-    //     vec![
-    //         Path::from(NM_SETTINGS_PATH!().to_string() + "/Connection1"),
-    //         Path::from(NM_SETTINGS_PATH!().to_string() + "/Connection2"),
-    //         Path::from(NM_SETTINGS_PATH!().to_string() + "/Connection3")
-    //     ]
+    //     vec![Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/2")]
     // );
 }
 

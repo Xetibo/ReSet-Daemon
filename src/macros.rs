@@ -99,7 +99,7 @@ macro_rules! NM_SETTINGS_INTERFACE {
 
 macro_rules! NM_INTERFACE_TEST {
     () => {
-        "org.freedesktop.NetworkManager.Settings.Connection"
+        "org.Xetibo.ReSet.Network"
     };
 }
 
@@ -177,7 +177,7 @@ macro_rules! NM_DEVICES_PATH {
 #[cfg(test)]
 macro_rules! NM_DEVICES_PATH {
     () => {
-        "/org/Xetibo/ReSet/Test"
+        "/org/Xetibo/ReSet/Test/Devices"
     };
 }
 
@@ -190,7 +190,7 @@ macro_rules! NM_ACCESS_POINT_PATH {
 #[cfg(test)]
 macro_rules! NM_ACCESS_POINT_PATH {
     () => {
-        "/org/Xetibo/ReSet/Test"
+        "/org/Xetibo/ReSet/Test/Devices"
     };
 }
 
@@ -242,4 +242,52 @@ macro_rules! dbus_method {
             proxy.method_call($proxy_name, $function, $params);
         result
     }};
+}
+
+macro_rules! dbus_property {
+    (
+    $name:expr,
+    $object:expr,
+    $interface:expr,
+    $property:expr,
+    $output:ty,
+) => {{
+        let conn = Connection::new_system().unwrap();
+        let proxy = conn.with_proxy($name, $object, Duration::from_millis(1000));
+        use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
+
+        let result: Result<$output, dbus::Error> = proxy.get($interface, $property);
+        result
+    }};
+}
+
+#[cfg(test)]
+macro_rules! dbus_property {
+    (
+    $name:expr,
+    $object:expr,
+    $interface:expr,
+    $property:expr,
+    $output:ty,
+) => {{
+        let conn = Connection::new_session().unwrap();
+        let proxy = conn.with_proxy($name, $object, Duration::from_millis(1000));
+        use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
+
+        let result: Result<$output, dbus::Error> = proxy.get($interface, $property);
+        result
+    }};
+}
+
+macro_rules! dbus_connection {
+    () => {
+        Connection::new_system().unwrap()
+    }
+}
+
+#[cfg(test)]
+macro_rules! dbus_connection {
+    () => {
+        Connection::new_session().unwrap()
+    }
 }
