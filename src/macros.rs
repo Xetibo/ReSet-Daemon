@@ -219,7 +219,7 @@ macro_rules! dbus_method {
 ) => {{
         let conn = Connection::new_system().unwrap();
         let proxy = conn.with_proxy($name, $object, Duration::from_millis($time));
-        let result: Result<($output,), dbus::Error> =
+        let result: Result<$output, dbus::Error> =
             proxy.method_call($proxy_name, $function, $params);
         result
     }};
@@ -238,7 +238,7 @@ macro_rules! dbus_method {
 ) => {{
         let conn = Connection::new_session().unwrap();
         let proxy = conn.with_proxy($name, $object, Duration::from_millis($time));
-        let result: Result<($output,), dbus::Error> =
+        let result: Result<$output, dbus::Error> =
             proxy.method_call($proxy_name, $function, $params);
         result
     }};

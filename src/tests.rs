@@ -7,13 +7,11 @@ use crate::{
 use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
-    Path,
 };
-#[cfg(test)]
-use re_set_lib::audio::audio_structures::Sink;
+
 #[allow(unused_imports)]
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
-use re_set_lib::{network::network_structures::AccessPoint, utils::DBUS_PATH};
+
 use std::{
     hint,
     sync::{
@@ -98,26 +96,69 @@ async fn test_mock_connection() {
 // tests receiving a list of connections through both the mock implementation and the ReSet Daemon
 async fn test_list_connections() {
     setup();
-    thread::sleep(Duration::from_millis(4000));
-    // loop {}
-    // let res = call_session_dbus_method::<(), (Vec<Path<'static>>,)>(
+    thread::sleep(Duration::from_millis(2000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        10000,
-        Vec<AccessPoint>,
+        1000,
+        (Vec<AccessPoint>,),
     );
-    dbg!(&res);
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
     assert!(!res.unwrap().0.is_empty());
-    // assert_eq!(
-    //     res.unwrap().0,
-    //     vec![Path::from(NM_ACCESS_POINT_PATH!().to_string() + "/2")]
-    // );
+}
+
+#[tokio::test]
+// tests adding and removing an access point
+async fn test_add_access_point_event() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    dbus_method!(
+        BASE_TEST_INTERFACE!(),
+        NM_DEVICES_PATH!().to_string() + "/2",
+        "CreateFakeAddedSignal",
+        NM_DEVICE_INTERFACE!(),
+        (),
+        1000,
+        (),
+    )
+    .expect("Could not add access point");
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ListAccessPoints",
+        NM_INTERFACE_TEST!(),
+        (),
+        1000,
+        (Vec<AccessPoint>,),
+    );
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().0.len(), 2);
+    dbus_method!(
+        BASE_TEST_INTERFACE!(),
+        NM_DEVICES_PATH!().to_string() + "/2",
+        "CreateFakeRemovedSignal",
+        NM_DEVICE_INTERFACE!(),
+        (),
+        1000,
+        (),
+    )
+    .expect("Could not remove access point");
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ListAccessPoints",
+        NM_INTERFACE_TEST!(),
+        (),
+        1000,
+        (Vec<AccessPoint>,),
+    );
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+    assert_eq!(res.unwrap().0.len(), 1);
 }
 
 //

@@ -1,8 +1,10 @@
 use std::{
-    collections::HashMap, sync::{
+    collections::HashMap,
+    sync::{
         atomic::{AtomicBool, Ordering},
         Arc, RwLock,
-    }, thread, time::{Duration, SystemTime}
+    },
+    time::{Duration, SystemTime},
 };
 
 use dbus::{
@@ -256,9 +258,8 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
         NM_INTERFACE!(),
         (),
         1000,
-        Vec<Path<'static>>,
+        (Vec<Path<'static>>,),
     );
-    dbg!(&result);
     if result.is_err() {
         println!("Error: Failed to retrieve network devices from NetworkManager.");
         return Vec::new();
@@ -284,7 +285,6 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
 }
 
 pub fn get_device_type(path: String) -> DeviceType {
-    println!("{}", path);
     let result = dbus_property!(
         NM_INTERFACE_BASE!(),
         Path::from(path),
@@ -292,7 +292,6 @@ pub fn get_device_type(path: String) -> DeviceType {
         "DeviceType",
         u32,
     );
-    dbg!(&result);
 
     if result.is_err() {
         return DeviceType::DUMMY;
@@ -499,7 +498,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         NM_SETTINGS_INTERFACE!(),
         (),
         1000,
-        Vec<Path<'static>>,
+        (Vec<Path<'static>>,),
     );
     let (result,) = result.unwrap();
     let mut wifi_connections = Vec::new();
@@ -562,7 +561,6 @@ impl Device {
     }
 
     pub fn get_access_points(&self) -> Vec<AccessPoint> {
-        println!("{}\n{}\n{}", self.dbus_path.clone(), NM_INTERFACE_BASE!(), NM_DEVICE_INTERFACE!());
         let result = dbus_method!(
             NM_INTERFACE_BASE!(),
             self.dbus_path.clone(),
@@ -570,9 +568,8 @@ impl Device {
             NM_DEVICE_INTERFACE!(),
             (),
             1000,
-            Vec<Path<'static>>,
+            (Vec<Path<'static>>,),
         );
-        dbg!(&result);
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
         let mut known_points = HashMap::new();
@@ -589,7 +586,6 @@ impl Device {
             known_points.insert(access_point.ssid.clone(), 0);
             access_points.push(access_point);
         }
-        dbg!(&access_points);
         access_points
     }
 

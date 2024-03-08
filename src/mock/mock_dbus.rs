@@ -6,7 +6,7 @@ use dbus_tokio::connection;
 
 use crate::mock::{bluetooth::mock_bluetooth_interface, network::mock_network_manager};
 
-use super::{bluetooth::MockBluetoothData, network::MockNetworkData, variant::MockVariant};
+use super::{bluetooth::MockBluetoothData, network::{MockNetworkManager}, variant::MockVariant};
 
 pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     let res = connection::new_session_sync();
@@ -33,7 +33,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
 
     // let mut mock_implementations = mock_network_interface(&mut cross);
     let mut mock_implementations = Vec::new();
-    let mock_network_manager = mock_network_manager(&mut cross);
+    let mock_network_manager = mock_network_manager(&mut cross, conn.clone());
     mock_implementations.push(mock_bluetooth_interface(&mut cross));
     mock_implementations.push(mock_network_manager.network_manager_base);
     mock_implementations.push(mock_network_manager.network_manager_settings);
@@ -47,7 +47,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
         DBUS_PATH_TEST!(),
         &mock_implementations,
         MockTestData {
-            network_data: mock_network_manager.network_manager_data, 
+            network_data: mock_network_manager, 
             bluetooth_data: MockBluetoothData::new(),
             plugin_data: HashMap::new(),
         },
@@ -68,7 +68,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
 }
 
 pub struct MockTestData {
-    pub network_data: MockNetworkData,
+    pub network_data: MockNetworkManager,
     pub bluetooth_data: MockBluetoothData,
     pub plugin_data: HashMap<String, MockVariant>,
 }

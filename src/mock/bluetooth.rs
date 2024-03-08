@@ -5,10 +5,10 @@ use re_set_lib::bluetooth::bluetooth_structures::{BluetoothAdapter, BluetoothDev
 pub fn mock_bluetooth_interface(
     cross: &mut Crossroads,
 ) -> dbus_crossroads::IfaceToken<MockTestData> {
-    let token = cross.register(BLUETOOTH_TEST_INTERFACE!(), |c| {
+    
+    cross.register(BLUETOOTH_TEST_INTERFACE!(), |_c| {
         println!("start {}", BLUETOOTH_TEST_INTERFACE!());
-    });
-    token
+    })
 }
 
 pub struct MockBluetoothData {
