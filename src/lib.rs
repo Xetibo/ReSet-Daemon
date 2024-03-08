@@ -1,3 +1,4 @@
+#![feature(trait_upcasting)]
 #[macro_use]
 mod macros;
 pub mod api;

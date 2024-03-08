@@ -11,6 +11,8 @@ use dbus::{
 
 #[allow(unused_imports)]
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
+#[allow(unused_imports)]
+use re_set_lib::network::network_structures::AccessPoint;
 
 use std::{
     hint,
