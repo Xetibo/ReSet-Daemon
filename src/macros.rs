@@ -292,11 +292,19 @@ macro_rules! dbus_connection {
     };
 }
 
+macro_rules! LOG {
+    ($message:expr) => {{}};
+}
+
 #[cfg(debug_assertions)]
 macro_rules! LOG {
     ($message:expr) => {{
         println!("LOG: {}", $message);
     }};
+}
+
+macro_rules! ERROR {
+    ($message:expr, $level:expr ) => {{}};
 }
 
 #[cfg(debug_assertions)]
