@@ -184,7 +184,7 @@ pub fn start_listener(
                     for device in devices {
                         if device == current_device.dbus_path {
                             current_device.connection = Some(connection.clone());
-                            current_device.access_point = access_point.clone();
+                            current_device.access_point.clone_from(&access_point);
                         }
                     }
                 }
