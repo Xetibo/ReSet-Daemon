@@ -23,7 +23,10 @@ use re_set_lib::{
     utils::{call_system_dbus_method, get_system_dbus_property, set_system_dbus_property},
 };
 
-use crate::utils::{DaemonData, MaskedPropMap};
+use crate::{
+    macros::ErrorLevel,
+    utils::{DaemonData, MaskedPropMap},
+};
 
 #[derive(Debug)]
 pub struct Device {
@@ -120,6 +123,10 @@ pub fn start_listener(
         },
     );
     if res.is_err() {
+        ERROR!(
+            "Signal Match on NetworkManager failed",
+            ErrorLevel::PartialBreakage
+        );
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
             "Failed to match signal on NetworkManager.",
@@ -166,6 +173,10 @@ pub fn start_listener(
         },
     );
     if res.is_err() {
+        ERROR!(
+            "Signal Match on NetworkManager failed",
+            ErrorLevel::PartialBreakage
+        );
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
             "Failed to match signal on NetworkManager.",
@@ -193,6 +204,10 @@ pub fn start_listener(
         },
     );
     if res.is_err() {
+        ERROR!(
+            "Signal Match on NetworkManager failed",
+            ErrorLevel::PartialBreakage
+        );
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
             "Failed to match signal on NetworkManager.",
@@ -225,6 +240,10 @@ pub fn start_listener(
         true
     });
     if res.is_err() {
+        ERROR!(
+            "Signal Match on NetworkManager failed",
+            ErrorLevel::PartialBreakage
+        );
         return Err(dbus::Error::new_custom(
             "SignalMatchFailed",
             "Failed to match signal on NetworkManager.",
@@ -261,7 +280,10 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
         (Vec<Path<'static>>,),
     );
     if result.is_err() {
-        println!("Error: Failed to retrieve network devices from NetworkManager.");
+        ERROR!(
+            "Failed to receive network devices from NetworkManager",
+            ErrorLevel::PartialBreakage
+        );
         return Vec::new();
     }
     let (result,) = result.unwrap();
@@ -310,6 +332,10 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
         1000,
     );
     if res.is_err() {
+        ERROR!(
+            "Failed to receive settings from connection",
+            ErrorLevel::PartialBreakage
+        );
         return Err(MethodErr::invalid_arg(
             "Could not get settings from connection",
         ));
@@ -347,6 +373,10 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
         1000,
     );
     if result.is_err() {
+        ERROR!(
+            "Failed to set settings for connection",
+            ErrorLevel::Recoverable
+        );
         return false;
     }
     true
@@ -387,8 +417,10 @@ pub fn get_connection_secrets(path: Path<'static>) {
         ("802-11-wireless-security".to_string(),),
         1000,
     );
+    if result.is_err() {
+        ERROR!("Failed to get connection secrets.", ErrorLevel::Recoverable);
+    }
     let (_,): (HashMap<String, PropMap>,) = result.unwrap();
-    // result
 }
 
 pub fn get_access_point_properties(path: Path<'static>) -> AccessPoint {
@@ -477,6 +509,7 @@ pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
         enabled,
     );
     if result.is_err() {
+        ERROR!("Failed to enable WiFi.", ErrorLevel::PartialBreakage);
         return false;
     }
     if enabled {
@@ -505,6 +538,10 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
     for connection in result {
         let res = get_connection_settings(connection.clone());
         if res.is_err() {
+            ERROR!(
+                "Failed to get connection settings.",
+                ErrorLevel::Recoverable
+            );
             continue;
         }
         let settings = res.unwrap();
@@ -529,6 +566,10 @@ pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), Con
         1000,
     );
     if result.is_err() {
+        ERROR!(
+            "Failed to disconnect from connection.",
+            ErrorLevel::Recoverable
+        );
         return Err(ConnectionError {
             method: "disconnect from",
         });
@@ -550,7 +591,7 @@ impl Device {
     }
 
     pub fn request_scan(&self) {
-        let _ = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
+        let res = call_system_dbus_method::<(), (Vec<Path<'static>>,)>(
             NM_INTERFACE!(),
             self.dbus_path.clone(),
             "RequestScan",
@@ -558,6 +599,12 @@ impl Device {
             (),
             1000,
         );
+        if res.is_err() {
+            ERROR!(
+                "Failed to request scan from WiFi device.",
+                ErrorLevel::Recoverable
+            );
+        }
     }
 
     pub fn get_access_points(&self) -> Vec<AccessPoint> {
@@ -570,6 +617,12 @@ impl Device {
             1000,
             (Vec<Path<'static>>,),
         );
+        if result.is_err() {
+            ERROR!(
+                "Failed to receive access points from WiFi device.",
+                ErrorLevel::PartialBreakage
+            );
+        }
         let (result,) = result.unwrap();
         let mut access_points = Vec::new();
         let mut known_points = HashMap::new();
@@ -580,7 +633,7 @@ impl Device {
         }
         for label in result {
             let access_point = get_access_point_properties(label);
-            if known_points.get(&access_point.ssid).is_some() {
+            if known_points.contains_key(&access_point.ssid) {
                 continue;
             }
             known_points.insert(access_point.ssid.clone(), 0);
@@ -611,6 +664,10 @@ impl Device {
         access_point: AccessPoint,
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
+            ERROR!(
+                "Tried to connect to access point with invalid device.",
+                ErrorLevel::PartialBreakage
+            );
             return Err(ConnectionError {
                 method: "WifiDevice is not valid",
             });
@@ -631,6 +688,7 @@ impl Device {
             1000,
         );
         if res.is_err() {
+            ERROR!("Failed to activate connection.", ErrorLevel::Recoverable);
             return Err(ConnectionError {
                 method: "connect to",
             });
@@ -638,13 +696,15 @@ impl Device {
         let res = res.unwrap();
         let mut result = 1;
         while result == 1 {
+            let path = res.0.clone();
             let res = get_system_dbus_property::<(), u32>(
                 NM_INTERFACE!(),
-                res.0.clone(),
+                path.clone(),
                 NM_ACTIVE_CONNECTION_INTERFACE!(),
                 "State",
             );
             if res.is_err() {
+                LOG!(format!("Wrong password entered for connection: {}.", path));
                 return Err(ConnectionError {
                     method: "Password was wrong",
                 });
@@ -652,6 +712,7 @@ impl Device {
             result = res.unwrap();
         }
         if result != 2 {
+            LOG!(format!("Wrong password entered for connection: {}.", res.0));
             return Err(ConnectionError {
                 method: "Password was wrong",
             });
@@ -669,6 +730,10 @@ impl Device {
         password: String,
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
+            ERROR!(
+                "Tried to connect to access point with invalid device.",
+                ErrorLevel::PartialBreakage
+            );
             return Err(ConnectionError {
                 method: "WifiDevice is not valid",
             });
@@ -706,6 +771,7 @@ impl Device {
                     "State",
                 );
                 if res.is_err() {
+                    LOG!(format!("Wrong password entered for connection: {}.", path));
                     return Err(ConnectionError {
                         method: "Password was wrong",
                     });
@@ -713,6 +779,7 @@ impl Device {
                 result = res.unwrap();
             }
             if result != 2 {
+                LOG!(format!("Wrong password entered for connection: {}.", path));
                 return Err(ConnectionError {
                     method: "Password was wrong",
                 });
@@ -739,6 +806,10 @@ impl Device {
             "ActiveConnections",
         );
         if res.is_err() {
+            ERROR!(
+                "Tried to disconnect from access point.",
+                ErrorLevel::Recoverable
+            );
             return Err(ConnectionError {
                 method: "disconnect from",
             });
@@ -749,6 +820,10 @@ impl Device {
                 if device == self.dbus_path {
                     let res = disconnect_from_access_point(connection);
                     if res.is_err() {
+                        ERROR!(
+                            "Tried to disconnect from access point.",
+                            ErrorLevel::Recoverable
+                        );
                         return Err(ConnectionError {
                             method: "disconnect from",
                         });

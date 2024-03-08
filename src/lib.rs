@@ -45,6 +45,7 @@ use crate::{
 /// // your other code here...
 /// ```
 pub async fn run_daemon() {
+    LOG!("Running in debug mode");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;

@@ -282,12 +282,36 @@ macro_rules! dbus_property {
 macro_rules! dbus_connection {
     () => {
         Connection::new_system().unwrap()
-    }
+    };
 }
 
 #[cfg(test)]
 macro_rules! dbus_connection {
     () => {
         Connection::new_session().unwrap()
-    }
+    };
+}
+
+#[cfg(debug_assertions)]
+macro_rules! LOG {
+    ($message:expr) => {{
+        println!("LOG: {}", $message);
+    }};
+}
+
+#[cfg(debug_assertions)]
+macro_rules! ERROR {
+    ($message:expr, $level:expr ) => {{
+        match $level {
+            ErrorLevel::Recoverable => println!("Minor Error: {}", $message),
+            ErrorLevel::PartialBreakage => println!("Partial Error: {}", $message),
+            ErrorLevel::Critical => println!("Critical Error: {}", $message),
+        };
+    }};
+}
+
+pub enum ErrorLevel {
+    Recoverable,
+    PartialBreakage,
+    Critical,
 }
