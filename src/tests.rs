@@ -10,6 +10,8 @@ use dbus::{
 };
 
 #[allow(unused_imports)]
+use re_set_lib::audio::audio_structures::Sink;
+#[allow(unused_imports)]
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
 #[allow(unused_imports)]
 use re_set_lib::network::network_structures::AccessPoint;
@@ -163,16 +165,6 @@ async fn test_add_access_point_event() {
     assert_eq!(res.unwrap().0.len(), 1);
 }
 
-//
-// #[tokio::test]
-// async fn test_audio_listener() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), ()>("StartAudioListener", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
-//
 // #[tokio::test]
 // async fn test_wireless_listener() {
 //     setup();
@@ -195,56 +187,57 @@ async fn test_add_access_point_event() {
 //     assert!(res.is_ok());
 // }
 //
-// #[tokio::test]
-// async fn test_get_sinks() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), (Vec<Sink>,)>("ListSinks", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
-//
-// #[tokio::test]
-// async fn test_get_default_sink() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), (Sink,)>("GetDefaultSink", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
-//
-// #[tokio::test]
-// async fn test_get_default_source() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), (Source,)>("GetDefaultSource", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
-//
-// #[tokio::test]
-// async fn test_get_sources() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), (Vec<Source>,)>("ListSources", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
-//
-// #[tokio::test]
-// async fn test_get_input_streams() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), (Vec<InputStream>,)>("ListInputStreams", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
-//
-// #[tokio::test]
-// async fn test_get_output_streams() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>("ListOutputStreams", AUDIO, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
+
+#[tokio::test]
+async fn test_get_sinks() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = call_session_dbus_method::<(), (Vec<Sink>,)>("ListSinks", AUDIO, ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_get_default_sink() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = call_session_dbus_method::<(), (Sink,)>("GetDefaultSink", AUDIO, ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_get_default_source() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = call_session_dbus_method::<(), (Source,)>("GetDefaultSource", AUDIO, ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_get_sources() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = call_session_dbus_method::<(), (Vec<Source>,)>("ListSources", AUDIO, ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_get_input_streams() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = call_session_dbus_method::<(), (Vec<InputStream>,)>("ListInputStreams", AUDIO, ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_get_output_streams() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>("ListOutputStreams", AUDIO, ());
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    assert!(res.is_ok());
+}
