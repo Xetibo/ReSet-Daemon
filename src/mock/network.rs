@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use crate::network::network_manager::Device;
-use dbus::{
-    arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path,
-};
+use dbus::{arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path};
 use dbus_crossroads::Crossroads;
 
 use super::mock_dbus::MockTestData;
@@ -137,8 +135,7 @@ pub fn mock_network_manager_device(
                 }
                 cross.insert(new_path, &[interface], MockAccessPointData::new(100));
                 let data: &mut MockDeviceData = cross.data_mut(ctx.path()).unwrap();
-                data.access_points
-                    .push(new_path.into());
+                data.access_points.push(new_path.into());
                 let msg = Message::signal(
                     &ctx.path().clone(),
                     &NM_DEVICE_INTERFACE!().into(),
@@ -257,13 +254,16 @@ pub struct MockDeviceData {
 }
 
 impl MockDeviceData {
-    fn new(id: u32, access_point_interface: dbus_crossroads::IfaceToken<MockAccessPointData>) -> Self {
+    fn new(
+        id: u32,
+        access_point_interface: dbus_crossroads::IfaceToken<MockAccessPointData>,
+    ) -> Self {
         Self {
             device_type: 2,
             access_points: vec![Path::from(
                 "/org/Xetibo/ReSet/Test/AccessPoint/".to_string() + &id.to_string(),
             )],
-            access_point_interface
+            access_point_interface,
         }
     }
 }
