@@ -11,7 +11,7 @@ pub struct MockNetworkManager {
     pub network_manager_settings: dbus_crossroads::IfaceToken<MockTestData>,
     pub network_manager_device: dbus_crossroads::IfaceToken<MockDeviceData>,
     pub network_manager_access_point: dbus_crossroads::IfaceToken<MockAccessPointData>,
-    pub network_manager_active_connection: dbus_crossroads::IfaceToken<MockTestData>,
+    pub network_manager_active_connection: dbus_crossroads::IfaceToken<MockActiveConnectionData>,
     pub network_manager_data: MockNetworkData,
 }
 
@@ -38,6 +38,8 @@ pub fn mock_network_manager_base(
     cross: &mut Crossroads,
 ) -> dbus_crossroads::IfaceToken<MockTestData> {
     cross.register(NM_INTERFACE!(), |c| {
+        c.property("WirelessEnabled")
+            .get(|_, data: &mut MockTestData| Ok(data.network_data.network_manager_data.enabled));
         c.property("ActiveConnections")
             .get(|_, cross: &mut MockTestData| {
                 Ok(cross
@@ -71,9 +73,83 @@ pub fn mock_network_manager_base(
                 Path<'static>,
             )| async move {
                 // noop
+
+                LOG!("not implemented");
                 let path = Path::from("/");
                 let active_connection = Path::from("/");
                 ctx.reply(Ok((path, active_connection)))
+            },
+        );
+        c.method_with_cr_async(
+            "ActivateConnection",
+            ("connection", "device", "specific_object"),
+            ("active_connection",),
+            move |mut ctx,
+                  cross,
+                  (connection, _device, specific_object): (
+                Path<'static>,
+                Path<'static>,
+                Path<'static>,
+            )| {
+                let interface;
+                let active_connections;
+                {
+                    let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
+                    interface = data.network_data.network_manager_active_connection;
+                    active_connections = data
+                        .network_data
+                        .network_manager_data
+                        .active_connections
+                        .clone();
+                }
+                let active_connection = if active_connections.contains(&connection) {
+                    let active_connection = Path::from(
+                        NM_ACTIVE_CONNECTION_PATH!().to_string()
+                            + "/"
+                            + &active_connections.len().to_string(),
+                    );
+                    create_mock_active_connection(
+                        cross,
+                        interface,
+                        &active_connection,
+                        connection,
+                        specific_object,
+                    );
+                    active_connection
+                } else {
+                    LOG!("Tried to activate non-existing connection");
+                    Path::from("/")
+                };
+                async move { ctx.reply(Ok((active_connection,))) }
+            },
+        );
+        c.method_with_cr_async(
+            "DeactivateConnection",
+            ("active_connection",),
+            (),
+            move |mut ctx, cross, (active_connection,): (Path<'static>,)| {
+                let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
+                let mut index = -1;
+                for (i, connection) in data
+                    .network_data
+                    .network_manager_data
+                    .active_connections
+                    .iter()
+                    .enumerate()
+                {
+                    if connection == &active_connection {
+                        index = i as i32;
+                    }
+                }
+                if index != -1 {
+                    data.network_data
+                        .network_manager_data
+                        .active_connections
+                        .remove(index as usize);
+                } else {
+                    LOG!("Tried to deactivate non-existing connection");
+                }
+                async move { ctx.reply(Ok(())) }
             },
         );
     })
@@ -106,10 +182,12 @@ pub fn mock_network_manager_device(
     let conn_added = conn.clone();
     let conn_removed = conn.clone();
     cross.register(NM_DEVICE_INTERFACE!(), |c| {
+        c.property("ActiveAccessPoint")
+            .get(|_, data: &mut MockDeviceData| Ok(data.active_access_point.clone()));
         c.signal::<(Path<'static>,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("access_point",));
         c.property("DeviceType")
-            .get(|_, cross: &mut MockDeviceData| Ok(cross.device_type));
+            .get(|_, data: &mut MockDeviceData| Ok(data.device_type));
         c.property("Interface")
             .get(|_, _: &mut MockDeviceData| Ok("Mock".to_string()));
         c.method_with_cr_async(
@@ -173,40 +251,25 @@ pub fn mock_network_manager_access_points(
 ) -> dbus_crossroads::IfaceToken<MockAccessPointData> {
     cross.register(NM_ACCESS_POINT_INTERFACE!(), |c| {
         c.property("Ssid")
-            .get(|_, cross: &mut MockAccessPointData| Ok(cross.ssid.clone()));
+            .get(|_, data: &mut MockAccessPointData| Ok(data.ssid.clone()));
         c.property("Strength")
-            .get(|_, cross: &mut MockAccessPointData| Ok(cross.strength));
-        c.method_with_cr_async(
-            "AddAndActivateConnection",
-            ("connection",),
-            ("path",),
-            move |mut ctx, _, (_connection,): (Path<'static>,)| async move {
-                // noop
-                let path = Path::from("/");
-                ctx.reply(Ok((path,)))
-            },
-        );
+            .get(|_, data: &mut MockAccessPointData| Ok(data.strength));
     })
 }
 
 pub fn mock_network_manager_active_connection(
     cross: &mut Crossroads,
-) -> dbus_crossroads::IfaceToken<MockTestData> {
+) -> dbus_crossroads::IfaceToken<MockActiveConnectionData> {
     cross.register(NM_ACTIVE_CONNECTION_INTERFACE!(), |c| {
-        c.method_with_cr_async(
-            "AddAndActivateConnection",
-            ("connection",),
-            ("path",),
-            move |mut ctx, _, (_connection,): (Path<'static>,)| async move {
-                // noop
-                let path = Path::from("/");
-                ctx.reply(Ok((path,)))
-            },
-        );
+        c.property("Connection")
+            .get(|_, data: &mut MockActiveConnectionData| Ok(data.connection.clone()));
+        c.property("SpecificObject")
+            .get(|_, data: &mut MockActiveConnectionData| Ok(data.specific_object.clone()));
     })
 }
 
 pub struct MockNetworkData {
+    enabled: bool,
     access_points: Vec<Path<'static>>,
     devices: Vec<Path<'static>>,
     current_device: Device,
@@ -218,6 +281,7 @@ impl MockNetworkData {
     pub fn new() -> Self {
         // TODO: add data for tests
         MockNetworkData {
+            enabled: false,
             access_points: Vec::new(),
             devices: Vec::new(),
             current_device: Device::new(Path::from("/"), "none".to_string()),
@@ -249,6 +313,7 @@ impl MockAccessPointData {
 #[derive(Clone)]
 pub struct MockDeviceData {
     device_type: u32,
+    active_access_point: Path<'static>,
     access_points: Vec<Path<'static>>,
     access_point_interface: dbus_crossroads::IfaceToken<MockAccessPointData>,
 }
@@ -260,10 +325,25 @@ impl MockDeviceData {
     ) -> Self {
         Self {
             device_type: 2,
+            active_access_point: Path::from("/"),
             access_points: vec![Path::from(
                 "/org/Xetibo/ReSet/Test/AccessPoint/".to_string() + &id.to_string(),
             )],
             access_point_interface,
+        }
+    }
+}
+
+pub struct MockActiveConnectionData {
+    connection: Path<'static>,
+    specific_object: Path<'static>,
+}
+
+impl MockActiveConnectionData {
+    fn new(connection: Path<'static>, specific_object: Path<'static>) -> Self {
+        Self {
+            connection,
+            specific_object,
         }
     }
 }
@@ -304,4 +384,18 @@ pub fn create_mock_access_points(
             .access_points
             .push(Path::from(path));
     }
+}
+
+pub fn create_mock_active_connection(
+    cross: &mut Crossroads,
+    interface: dbus_crossroads::IfaceToken<MockActiveConnectionData>,
+    path: &Path<'static>,
+    connection: Path<'static>,
+    specific_object: Path<'static>,
+) {
+    cross.insert(
+        path.clone(),
+        &[interface],
+        MockActiveConnectionData::new(connection, specific_object),
+    );
 }

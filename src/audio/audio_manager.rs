@@ -12,7 +12,6 @@ use pulse::def::Retval;
 use pulse::mainloop::api::Mainloop as mainloop_api;
 use pulse::volume::{ChannelVolumes, Volume};
 use pulse::{
-    self,
     callbacks::ListResult,
     context::{Context, FlagSet},
     mainloop::threaded::Mainloop,
