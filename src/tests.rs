@@ -207,7 +207,7 @@ async fn test_connect_to_new_access_point() {
 // tests connecting to an existing connection
 async fn test_connect_to_existing_connection() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(3000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),

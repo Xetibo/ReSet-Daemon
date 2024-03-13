@@ -4,6 +4,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, RwLock,
     },
+    thread,
     time::{Duration, SystemTime},
 };
 
@@ -287,23 +288,32 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
         return Vec::new();
     }
     let (result,) = result.unwrap();
-    let mut devices = Vec::new();
+    let devices = Arc::new(RwLock::new(Vec::new()));
     for path in result {
-        let name = dbus_property!(
-            NM_INTERFACE_BASE!(),
-            path.clone(),
-            NM_DEVICE_INTERFACE!(),
-            "Interface",
-            String,
-        );
-        let device_type = get_device_type(path.to_string());
-        if device_type == DeviceType::WIFI {
-            let mut device = Device::new(path, name.unwrap_or(String::from("empty")));
-            device.initialize();
-            devices.push(Arc::new(RwLock::new(device)));
-        }
+        let loop_ref = devices.clone();
+        thread::spawn(move || {
+            let name = dbus_property!(
+                NM_INTERFACE_BASE!(),
+                path.clone(),
+                NM_DEVICE_INTERFACE!(),
+                "Interface",
+                String,
+            );
+            let device_type = get_device_type(path.to_string());
+            if device_type == DeviceType::WIFI {
+                let mut device = Device::new(path, name.unwrap_or(String::from("empty")));
+                device.initialize();
+                loop_ref
+                    .write()
+                    .unwrap()
+                    .push(Arc::new(RwLock::new(device)));
+            }
+        })
+        .join()
+        .expect("Thread failed at parsing network device");
     }
-    devices
+    let devices = Arc::try_unwrap(devices).unwrap();
+    devices.into_inner().unwrap()
 }
 
 pub fn get_device_type(path: String) -> DeviceType {
@@ -624,22 +634,42 @@ impl Device {
             );
         }
         let (result,) = result.unwrap();
-        let mut access_points = Vec::new();
-        let mut known_points = HashMap::new();
+        let access_points = Arc::new(RwLock::new(Vec::new()));
+        let known_points = Arc::new(RwLock::new(HashMap::new()));
         if self.access_point.is_some() {
             let connected_access_point = self.access_point.clone().unwrap();
-            known_points.insert(connected_access_point.ssid.clone(), 0);
-            access_points.push(connected_access_point);
+            known_points
+                .write()
+                .unwrap()
+                .insert(connected_access_point.ssid.clone(), 0);
+            access_points.write().unwrap().push(connected_access_point);
         }
+
         for label in result {
-            let access_point = get_access_point_properties(label);
-            if known_points.contains_key(&access_point.ssid) {
-                continue;
-            }
-            known_points.insert(access_point.ssid.clone(), 0);
-            access_points.push(access_point);
+            let known_points_ref = known_points.clone();
+            let access_points_ref = access_points.clone();
+            thread::spawn(move || {
+                let access_point = get_access_point_properties(label);
+                if known_points_ref
+                    .read()
+                    .unwrap()
+                    .contains_key(&access_point.ssid)
+                {
+                    return;
+                }
+                known_points_ref
+                    .write()
+                    .unwrap()
+                    .insert(access_point.ssid.clone(), 0);
+                access_points_ref.write().unwrap().push(access_point);
+            })
+            .join()
+            .expect("Thread failed at parsing access point");
         }
-        access_points
+        Arc::try_unwrap(access_points)
+            .unwrap()
+            .into_inner()
+            .unwrap()
     }
 
     #[allow(dead_code)]

@@ -1,16 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::network::network_manager::Device;
-use dbus::{
-    arg::{PropMap},
-    channel::Sender,
-    nonblock::SyncConnection,
-    Message, Path,
-};
+use dbus::{arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path};
 use dbus_crossroads::Crossroads;
-use re_set_lib::network::connection::{
-    PropMapConvert, WifiSecuritySettings,
-};
+use re_set_lib::network::connection::{PropMapConvert, WifiSecuritySettings};
 
 use super::mock_dbus::MockTestData;
 
@@ -87,11 +80,7 @@ pub fn mock_network_manager_base(
                 {
                     let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
                     interface = data.network_data.network_manager_active_connection;
-                    connections = data
-                        .network_data
-                        .network_manager_data
-                        .connections
-                        .clone();
+                    connections = data.network_data.network_manager_data.connections.clone();
                     let mut i = 0;
                     for access_point in data.network_data.network_manager_data.access_points.iter()
                     {
@@ -127,9 +116,7 @@ pub fn mock_network_manager_base(
                 }
 
                 let active_connection = Path::from(
-                    NM_ACTIVE_CONNECTION_PATH!().to_string()
-                        + "/"
-                        + &connections.len().to_string(),
+                    NM_ACTIVE_CONNECTION_PATH!().to_string() + "/" + &connections.len().to_string(),
                 );
                 let state = if ok { 2 } else { 4 };
                 create_mock_active_connection(
@@ -161,11 +148,7 @@ pub fn mock_network_manager_base(
                 {
                     let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
                     interface = data.network_data.network_manager_active_connection;
-                    active_connections = data
-                        .network_data
-                        .network_manager_data
-                        .connections
-                        .clone();
+                    active_connections = data.network_data.network_manager_data.connections.clone();
                 }
                 let active_connection = if active_connections.contains(&connection) {
                     let active_connection = Path::from(
