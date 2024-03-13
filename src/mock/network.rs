@@ -2,14 +2,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::network::network_manager::Device;
 use dbus::{
-    arg::{prop_cast, PropMap},
+    arg::{PropMap},
     channel::Sender,
     nonblock::SyncConnection,
     Message, Path,
 };
 use dbus_crossroads::Crossroads;
 use re_set_lib::network::connection::{
-    Connection, PropMapConvert, WifiSecuritySettings, WifiSettings,
+    PropMapConvert, WifiSecuritySettings,
 };
 
 use super::mock_dbus::MockTestData;
@@ -332,7 +332,7 @@ pub fn mock_network_manager_active_connection(
         c.property("SpecificObject")
             .get(|_, data: &mut MockActiveConnectionData| Ok(data.specific_object.clone()));
         c.property("State")
-            .get(|_, data: &mut MockActiveConnectionData| Ok(data.state.clone()));
+            .get(|_, data: &mut MockActiveConnectionData| Ok(data.state));
     })
 }
 

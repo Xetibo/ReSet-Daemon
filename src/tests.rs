@@ -1,12 +1,16 @@
+// somehow clippy doesn't recognize the tests properly, which leads to wrongly placed "unused
+// imports"
 use crate::mock::mock_dbus::start_mock_implementation_server;
 #[allow(unused_imports)]
 use crate::{
     run_daemon,
     utils::{AUDIO, BASE},
 };
+#[allow(unused_imports)]
 use dbus::{
     arg::{AppendAll, ReadAll},
-    blocking::Connection, Path,
+    blocking::Connection,
+    Path,
 };
 
 #[allow(unused_imports)]
