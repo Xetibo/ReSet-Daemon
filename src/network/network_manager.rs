@@ -745,30 +745,29 @@ impl Device {
             .get_mut("802-11-wireless-security")
             .unwrap()
             .insert("psk".to_string(), Variant(password));
-        let conn = Connection::new_system().unwrap();
-        let proxy = conn.with_proxy(
-            NM_INTERFACE!(),
+        let result = dbus_method!(
+            NM_INTERFACE_BASE!(),
             Path::from(NM_PATH!()),
-            Duration::from_millis(1000),
-        );
-        let result: Result<(Path<'static>, Path<'static>), dbus::Error> = proxy.method_call(
-            NM_INTERFACE!(),
             "AddAndActivateConnection",
+            NM_INTERFACE!(),
             (
                 properties,
                 self.dbus_path.clone(),
                 access_point.dbus_path.clone(),
             ),
+            1000,
+            (Path<'static>, Path<'static>),
         );
         if let Ok(result) = result {
             let (path, connection) = result;
             let mut result = 1;
             while result == 1 {
-                let res = get_system_dbus_property::<(), u32>(
-                    NM_INTERFACE!(),
+                let res = dbus_property!(
+                    NM_INTERFACE_BASE!(),
                     connection.clone(),
                     NM_ACTIVE_CONNECTION_INTERFACE!(),
                     "State",
+                    u32,
                 );
                 if res.is_err() {
                     LOG!(format!("Wrong password entered for connection: {}.", path));
@@ -788,6 +787,7 @@ impl Device {
                 (Some(connection), Some(get_access_point_properties(path)));
             return Ok(());
         }
+        LOG!(format!("Failed to connect to {}.", access_point.dbus_path));
         Err(ConnectionError {
             method: "connect to",
         })

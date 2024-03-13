@@ -165,6 +165,40 @@ async fn test_add_access_point_event() {
     assert_eq!(res.unwrap().0.len(), 1);
 }
 
+#[tokio::test]
+// tests connecting to a new access point with a password
+async fn test_connect_to_new_access_point() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ListAccessPoints",
+        NM_INTERFACE_TEST!(),
+        (),
+        1000,
+        (Vec<AccessPoint>,),
+    );
+    assert!(res.is_ok());
+    let access_point = res
+        .expect("Failed to get access points")
+        .0
+        .first()
+        .unwrap()
+        .clone();
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ConnectToNewAccessPoint",
+        NM_INTERFACE_TEST!(),
+        (access_point, "Password!2"),
+        1000,
+        (bool,),
+    );
+    assert!(res.is_ok());
+    assert!(res.unwrap().0);
+}
+
 // #[tokio::test]
 // async fn test_wireless_listener() {
 //     setup();

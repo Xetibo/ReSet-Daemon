@@ -1,8 +1,16 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::network::network_manager::Device;
-use dbus::{arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path};
+use dbus::{
+    arg::{prop_cast, PropMap},
+    channel::Sender,
+    nonblock::SyncConnection,
+    Message, Path,
+};
 use dbus_crossroads::Crossroads;
+use re_set_lib::network::connection::{
+    Connection, PropMapConvert, WifiSecuritySettings, WifiSettings,
+};
 
 use super::mock_dbus::MockTestData;
 
@@ -66,18 +74,70 @@ pub fn mock_network_manager_base(
             ("connection", "device", "specific_object"),
             ("path", "active_connection"),
             move |mut ctx,
-                  _,
-                  (_connection, _device, _specific_object): (
-                PropMap,
+                  cross,
+                  (connection, _device, specific_object): (
+                HashMap<String, PropMap>,
                 Path<'static>,
                 Path<'static>,
-            )| async move {
-                // noop
+            )| {
+                let connection_path = Path::from(NM_DEVICES_PATH!().to_string() + "/Connection100");
+                let interface;
+                let active_connections;
+                let ok;
+                {
+                    let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
+                    interface = data.network_data.network_manager_active_connection;
+                    active_connections = data
+                        .network_data
+                        .network_manager_data
+                        .active_connections
+                        .clone();
+                    let mut i = 0;
+                    for access_point in data.network_data.network_manager_data.access_points.iter()
+                    {
+                        if &specific_object == access_point {
+                            break;
+                        }
+                        i += 1;
+                    }
+                    ok = if connection.contains_key("802-11-wireless-security") {
+                        let parsed_connection = WifiSecuritySettings::from_propmap(
+                            connection.get("802-11-wireless-security").unwrap(),
+                        );
+                        let password = data
+                            .network_data
+                            .network_manager_data
+                            .passwords
+                            .get(i)
+                            .unwrap();
+                        password == &parsed_connection.psk
+                    } else {
+                        false
+                    };
+                    if ok {
+                        data.network_data
+                            .network_manager_data
+                            .connections
+                            .push(connection_path.clone());
+                    }
+                }
 
-                LOG!("not implemented");
-                let path = Path::from("/");
-                let active_connection = Path::from("/");
-                ctx.reply(Ok((path, active_connection)))
+                let active_connection = Path::from(
+                    NM_ACTIVE_CONNECTION_PATH!().to_string()
+                        + "/"
+                        + &active_connections.len().to_string(),
+                );
+                let state = if ok { 2 } else { 4 };
+                create_mock_active_connection(
+                    cross,
+                    interface,
+                    &active_connection,
+                    connection_path.clone(),
+                    specific_object,
+                    state,
+                );
+
+                async move { ctx.reply(Ok((connection_path, active_connection))) }
             },
         );
         c.method_with_cr_async(
@@ -114,6 +174,7 @@ pub fn mock_network_manager_base(
                         &active_connection,
                         connection,
                         specific_object,
+                        2,
                     );
                     active_connection
                 } else {
@@ -265,12 +326,15 @@ pub fn mock_network_manager_active_connection(
             .get(|_, data: &mut MockActiveConnectionData| Ok(data.connection.clone()));
         c.property("SpecificObject")
             .get(|_, data: &mut MockActiveConnectionData| Ok(data.specific_object.clone()));
+        c.property("State")
+            .get(|_, data: &mut MockActiveConnectionData| Ok(data.state.clone()));
     })
 }
 
 pub struct MockNetworkData {
     enabled: bool,
     access_points: Vec<Path<'static>>,
+    passwords: Vec<String>,
     devices: Vec<Path<'static>>,
     current_device: Device,
     connections: Vec<Path<'static>>,
@@ -283,6 +347,7 @@ impl MockNetworkData {
         MockNetworkData {
             enabled: false,
             access_points: Vec::new(),
+            passwords: Vec::new(),
             devices: Vec::new(),
             current_device: Device::new(Path::from("/"), "none".to_string()),
             connections: vec![
@@ -337,13 +402,15 @@ impl MockDeviceData {
 pub struct MockActiveConnectionData {
     connection: Path<'static>,
     specific_object: Path<'static>,
+    state: u32,
 }
 
 impl MockActiveConnectionData {
-    fn new(connection: Path<'static>, specific_object: Path<'static>) -> Self {
+    fn new(connection: Path<'static>, specific_object: Path<'static>, state: u32) -> Self {
         Self {
             connection,
             specific_object,
+            state,
         }
     }
 }
@@ -364,6 +431,10 @@ pub fn create_mock_devices(
             .network_manager_data
             .devices
             .push(Path::from(path));
+        network_interfaces
+            .network_manager_data
+            .passwords
+            .push(String::from("Password!") + &i.to_string());
     }
 }
 
@@ -392,10 +463,11 @@ pub fn create_mock_active_connection(
     path: &Path<'static>,
     connection: Path<'static>,
     specific_object: Path<'static>,
+    state: u32,
 ) {
     cross.insert(
         path.clone(),
         &[interface],
-        MockActiveConnectionData::new(connection, specific_object),
+        MockActiveConnectionData::new(connection, specific_object, state),
     );
 }
