@@ -24,6 +24,7 @@ use tokio::task::JoinHandle;
 use crate::{
     audio::audio_manager::PulseServer,
     bluetooth::bluetooth_manager::{BluetoothAgent, BluetoothInterface},
+    macros::ErrorLevel,
     network::network_manager::{get_wifi_devices, Device},
 };
 
@@ -153,6 +154,8 @@ impl DaemonData {
                 if let Ok(mut res) = res {
                     audio_listener_ref.store(true, Ordering::SeqCst);
                     res.listen_to_messages();
+                } else {
+                    ERROR!(res.err().unwrap().0, ErrorLevel::Critical);
                 }
             });
         }

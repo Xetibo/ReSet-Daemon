@@ -30,7 +30,7 @@ pub struct PulseServer {
 }
 
 #[derive(Debug)]
-pub struct PulseError(&'static str);
+pub struct PulseError(pub &'static str);
 
 impl PulseServer {
     pub fn create(
