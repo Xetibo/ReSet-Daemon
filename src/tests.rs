@@ -6,7 +6,7 @@ use crate::{
 };
 use dbus::{
     arg::{AppendAll, ReadAll},
-    blocking::Connection,
+    blocking::Connection, Path,
 };
 
 #[allow(unused_imports)]
@@ -197,6 +197,76 @@ async fn test_connect_to_new_access_point() {
     );
     assert!(res.is_ok());
     assert!(res.unwrap().0);
+}
+
+#[tokio::test]
+// tests connecting to an existing connection
+async fn test_connect_to_existing_connection() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ListAccessPoints",
+        NM_INTERFACE_TEST!(),
+        (),
+        1000,
+        (Vec<AccessPoint>,),
+    );
+    assert!(res.is_ok());
+    let mut access_point = res
+        .expect("Failed to get access points")
+        .0
+        .first()
+        .unwrap()
+        .clone();
+    // usually this would be saved, but the mock does not need to implement this.
+    access_point.associated_connection = Path::from("/org/Xetibo/ReSet/Test/Connection/100");
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ConnectToKnownAccessPoint",
+        NM_INTERFACE_TEST!(),
+        (access_point,),
+        1000,
+        (bool,),
+    );
+    assert!(res.is_ok());
+    assert!(res.unwrap().0);
+}
+
+#[tokio::test]
+// tests connecting to a new access point with a *wrong* password
+async fn test_connect_to_new_access_point_wrong_password() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ListAccessPoints",
+        NM_INTERFACE_TEST!(),
+        (),
+        1000,
+        (Vec<AccessPoint>,),
+    );
+    assert!(res.is_ok());
+    let access_point = res
+        .expect("Failed to get access points")
+        .0
+        .first()
+        .unwrap()
+        .clone();
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "ConnectToNewAccessPoint",
+        NM_INTERFACE_TEST!(),
+        (access_point, "wrong"),
+        1000,
+        (bool,),
+    );
+    assert!(res.is_ok());
+    assert!(!res.unwrap().0);
 }
 
 // #[tokio::test]

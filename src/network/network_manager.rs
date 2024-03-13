@@ -672,20 +672,18 @@ impl Device {
                 method: "WifiDevice is not valid",
             });
         }
-        let res = call_system_dbus_method::<
-            (Path<'static>, Path<'static>, Path<'static>),
-            (Path<'static>,),
-        >(
-            NM_INTERFACE!(),
+        let res = dbus_method!(
+            NM_INTERFACE_BASE!(),
             Path::from(NM_PATH!()),
             "ActivateConnection",
             NM_INTERFACE!(),
             (
                 access_point.associated_connection,
                 self.dbus_path.clone(),
-                Path::from("/"),
+                access_point.dbus_path.clone(),
             ),
             1000,
+            (Path<'static>,),
         );
         if res.is_err() {
             ERROR!("Failed to activate connection.", ErrorLevel::Recoverable);
@@ -697,11 +695,12 @@ impl Device {
         let mut result = 1;
         while result == 1 {
             let path = res.0.clone();
-            let res = get_system_dbus_property::<(), u32>(
-                NM_INTERFACE!(),
+            let res = dbus_property!(
+                NM_INTERFACE_BASE!(),
                 path.clone(),
                 NM_ACTIVE_CONNECTION_INTERFACE!(),
                 "State",
+                u32,
             );
             if res.is_err() {
                 LOG!(format!("Wrong password entered for connection: {}.", path));

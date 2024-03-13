@@ -80,17 +80,17 @@ pub fn mock_network_manager_base(
                 Path<'static>,
                 Path<'static>,
             )| {
-                let connection_path = Path::from(NM_DEVICES_PATH!().to_string() + "/Connection100");
+                let connection_path = Path::from(NM_PATH!().to_string() + "/Connection/100");
                 let interface;
-                let active_connections;
+                let connections;
                 let ok;
                 {
                     let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
                     interface = data.network_data.network_manager_active_connection;
-                    active_connections = data
+                    connections = data
                         .network_data
                         .network_manager_data
-                        .active_connections
+                        .connections
                         .clone();
                     let mut i = 0;
                     for access_point in data.network_data.network_manager_data.access_points.iter()
@@ -117,6 +117,10 @@ pub fn mock_network_manager_base(
                     if ok {
                         data.network_data
                             .network_manager_data
+                            .active_connections
+                            .push(connection_path.clone());
+                        data.network_data
+                            .network_manager_data
                             .connections
                             .push(connection_path.clone());
                     }
@@ -125,7 +129,7 @@ pub fn mock_network_manager_base(
                 let active_connection = Path::from(
                     NM_ACTIVE_CONNECTION_PATH!().to_string()
                         + "/"
-                        + &active_connections.len().to_string(),
+                        + &connections.len().to_string(),
                 );
                 let state = if ok { 2 } else { 4 };
                 create_mock_active_connection(
@@ -151,6 +155,7 @@ pub fn mock_network_manager_base(
                 Path<'static>,
                 Path<'static>,
             )| {
+                println!("{}", &connection);
                 let interface;
                 let active_connections;
                 {
@@ -159,7 +164,7 @@ pub fn mock_network_manager_base(
                     active_connections = data
                         .network_data
                         .network_manager_data
-                        .active_connections
+                        .connections
                         .clone();
                 }
                 let active_connection = if active_connections.contains(&connection) {
