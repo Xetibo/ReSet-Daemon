@@ -7,10 +7,7 @@ use re_set_lib::{
     utils::call_system_dbus_method,
 };
 
-use crate::{
-    utils::{get_wifi_status, WIRELESS},
-    DaemonData,
-};
+use crate::{utils::get_wifi_status, DaemonData};
 
 use super::network_manager::{
     get_connection_settings, get_stored_connections, get_wifi_devices, set_connection_settings,
@@ -18,7 +15,7 @@ use super::network_manager::{
 };
 
 pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    let token = cross.register(WIRELESS, |c| {
+    let token = cross.register(NETWORK_INTERFACE!(), |c| {
         c.signal::<(AccessPoint,), _>("AccessPointChanged", ("access_point",));
         c.signal::<(AccessPoint,), _>("AccessPointAdded", ("access_point",));
         c.signal::<(Path<'static>,), _>("AccessPointRemoved", ("path",));
@@ -226,10 +223,10 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             ("result",),
             move |mut ctx, _, (path,): (Path<'static>,)| async move {
                 let res = call_system_dbus_method::<(), ()>(
-                    "org.freedesktop.NetworkManager",
+                    NM_INTERFACE!(),
                     path,
                     "Delete",
-                    "org.freedesktop.NetworkManager.Settings.Connection",
+                    NM_SETTINGS_INTERFACE!(),
                     (),
                     1000,
                 );

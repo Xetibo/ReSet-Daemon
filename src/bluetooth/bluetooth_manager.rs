@@ -25,9 +25,7 @@ use re_set_lib::{
     utils::{call_system_dbus_method, set_system_dbus_property},
 };
 
-use crate::utils::{
-    convert_bluetooth_map_bool, FullMaskedPropMap, MaskedPropMap, BLUETOOTH, DBUS_PATH,
-};
+use crate::utils::{convert_bluetooth_map_bool, FullMaskedPropMap, MaskedPropMap};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -270,8 +268,8 @@ impl BluetoothInterface {
                     let device = convert_device(&ir.object, &ir.interfaces);
                     if let Some(device) = device {
                         let msg = Message::signal(
-                            &Path::from(DBUS_PATH),
-                            &BLUETOOTH.into(),
+                            &Path::from(DBUS_PATH!()),
+                            &BLUETOOTH_INTERFACE!().into(),
                             &"BluetoothDeviceAdded".into(),
                         )
                         .append1(device);
@@ -290,8 +288,8 @@ impl BluetoothInterface {
                 bluetooth_device_removed,
                 move |ir: BluetoothDeviceRemoved, _, _| {
                     let msg = Message::signal(
-                        &Path::from(DBUS_PATH),
-                        &BLUETOOTH.into(),
+                        &Path::from(DBUS_PATH!()),
+                        &BLUETOOTH_INTERFACE!().into(),
                         &"BluetoothDeviceRemoved".into(),
                     )
                     .append1(ir.object);
@@ -321,8 +319,8 @@ impl BluetoothInterface {
 
                         if let Some(device) = device_opt {
                             let msg = Message::signal(
-                                &Path::from(DBUS_PATH),
-                                &BLUETOOTH.into(),
+                                &Path::from(DBUS_PATH!()),
+                                &BLUETOOTH_INTERFACE!().into(),
                                 &"BluetoothDeviceChanged".into(),
                             )
                             .append1(device);
@@ -357,7 +355,8 @@ impl BluetoothInterface {
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
                     break;
-                } else if active_scan.load(Ordering::SeqCst) {
+                }
+                if active_scan.load(Ordering::SeqCst) {
                     let _: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
                 } else if !active_scan.load(Ordering::SeqCst) {
@@ -420,7 +419,7 @@ impl BluetoothInterface {
             Path::from("/org/bluez"),
             "RegisterAgent",
             "org.bluez.AgentManager1",
-            (Path::from(DBUS_PATH), "DisplayYesNo"),
+            (Path::from(DBUS_PATH!()), "DisplayYesNo"),
             1000,
         );
         if res.is_err() {
@@ -439,7 +438,7 @@ impl BluetoothInterface {
             Path::from("/org/bluez"),
             "UnregisterAgent",
             "org.bluez.AgentManager1",
-            (Path::from(DBUS_PATH),),
+            (Path::from(DBUS_PATH!()),),
             1000,
         );
         if res.is_err() {

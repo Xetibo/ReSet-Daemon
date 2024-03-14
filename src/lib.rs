@@ -1,9 +1,13 @@
+#![feature(trait_upcasting)]
+#[macro_use]
+mod macros;
 pub mod api;
 mod audio;
 mod bluetooth;
+mod mock;
 mod network;
 mod tests;
-mod utils;
+pub mod utils;
 
 use std::{
     future::{self},
@@ -19,8 +23,7 @@ use utils::{AudioRequest, AudioResponse, BASE};
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
     bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
-    network::network_manager_dbus::setup_wireless_manager,
-    utils::{DaemonData, DBUS_PATH},
+    network::network_manager_dbus::setup_wireless_manager, utils::DaemonData,
 };
 
 /// # Running the daemon as a library function
@@ -42,6 +45,7 @@ use crate::{
 /// // your other code here...
 /// ```
 pub async fn run_daemon() {
+    LOG!("Running in debug mode");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -105,7 +109,7 @@ pub async fn run_daemon() {
 
     features.push(setup_base(&mut cross, feature_strings));
 
-    cross.insert(DBUS_PATH, &features, data);
+    cross.insert(DBUS_PATH!(), &features, data);
 
     // register bluetooth agent before start
     // will be uncommented when agent is fully functional

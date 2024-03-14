@@ -13,6 +13,7 @@ use dbus::{
     nonblock::SyncConnection,
     Path,
 };
+
 use re_set_lib::{
     audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source},
     network::network_structures::Error,
@@ -23,12 +24,34 @@ use tokio::task::JoinHandle;
 use crate::{
     audio::audio_manager::PulseServer,
     bluetooth::bluetooth_manager::{BluetoothAgent, BluetoothInterface},
+    macros::ErrorLevel,
     network::network_manager::{get_wifi_devices, Device},
 };
 
-pub const DBUS_PATH: &str = "/org/Xetibo/ReSet/Daemon";
-pub const WIRELESS: &str = "org.Xetibo.ReSet.Wireless";
-pub const BLUETOOTH: &str = "org.Xetibo.ReSet.Bluetooth";
+pub enum Mode {
+    Test,
+    Debug,
+    Release,
+}
+
+pub struct ConstPaths {
+    pub dbus_path: &'static str,
+    pub network: &'static str,
+    pub bluetooth: &'static str,
+    pub audio: &'static str,
+    pub base: &'static str,
+    pub nm_interface: &'static str,
+    pub nm_settings_interface: &'static str,
+    pub nm_devices_interface: &'static str,
+    pub nm_accesspoints_interface: &'static str,
+    pub nm_activeconnection_interface: &'static str,
+    pub nm_path: &'static str,
+    pub nm_settings_path: &'static str,
+    pub nm_devices_path: &'static str,
+    pub nm_accesspoints_path: &'static str,
+    pub nm_activeconnection_path: &'static str,
+}
+
 pub const AUDIO: &str = "org.Xetibo.ReSet.Audio";
 pub const BASE: &str = "org.Xetibo.ReSet.Daemon";
 
@@ -131,6 +154,8 @@ impl DaemonData {
                 if let Ok(mut res) = res {
                     audio_listener_ref.store(true, Ordering::SeqCst);
                     res.listen_to_messages();
+                } else {
+                    ERROR!(res.err().unwrap().0, ErrorLevel::Critical);
                 }
             });
         }

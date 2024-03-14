@@ -1,10 +1,7 @@
 use dbus::{Message, Path};
 use dbus_crossroads::Crossroads;
 
-use crate::{
-    utils::{BLUETOOTH, DBUS_PATH},
-    DaemonData,
-};
+use crate::DaemonData;
 
 #[allow(dead_code)]
 pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
@@ -19,8 +16,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
                     return Ok(("No pairing in progress.",));
                 }
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"PincodeRequested".into(),
                 );
                 ctx.push_msg(msg);
@@ -35,8 +32,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             move |ctx, _d: &mut DaemonData, (_device, pincode): (Path<'static>, String)| {
                 println!("display pincode");
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"DisplayPinCode".into(),
                 )
                 .append1(pincode);
@@ -51,8 +48,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 println!("request passkey");
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"RequestPassKey".into(),
                 );
                 ctx.push_msg(msg);
@@ -70,8 +67,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
                   (_device, passkey, entered): (Path<'static>, u32, u16)| {
                 println!("display passkey");
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"DisplayPassKey".into(),
                 )
                 .append2(passkey, entered);
@@ -86,8 +83,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             move |ctx, _d: &mut DaemonData, (_device, passkey): (Path<'static>, u32)| {
                 println!("request confirmation");
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"RequestConfirmation".into(),
                 )
                 .append1(passkey);
@@ -102,8 +99,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             move |ctx, _d: &mut DaemonData, (_device,): (Path<'static>,)| {
                 println!("request authorization");
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"RequestAuthorization".into(),
                 );
                 ctx.push_msg(msg);
@@ -117,8 +114,8 @@ pub fn setup_bluetooth_agent(cross: &mut Crossroads) -> dbus_crossroads::IfaceTo
             move |ctx, _d: &mut DaemonData, (_device, uuid): (Path<'static>, String)| {
                 println!("authorize service");
                 let msg = Message::signal(
-                    &Path::from(DBUS_PATH),
-                    &BLUETOOTH.into(),
+                    &Path::from(DBUS_PATH!()),
+                    &BLUETOOTH_INTERFACE!().into(),
                     &"AuthorizeService".into(),
                 )
                 .append1(uuid);
