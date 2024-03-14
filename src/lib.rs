@@ -9,10 +9,7 @@ mod network;
 mod tests;
 pub mod utils;
 
-use std::{
-    future::{self},
-    process::exit,
-};
+use std::{fs, future, process::exit};
 
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
@@ -45,7 +42,8 @@ use crate::{
 /// // your other code here...
 /// ```
 pub async fn run_daemon() {
-    LOG!("Running in debug mode");
+    create_log_file();
+    LOG!("Running in debug mode\n");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -131,6 +129,10 @@ pub async fn run_daemon() {
 
     future::pending::<()>().await;
     unreachable!()
+}
+
+fn create_log_file() {
+    fs::File::create("/tmp/reset_log").expect("Could not create log file.");
 }
 
 fn setup_base(

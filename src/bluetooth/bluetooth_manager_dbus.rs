@@ -4,7 +4,7 @@ use dbus::Path;
 use dbus_crossroads::Crossroads;
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
 
-use crate::DaemonData;
+use crate::{macros::ErrorLevel, DaemonData};
 
 use super::bluetooth_manager::{
     get_bluetooth_adapter, get_connections, set_adapter_discoverable, set_adapter_enabled,
@@ -23,15 +23,14 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.signal::<(), _>("PinCodeRequested", ());
         c.method_with_cr_async("StartBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-            let _ = data
-                .b_interface
+            data.b_interface
                 .start_bluetooth_discovery(data.bluetooth_scan_active.clone());
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async("StopBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             data.bluetooth_scan_active.store(false, Ordering::SeqCst);
-            let _ = data.b_interface.stop_bluetooth_discovery();
+            data.b_interface.stop_bluetooth_discovery();
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async(
@@ -148,8 +147,12 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             ("device",),
             ("result",),
             move |_, d: &mut DaemonData, (device,): (Path<'static>,)| {
-                let res = d.b_interface.disconnect(device);
+                let res = d.b_interface.disconnect(device.clone());
                 if res.is_err() {
+                    ERROR!(
+                        format!("Could not disconnect from device: {}\n", device),
+                        ErrorLevel::PartialBreakage
+                    );
                     return Ok((false,));
                 }
                 Ok((true,))
@@ -160,8 +163,12 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             ("path",),
             ("result",),
             move |_, d: &mut DaemonData, (path,): (Path<'static>,)| {
-                let res = d.b_interface.remove_device_pairing(path);
+                let res = d.b_interface.remove_device_pairing(path.clone());
                 if res.is_err() {
+                    ERROR!(
+                        format!("Could not remove device pairing: {}\n", path),
+                        ErrorLevel::PartialBreakage
+                    );
                     return Ok((false,));
                 }
                 Ok((true,))

@@ -154,8 +154,8 @@ impl DaemonData {
                 if let Ok(mut res) = res {
                     audio_listener_ref.store(true, Ordering::SeqCst);
                     res.listen_to_messages();
-                } else {
-                    ERROR!(res.err().unwrap().0, ErrorLevel::Critical);
+                } else if let Err(error) = res {
+                    ERROR!(error.0, ErrorLevel::Critical);
                 }
             });
         }

@@ -299,7 +299,8 @@ macro_rules! LOG {
 #[cfg(debug_assertions)]
 macro_rules! LOG {
     ($message:expr) => {{
-        println!("LOG: {}", $message);
+        write_log_to_file!($message);
+        print!("LOG: {}", $message);
     }};
 }
 
@@ -310,11 +311,24 @@ macro_rules! ERROR {
 #[cfg(debug_assertions)]
 macro_rules! ERROR {
     ($message:expr, $level:expr ) => {{
+        write_log_to_file!($message);
         match $level {
-            ErrorLevel::Recoverable => println!("Minor Error: {}", $message),
-            ErrorLevel::PartialBreakage => println!("Partial Error: {}", $message),
-            ErrorLevel::Critical => println!("Critical Error: {}", $message),
+            ErrorLevel::Recoverable => print!("Minor Error: {}", $message),
+            ErrorLevel::PartialBreakage => print!("Partial Error: {}", $message),
+            ErrorLevel::Critical => print!("Critical Error: {}", $message),
         };
+    }};
+}
+
+macro_rules! write_log_to_file {
+    ($message:expr) => {{
+        use std::{fs::OpenOptions, io::Write};
+        let mut file = OpenOptions::new()
+            .append(true)
+            .open("/tmp/reset_log")
+            .expect("Could not open log file");
+        file.write_all($message.as_bytes())
+            .expect("Could not write to log file");
     }};
 }
 

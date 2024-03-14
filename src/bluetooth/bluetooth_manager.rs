@@ -14,7 +14,7 @@ use dbus::{
     channel::Sender,
     message::SignalArgs,
     nonblock::SyncConnection,
-    Error, Message, MethodErr, Path,
+    Error, Message, Path,
 };
 use dbus_tokio::connection;
 use re_set_lib::{
@@ -25,7 +25,10 @@ use re_set_lib::{
     utils::{call_system_dbus_method, set_system_dbus_property},
 };
 
-use crate::utils::{convert_bluetooth_map_bool, FullMaskedPropMap, MaskedPropMap};
+use crate::{
+    macros::ErrorLevel,
+    utils::{convert_bluetooth_map_bool, FullMaskedPropMap, MaskedPropMap},
+};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -279,6 +282,7 @@ impl BluetoothInterface {
                 },
             );
             if res.is_err() {
+                ERROR!("Failed to match signal on bluez\n", ErrorLevel::Critical);
                 return Err(dbus::Error::new_custom(
                     "SignalMatchFailed",
                     "Failed to match signal on bluez.",
@@ -298,6 +302,7 @@ impl BluetoothInterface {
                 },
             );
             if res.is_err() {
+                ERROR!("Failed to match signal on bluez\n", ErrorLevel::Critical);
                 return Err(dbus::Error::new_custom(
                     "SignalMatchFailed",
                     "Failed to match signal on bluez.",
@@ -335,6 +340,7 @@ impl BluetoothInterface {
                 },
             );
             if res.is_err() {
+                ERROR!("Failed to match signal on bluez\n", ErrorLevel::Critical);
                 return Err(dbus::Error::new_custom(
                     "SignalMatchFailed",
                     "Failed to match signal on bluez.",
@@ -352,16 +358,31 @@ impl BluetoothInterface {
                     active_scan.store(false, Ordering::SeqCst);
                     active_listener.store(false, Ordering::SeqCst);
                     stop_requested.store(false, Ordering::SeqCst);
-                    let _: Result<(), dbus::Error> =
+                    let res: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                    if res.is_err() {
+                        ERROR!(
+                            "Failed to start bluetooth discovery\n",
+                            ErrorLevel::Critical
+                        );
+                    }
                     break;
                 }
                 if active_scan.load(Ordering::SeqCst) {
-                    let _: Result<(), dbus::Error> =
+                    let res: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+                    if res.is_err() {
+                        ERROR!(
+                            "Failed to start bluetooth discovery\n",
+                            ErrorLevel::Critical
+                        );
+                    }
                 } else if !active_scan.load(Ordering::SeqCst) {
-                    let _: Result<(), dbus::Error> =
+                    let res: Result<(), dbus::Error> =
                         proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                    if res.is_err() {
+                        ERROR!("Failed to stop bluetooth discovery\n", ErrorLevel::Critical);
+                    }
                 }
             }
             res
@@ -371,14 +392,20 @@ impl BluetoothInterface {
 
     pub fn connect_to(&self, device: Path<'static>) {
         thread::spawn(move || {
-            let _ = call_system_dbus_method::<(), ()>(
+            let res = call_system_dbus_method::<(), ()>(
                 "org.bluez",
-                device,
+                device.clone(),
                 "Connect",
                 "org.bluez.Device1",
                 (),
                 10000,
             );
+            if res.is_err() {
+                ERROR!(
+                    format!("Failed to connect to bluetooth device: {}\n", device),
+                    ErrorLevel::Critical
+                );
+            }
         });
     }
 
@@ -387,15 +414,20 @@ impl BluetoothInterface {
             self.register_agent();
         }
         thread::spawn(move || {
-            // TODO handle this error later on? If so how?
-            let _ = call_system_dbus_method::<(), ()>(
+            let res = call_system_dbus_method::<(), ()>(
                 "org.bluez",
-                device,
+                device.clone(),
                 "Pair",
                 "org.bluez.Device1",
                 (),
                 10000,
             );
+            if res.is_err() {
+                ERROR!(
+                    format!("Failed to pair with bluetooth device: {}\n", device),
+                    ErrorLevel::Critical
+                );
+            }
         });
     }
 
@@ -423,6 +455,10 @@ impl BluetoothInterface {
             1000,
         );
         if res.is_err() {
+            ERROR!(
+                "Failed to register bluetooth agent\n",
+                ErrorLevel::PartialBreakage
+            );
             return false;
         }
         self.registered = true;
@@ -442,39 +478,52 @@ impl BluetoothInterface {
             1000,
         );
         if res.is_err() {
+            ERROR!(
+                "Failed to unregister bluetooth agent\n",
+                ErrorLevel::PartialBreakage
+            );
             return false;
         }
         self.registered = false;
         true
     }
 
-    pub fn start_bluetooth_discovery(
-        &self,
-        scan_active: Arc<AtomicBool>,
-    ) -> Result<(), dbus::Error> {
+    pub fn start_bluetooth_discovery(&self, scan_active: Arc<AtomicBool>) {
         if scan_active.load(Ordering::SeqCst) {
-            return Err(MethodErr::failed("Already active").into());
+            LOG!("Failed to start bluetooth, already active\n");
         }
         scan_active.store(false, Ordering::SeqCst);
-        call_system_dbus_method::<(), ()>(
+        let res = call_system_dbus_method::<(), ()>(
             "org.bluez",
             self.current_adapter.clone(),
             "StartDiscovery",
             "org.bluez.Adapter1",
             (),
             1000,
-        )
+        );
+        if res.is_err() {
+            ERROR!(
+                "Failed to start bluetooth discovery\n",
+                ErrorLevel::PartialBreakage
+            );
+        }
     }
 
-    pub fn stop_bluetooth_discovery(&self) -> Result<(), dbus::Error> {
-        call_system_dbus_method::<(), ()>(
+    pub fn stop_bluetooth_discovery(&self) {
+        let res = call_system_dbus_method::<(), ()>(
             "org.bluez",
             self.current_adapter.clone(),
             "StopDiscovery",
             "org.bluez.Adapter1",
             (),
             1000,
-        )
+        );
+        if res.is_err() {
+            ERROR!(
+                "Could not stop bluetooth discovery\n",
+                ErrorLevel::PartialBreakage
+            );
+        }
     }
 
     pub fn remove_device_pairing(&self, path: Path<'static>) -> Result<(), dbus::Error> {
@@ -498,14 +547,31 @@ fn get_bluetooth_device_properties(path: &Path<'static>) -> PropMap {
         ("org.bluez.Device1",),
     );
     if res.is_err() {
+        ERROR!(
+            format!("Failed to get properties of bluetooth device: {}\n", path),
+            ErrorLevel::Recoverable
+        );
         return PropMap::new();
     }
     res.unwrap().0
 }
 
 pub fn set_adapter_enabled(path: Path<'static>, enabled: bool) -> bool {
-    let res = set_system_dbus_property("org.bluez", path, "org.bluez.Adapter1", "Powered", enabled);
+    let res = set_system_dbus_property(
+        "org.bluez",
+        path.clone(),
+        "org.bluez.Adapter1",
+        "Powered",
+        enabled,
+    );
     if res.is_err() {
+        ERROR!(
+            format!(
+                "Failed to set enabled mode on bluetooth adapter {} to: {}\n",
+                path, enabled
+            ),
+            ErrorLevel::Recoverable
+        );
         return false;
     }
     true
@@ -514,21 +580,40 @@ pub fn set_adapter_enabled(path: Path<'static>, enabled: bool) -> bool {
 pub fn set_adapter_discoverable(path: Path<'static>, enabled: bool) -> bool {
     let res = set_system_dbus_property(
         "org.bluez",
-        path,
+        path.clone(),
         "org.bluez.Adapter1",
         "Discoverable",
         enabled,
     );
     if res.is_err() {
+        ERROR!(
+            format!(
+                "Failed to set discoverability mode on bluetooth adapter {} to: {}\n",
+                path, enabled
+            ),
+            ErrorLevel::Recoverable
+        );
         return false;
     }
     true
 }
 
 pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
-    let res =
-        set_system_dbus_property("org.bluez", path, "org.bluez.Adapter1", "Pairable", enabled);
+    let res = set_system_dbus_property(
+        "org.bluez",
+        path.clone(),
+        "org.bluez.Adapter1",
+        "Pairable",
+        enabled,
+    );
     if res.is_err() {
+        ERROR!(
+            format!(
+                "Failed to set pairability mode on bluetooth adapter {} to: {}\n",
+                path, enabled
+            ),
+            ErrorLevel::Recoverable
+        );
         return false;
     }
     true

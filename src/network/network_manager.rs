@@ -125,7 +125,7 @@ pub fn start_listener(
     );
     if res.is_err() {
         ERROR!(
-            "Signal Match on NetworkManager failed",
+            "Signal Match on NetworkManager failed\n",
             ErrorLevel::PartialBreakage
         );
         return Err(dbus::Error::new_custom(
@@ -175,7 +175,7 @@ pub fn start_listener(
     );
     if res.is_err() {
         ERROR!(
-            "Signal Match on NetworkManager failed",
+            "Signal Match on NetworkManager failed\n",
             ErrorLevel::PartialBreakage
         );
         return Err(dbus::Error::new_custom(
@@ -206,7 +206,7 @@ pub fn start_listener(
     );
     if res.is_err() {
         ERROR!(
-            "Signal Match on NetworkManager failed",
+            "Signal Match on NetworkManager failed\n",
             ErrorLevel::PartialBreakage
         );
         return Err(dbus::Error::new_custom(
@@ -242,7 +242,7 @@ pub fn start_listener(
     });
     if res.is_err() {
         ERROR!(
-            "Signal Match on NetworkManager failed",
+            "Signal Match on NetworkManager failed\n",
             ErrorLevel::PartialBreakage
         );
         return Err(dbus::Error::new_custom(
@@ -282,7 +282,7 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
     );
     if result.is_err() {
         ERROR!(
-            "Failed to receive network devices from NetworkManager",
+            "Failed to receive network devices from NetworkManager\n",
             ErrorLevel::PartialBreakage
         );
         return Vec::new();
@@ -343,7 +343,7 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
     );
     if res.is_err() {
         ERROR!(
-            "Failed to receive settings from connection",
+            "Failed to receive settings from connection\n",
             ErrorLevel::PartialBreakage
         );
         return Err(MethodErr::invalid_arg(
@@ -384,7 +384,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
     );
     if result.is_err() {
         ERROR!(
-            "Failed to set settings for connection",
+            "Failed to set settings for connection\n",
             ErrorLevel::Recoverable
         );
         return false;
@@ -428,7 +428,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
         1000,
     );
     if result.is_err() {
-        ERROR!("Failed to get connection secrets.", ErrorLevel::Recoverable);
+        ERROR!("Failed to get connection secrets.\n", ErrorLevel::Recoverable);
     }
     let (_,): (HashMap<String, PropMap>,) = result.unwrap();
 }
@@ -519,7 +519,7 @@ pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
         enabled,
     );
     if result.is_err() {
-        ERROR!("Failed to enable WiFi.", ErrorLevel::PartialBreakage);
+        ERROR!("Failed to enable WiFi.\n", ErrorLevel::PartialBreakage);
         return false;
     }
     if enabled {
@@ -549,7 +549,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         let res = get_connection_settings(connection.clone());
         if res.is_err() {
             ERROR!(
-                "Failed to get connection settings.",
+                "Failed to get connection settings.\n",
                 ErrorLevel::Recoverable
             );
             continue;
@@ -577,7 +577,7 @@ pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), Con
     );
     if result.is_err() {
         ERROR!(
-            "Failed to disconnect from connection.",
+            "Failed to disconnect from connection.\n",
             ErrorLevel::Recoverable
         );
         return Err(ConnectionError {
@@ -611,7 +611,7 @@ impl Device {
         );
         if res.is_err() {
             ERROR!(
-                "Failed to request scan from WiFi device.",
+                "Failed to request scan from WiFi device.\n",
                 ErrorLevel::Recoverable
             );
         }
@@ -629,7 +629,7 @@ impl Device {
         );
         if result.is_err() {
             ERROR!(
-                "Failed to receive access points from WiFi device.",
+                "Failed to receive access points from WiFi device.\n",
                 ErrorLevel::PartialBreakage
             );
         }
@@ -695,7 +695,7 @@ impl Device {
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
             ERROR!(
-                "Tried to connect to access point with invalid device.",
+                "Tried to connect to access point with invalid device.\n",
                 ErrorLevel::PartialBreakage
             );
             return Err(ConnectionError {
@@ -716,7 +716,7 @@ impl Device {
             (Path<'static>,),
         );
         if res.is_err() {
-            ERROR!("Failed to activate connection.", ErrorLevel::Recoverable);
+            ERROR!("Failed to activate connection.\n", ErrorLevel::Recoverable);
             return Err(ConnectionError {
                 method: "connect to",
             });
@@ -733,7 +733,10 @@ impl Device {
                 u32,
             );
             if res.is_err() {
-                LOG!(format!("Wrong password entered for connection: {}.", path));
+                LOG!(format!(
+                    "Wrong password entered for connection: {}.\n",
+                    path
+                ));
                 return Err(ConnectionError {
                     method: "Password was wrong",
                 });
@@ -741,7 +744,10 @@ impl Device {
             result = res.unwrap();
         }
         if result != 2 {
-            LOG!(format!("Wrong password entered for connection: {}.", res.0));
+            LOG!(format!(
+                "Wrong password entered for connection: {}.\n",
+                res.0
+            ));
             return Err(ConnectionError {
                 method: "Password was wrong",
             });
@@ -760,7 +766,7 @@ impl Device {
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
             ERROR!(
-                "Tried to connect to access point with invalid device.",
+                "Tried to connect to access point with invalid device.\n",
                 ErrorLevel::PartialBreakage
             );
             return Err(ConnectionError {
@@ -799,7 +805,10 @@ impl Device {
                     u32,
                 );
                 if res.is_err() {
-                    LOG!(format!("Wrong password entered for connection: {}.", path));
+                    LOG!(format!(
+                        "Wrong password entered for connection: {}.\n",
+                        path
+                    ));
                     return Err(ConnectionError {
                         method: "Password was wrong",
                     });
@@ -807,7 +816,10 @@ impl Device {
                 result = res.unwrap();
             }
             if result != 2 {
-                LOG!(format!("Wrong password entered for connection: {}.", path));
+                LOG!(format!(
+                    "Wrong password entered for connection: {}.\n",
+                    path
+                ));
                 return Err(ConnectionError {
                     method: "Password was wrong",
                 });
@@ -816,7 +828,10 @@ impl Device {
                 (Some(connection), Some(get_access_point_properties(path)));
             return Ok(());
         }
-        LOG!(format!("Failed to connect to {}.", access_point.dbus_path));
+        LOG!(format!(
+            "Failed to connect to {}.\n",
+            access_point.dbus_path
+        ));
         Err(ConnectionError {
             method: "connect to",
         })
@@ -836,7 +851,7 @@ impl Device {
         );
         if res.is_err() {
             ERROR!(
-                "Tried to disconnect from access point.",
+                "Tried to disconnect from access point.\n",
                 ErrorLevel::Recoverable
             );
             return Err(ConnectionError {
@@ -850,7 +865,7 @@ impl Device {
                     let res = disconnect_from_access_point(connection);
                     if res.is_err() {
                         ERROR!(
-                            "Tried to disconnect from access point.",
+                            "Tried to disconnect from access point.\n",
                             ErrorLevel::Recoverable
                         );
                         return Err(ConnectionError {
