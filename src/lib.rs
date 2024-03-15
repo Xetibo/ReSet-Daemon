@@ -91,14 +91,16 @@ pub async fn run_daemon() {
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
+        LOG!("/tmp/reset_daemon_log", "WiFi feature started\n");
     }
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
         // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
+        LOG!("/tmp/reset_daemon_log", "Bluetooth feature started\n");
     }
-    // TODO, how to check for audio?
+    // TODO: how to check for audio?
     features.push(setup_audio_manager(&mut cross));
     feature_strings.push("Audio");
 

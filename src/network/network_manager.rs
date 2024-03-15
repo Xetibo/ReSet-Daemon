@@ -403,7 +403,7 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
     if res.is_err() {
         LOG!(
             "/tmp/reset_daemon_log",
-            format!("Could not get secrets of connection: {}", path)
+            format!("Could not get secrets of connection: {}\n", path)
         );
         return Ok(map);
     }

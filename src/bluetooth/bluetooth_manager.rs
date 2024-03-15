@@ -212,7 +212,7 @@ impl BluetoothInterface {
         if res.is_err() {
             ERROR!(
                 "/tmp/reset_daemon_log",
-                "Could not get bluetooth objects",
+                "Could not get bluetooth objects\n",
                 ErrorLevel::PartialBreakage
             );
             return None;
@@ -284,7 +284,7 @@ impl BluetoothInterface {
                         if res.is_err() {
                             ERROR!(
                                 "/tmp/reset_daemon_log",
-                                "Could not send signal",
+                                "Could not send signal\n",
                                 ErrorLevel::PartialBreakage
                             );
                         }
@@ -316,7 +316,7 @@ impl BluetoothInterface {
                     if res.is_err() {
                         ERROR!(
                             "/tmp/reset_daemon_log",
-                            "Could not send signal",
+                            "Could not send signal\n",
                             ErrorLevel::PartialBreakage
                         );
                     }
@@ -359,7 +359,7 @@ impl BluetoothInterface {
                             if res.is_err() {
                                 ERROR!(
                                     "/tmp/reset_daemon_log",
-                                    "Could not send signal",
+                                    "Could not send signal\n",
                                     ErrorLevel::PartialBreakage
                                 );
                             }
