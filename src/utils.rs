@@ -17,14 +17,14 @@ use dbus::{
 use re_set_lib::{
     audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source},
     network::network_structures::Error,
-    utils::get_system_dbus_property,
+    utils::{dbus_utils::get_system_dbus_property, macros::ErrorLevel},
+    write_log_to_file, ERROR,
 };
 use tokio::task::JoinHandle;
 
 use crate::{
     audio::audio_manager::PulseServer,
     bluetooth::bluetooth_manager::{BluetoothAgent, BluetoothInterface},
-    macros::ErrorLevel,
     network::network_manager::{get_wifi_devices, Device},
 };
 
@@ -155,7 +155,7 @@ impl DaemonData {
                     audio_listener_ref.store(true, Ordering::SeqCst);
                     res.listen_to_messages();
                 } else if let Err(error) = res {
-                    ERROR!(error.0, ErrorLevel::Critical);
+                    ERROR!("/tmp/reset_daemon_log", error.0, ErrorLevel::Critical);
                 }
             });
         }

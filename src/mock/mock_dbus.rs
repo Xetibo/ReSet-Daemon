@@ -3,10 +3,11 @@ use std::{collections::HashMap, future, sync::atomic::AtomicBool};
 use dbus::{channel::MatchingReceiver, message::MatchRule};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
+use re_set_lib::utils::variant::MockVariant;
 
 use crate::mock::{bluetooth::mock_bluetooth_interface, network::mock_network_manager};
 
-use super::{bluetooth::MockBluetoothData, network::MockNetworkManager, variant::MockVariant};
+use super::{bluetooth::MockBluetoothData, network::MockNetworkManager};
 
 pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     let res = connection::new_session_sync();

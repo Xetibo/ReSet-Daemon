@@ -3,8 +3,12 @@ use std::sync::atomic::Ordering;
 use dbus::Path;
 use dbus_crossroads::Crossroads;
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
+use re_set_lib::{
+    utils::macros::ErrorLevel,
+    {write_log_to_file, ERROR},
+};
 
-use crate::{macros::ErrorLevel, DaemonData};
+use crate::DaemonData;
 
 use super::bluetooth_manager::{
     get_bluetooth_adapter, get_connections, set_adapter_discoverable, set_adapter_enabled,
@@ -150,6 +154,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let res = d.b_interface.disconnect(device.clone());
                 if res.is_err() {
                     ERROR!(
+                        "/tmp/reset_daemon_log",
                         format!("Could not disconnect from device: {}\n", device),
                         ErrorLevel::PartialBreakage
                     );
@@ -166,6 +171,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let res = d.b_interface.remove_device_pairing(path.clone());
                 if res.is_err() {
                     ERROR!(
+                        "/tmp/reset_daemon_log",
                         format!("Could not remove device pairing: {}\n", path),
                         ErrorLevel::PartialBreakage
                     );

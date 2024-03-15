@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::network::network_manager::Device;
 use dbus::{arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path};
 use dbus_crossroads::Crossroads;
 use re_set_lib::network::connection::{PropMapConvert, WifiSecuritySettings};
+use re_set_lib::{write_log_to_file, LOG};
 
 use super::mock_dbus::MockTestData;
 
@@ -166,7 +166,10 @@ pub fn mock_network_manager_base(
                     );
                     active_connection
                 } else {
-                    LOG!("Tried to activate non-existing connection\n");
+                    LOG!(
+                        "/tmp/reset_daemon_log",
+                        "Tried to activate non-existing connection\n"
+                    );
                     Path::from("/")
                 };
                 async move { ctx.reply(Ok((active_connection,))) }
@@ -196,7 +199,10 @@ pub fn mock_network_manager_base(
                         .active_connections
                         .remove(index as usize);
                 } else {
-                    LOG!("Tried to deactivate non-existing connection\n");
+                    LOG!(
+                        "/tmp/reset_daemon_log",
+                        "Tried to deactivate non-existing connection\n"
+                    );
                 }
                 async move { ctx.reply(Ok(())) }
             },
@@ -324,7 +330,7 @@ pub struct MockNetworkData {
     access_points: Vec<Path<'static>>,
     passwords: Vec<String>,
     devices: Vec<Path<'static>>,
-    current_device: Device,
+    // current_device: Device,
     connections: Vec<Path<'static>>,
     active_connections: Vec<Path<'static>>,
 }
@@ -337,7 +343,7 @@ impl MockNetworkData {
             access_points: Vec::new(),
             passwords: Vec::new(),
             devices: Vec::new(),
-            current_device: Device::new(Path::from("/"), "none".to_string()),
+            // current_device: Device::new(Path::from("/"), "none".to_string()),
             connections: vec![
                 Path::from(NM_DEVICES_PATH!().to_string() + "/Connection1"),
                 Path::from(NM_DEVICES_PATH!().to_string() + "/Connection2"),
