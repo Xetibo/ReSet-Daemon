@@ -375,7 +375,7 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
         NM_INTERFACE_BASE!(),
         path.clone(),
         "GetSettings",
-        NM_SETTINGS_INTERFACE!(),
+        NM_CONNECTION_INTERFACE!(),
         (),
         1000,
         (HashMap<String, PropMap>,),
@@ -395,20 +395,21 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
         NM_INTERFACE_BASE!(),
         path.clone(),
         "GetSecrets",
-        NM_SETTINGS_INTERFACE!(),
+        NM_CONNECTION_INTERFACE!(),
         ("802-11-wireless-security",),
         1000,
         (HashMap<String, PropMap>,),
     );
     if res.is_err() {
-        LOG!(
-            "/tmp/reset_daemon_log",
-            format!("Could not get secrets of connection: {}\n", path)
-        );
+        // return if not a wifi connection -> hence no wifi secrets
         return Ok(map);
     }
 
-    map.get_mut("802-11-wireless-security")
+    let security = map.get_mut("802-11-wireless-security");
+    if security.is_none() {
+        return Ok(map);
+    }
+    security
         .unwrap()
         .extend(res.unwrap().0.remove("802-11-wireless-security").unwrap());
     Ok(map)
@@ -419,7 +420,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
         NM_INTERFACE_BASE!(),
         path,
         "Update",
-        NM_SETTINGS_INTERFACE!(),
+        NM_CONNECTION_INTERFACE!(),
         (settings,),
         1000,
         (HashMap<String, PropMap>,),
@@ -438,7 +439,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
 #[allow(dead_code)]
 pub fn set_password(path: Path<'static>, password: String) {
     // yes this will be encrypted later
-    // TODO encrypt
+    // TODO: encrypt
     let password = Box::new(password) as Box<dyn RefArg>;
     let res = get_connection_settings(path.clone());
     if res.is_err() {
@@ -453,7 +454,7 @@ pub fn set_password(path: Path<'static>, password: String) {
         NM_INTERFACE_BASE!(),
         path,
         "Update",
-        NM_SETTINGS_INTERFACE!(),
+        NM_CONNECTION_INTERFACE!(),
         (settings,),
         1000,
         (HashMap<String, PropMap>,),
@@ -467,7 +468,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
         NM_INTERFACE_BASE!(),
         path,
         "GetSecrets",
-        NM_SETTINGS_INTERFACE!(),
+        NM_CONNECTION_INTERFACE!(),
         ("802-11-wireless-security".to_string(),),
         1000,
         (HashMap<String, PropMap>,),
@@ -691,6 +692,7 @@ impl Device {
                 "Failed to receive access points from WiFi device.\n",
                 ErrorLevel::PartialBreakage
             );
+            return Vec::new();
         }
         let (result,) = result.unwrap();
         let access_points = Arc::new(RwLock::new(Vec::new()));
@@ -704,10 +706,11 @@ impl Device {
             access_points.write().unwrap().push(connected_access_point);
         }
 
+        let mut threads = Vec::new();
         for label in result {
             let known_points_ref = known_points.clone();
             let access_points_ref = access_points.clone();
-            thread::spawn(move || {
+            threads.push(thread::spawn(move || {
                 let access_point = get_access_point_properties(label);
                 if known_points_ref
                     .read()
@@ -721,9 +724,10 @@ impl Device {
                     .unwrap()
                     .insert(access_point.ssid.clone(), 0);
                 access_points_ref.write().unwrap().push(access_point);
-            })
-            .join()
-            .expect("Thread failed at parsing access point");
+            }));
+        }
+        for thread in threads {
+            thread.join().expect("Could not spawn thread");
         }
         Arc::try_unwrap(access_points)
             .unwrap()

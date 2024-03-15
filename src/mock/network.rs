@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use dbus::{arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path};
 use dbus_crossroads::Crossroads;
-use re_set_lib::network::connection::{PropMapConvert, WifiSecuritySettings};
+use re_set_lib::network::connection::{PropMapConvert, WifiSecuritySettings, WifiSettings};
 use re_set_lib::{write_log_to_file, LOG};
 
 use super::mock_dbus::MockTestData;
@@ -12,6 +12,7 @@ pub struct MockNetworkManager {
     pub network_manager_settings: dbus_crossroads::IfaceToken<MockTestData>,
     pub network_manager_device: dbus_crossroads::IfaceToken<MockDeviceData>,
     pub network_manager_access_point: dbus_crossroads::IfaceToken<MockAccessPointData>,
+    pub network_manager_connection: dbus_crossroads::IfaceToken<MockConnectionData>,
     pub network_manager_active_connection: dbus_crossroads::IfaceToken<MockActiveConnectionData>,
     pub network_manager_data: MockNetworkData,
 }
@@ -25,6 +26,7 @@ pub fn mock_network_manager(
         network_manager_settings: mock_network_manager_settings(cross),
         network_manager_device: mock_network_manager_device(cross, conn),
         network_manager_access_point: mock_network_manager_access_points(cross),
+        network_manager_connection: mock_network_manager_connection(cross),
         network_manager_active_connection: mock_network_manager_active_connection(cross),
         network_manager_data: MockNetworkData::new(),
     };
@@ -74,12 +76,17 @@ pub fn mock_network_manager_base(
                 Path<'static>,
             )| {
                 let connection_path = Path::from(NM_PATH!().to_string() + "/Connection/100");
-                let interface;
+                let mock_connection_interface;
+                let mock_active_connection_interface;
                 let connections;
+                let mut settings: Option<WifiSettings> = None;
+                let mut secrets: Option<WifiSecuritySettings> = None;
                 let ok;
                 {
                     let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
-                    interface = data.network_data.network_manager_active_connection;
+                    mock_active_connection_interface =
+                        data.network_data.network_manager_active_connection;
+                    mock_connection_interface = data.network_data.network_manager_connection;
                     connections = data.network_data.network_manager_data.connections.clone();
                     let mut i = 0;
                     for access_point in data.network_data.network_manager_data.access_points.iter()
@@ -90,9 +97,12 @@ pub fn mock_network_manager_base(
                         i += 1;
                     }
                     ok = if connection.contains_key("802-11-wireless-security") {
+                        settings = Some(WifiSettings::from_propmap(&PropMap::new()));
                         let parsed_connection = WifiSecuritySettings::from_propmap(
                             connection.get("802-11-wireless-security").unwrap(),
                         );
+                        secrets = Some(parsed_connection.clone());
+
                         let password = data
                             .network_data
                             .network_manager_data
@@ -121,12 +131,21 @@ pub fn mock_network_manager_base(
                 let state = if ok { 2 } else { 4 };
                 create_mock_active_connection(
                     cross,
-                    interface,
+                    mock_active_connection_interface,
                     &active_connection,
                     connection_path.clone(),
                     specific_object,
                     state,
                 );
+                if ok {
+                    create_mock_connection(
+                        cross,
+                        mock_connection_interface,
+                        &connection_path,
+                        settings.unwrap(),
+                        secrets.unwrap(),
+                    );
+                }
 
                 async move { ctx.reply(Ok((connection_path, active_connection))) }
             },
@@ -225,6 +244,38 @@ pub fn mock_network_manager_settings(
                 let data: &mut MockTestData = cross.data_mut(ctx.path()).unwrap();
                 let connections = data.network_data.network_manager_data.connections.clone();
                 async move { ctx.reply(Ok((connections,))) }
+            },
+        );
+    })
+}
+
+pub fn mock_network_manager_connection(
+    cross: &mut Crossroads,
+) -> dbus_crossroads::IfaceToken<MockConnectionData> {
+    cross.register(NM_CONNECTION_INTERFACE!(), |c| {
+        c.method_with_cr_async(
+            "GetSettings",
+            (),
+            ("settings",),
+            move |mut ctx, cross, ()| {
+                let data: &mut MockConnectionData = cross.data_mut(ctx.path()).unwrap();
+                let settings = data.settings.clone();
+                async move { ctx.reply(Ok((settings.to_propmap(),))) }
+            },
+        );
+        c.method_with_cr_async("GetSecrets", (), ("secrets",), move |mut ctx, cross, ()| {
+            let data: &mut MockConnectionData = cross.data_mut(ctx.path()).unwrap();
+            let connections = data.secrets.clone();
+            async move { ctx.reply(Ok((connections.to_propmap(),))) }
+        });
+        c.method_with_cr_async(
+            "Update",
+            ("settings",),
+            (),
+            move |mut ctx, cross, (settings,): (PropMap,)| {
+                let data: &mut MockConnectionData = cross.data_mut(ctx.path()).unwrap();
+                data.settings = WifiSettings::from_propmap(&settings);
+                async move { ctx.reply(Ok(())) }
             },
         );
     })
@@ -344,11 +395,7 @@ impl MockNetworkData {
             passwords: Vec::new(),
             devices: Vec::new(),
             // current_device: Device::new(Path::from("/"), "none".to_string()),
-            connections: vec![
-                Path::from(NM_DEVICES_PATH!().to_string() + "/Connection1"),
-                Path::from(NM_DEVICES_PATH!().to_string() + "/Connection2"),
-                Path::from(NM_DEVICES_PATH!().to_string() + "/Connection3"),
-            ],
+            connections: Vec::new(),
             active_connections: Vec::new(),
         }
     }
@@ -389,6 +436,20 @@ impl MockDeviceData {
                 "/org/Xetibo/ReSet/Test/AccessPoint/".to_string() + &id.to_string(),
             )],
             access_point_interface,
+        }
+    }
+}
+
+pub struct MockConnectionData {
+    settings: WifiSettings,
+    secrets: WifiSecuritySettings,
+}
+
+impl MockConnectionData {
+    fn new(settings: WifiSettings, secrets: WifiSecuritySettings) -> Self {
+        Self {
+            settings,
+            secrets,
         }
     }
 }
@@ -449,6 +510,20 @@ pub fn create_mock_access_points(
             .access_points
             .push(Path::from(path));
     }
+}
+
+pub fn create_mock_connection(
+    cross: &mut Crossroads,
+    interface: dbus_crossroads::IfaceToken<MockConnectionData>,
+    path: &Path<'static>,
+    settings: WifiSettings,
+    secrets: WifiSecuritySettings,
+) {
+    cross.insert(
+        path.clone(),
+        &[interface],
+        MockConnectionData::new(settings, secrets),
+    );
 }
 
 pub fn create_mock_active_connection(

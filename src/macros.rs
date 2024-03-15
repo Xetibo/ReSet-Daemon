@@ -89,7 +89,7 @@ macro_rules! NM_INTERFACE {
 #[cfg(not(test))]
 macro_rules! NM_SETTINGS_INTERFACE {
     () => {
-        "org.freedesktop.NetworkManager.Settings.Connection"
+        "org.freedesktop.NetworkManager.Settings"
     };
 }
 
@@ -131,6 +131,20 @@ macro_rules! NM_ACCESS_POINT_INTERFACE {
 macro_rules! NM_ACCESS_POINT_INTERFACE {
     () => {
         "org.Xetibo.ReSet.Test.NetworkManager.AccessPoint"
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! NM_CONNECTION_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.Settings.Connection"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_CONNECTION_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.Connection"
     };
 }
 
