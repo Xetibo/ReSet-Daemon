@@ -9,15 +9,13 @@ mod network;
 mod tests;
 pub mod utils;
 
-use std::{
-    future::{self},
-    process::exit,
-};
+use std::{fs, future, process::exit, time::Duration};
 
+use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
-use dbus_tokio::connection::{self};
-use re_set_lib::utils::call_system_dbus_method;
+use dbus_tokio::connection;
+use re_set_lib::{write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -45,7 +43,8 @@ use crate::{
 /// // your other code here...
 /// ```
 pub async fn run_daemon() {
-    LOG!("Running in debug mode");
+    create_log_file();
+    LOG!("/tmp/reset_daemon_log", "Running in debug mode\n");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -66,22 +65,24 @@ pub async fn run_daemon() {
         }),
     )));
 
-    let res = call_system_dbus_method::<(), ()>(
-        "org.freedesktop.NetworkManager",
-        Path::from("/org/freedesktop/NetworkManager"),
+    let res = dbus_method!(
+        NM_INTERFACE_BASE!(),
+        Path::from(NM_PATH!()),
         "Introspect",
         "org.freedesktop.DBus.Introspectable",
         (),
         1,
+        (),
     );
     let wifi_enabled = res.is_ok();
-    let res = call_system_dbus_method::<(), ()>(
-        "org.bluez",
-        Path::from("/org/bluez"),
+    let res = dbus_method!(
+        BLUEZ_INTERFACE!(),
+        Path::from(BLUEZ_PATH!()),
         "Introspect",
         "org.freedesktop.DBus.Introspectable",
         (),
         1,
+        (),
     );
     let bluetooth_enabled = res.is_ok();
 
@@ -90,14 +91,16 @@ pub async fn run_daemon() {
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
+        LOG!("/tmp/reset_daemon_log", "WiFi feature started\n");
     }
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
         // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
+        LOG!("/tmp/reset_daemon_log", "Bluetooth feature started\n");
     }
-    // TODO, how to check for audio?
+    // TODO: how to check for audio?
     features.push(setup_audio_manager(&mut cross));
     feature_strings.push("Audio");
 
@@ -131,6 +134,10 @@ pub async fn run_daemon() {
 
     future::pending::<()>().await;
     unreachable!()
+}
+
+fn create_log_file() {
+    fs::File::create("/tmp/reset_daemon_log").expect("Could not create log file.");
 }
 
 fn setup_base(

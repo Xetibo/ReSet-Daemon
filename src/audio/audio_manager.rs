@@ -18,6 +18,10 @@ use pulse::{
     proplist::Proplist,
 };
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
+use re_set_lib::{
+    utils::macros::ErrorLevel,
+    {write_log_to_file, ERROR},
+};
 
 use crate::utils::AUDIO;
 use crate::{AudioRequest, AudioResponse};
@@ -126,7 +130,13 @@ impl PulseServer {
                             ListResult::Item(sink) => {
                                 handle_sink_events(&connection_sink, Sink::from(sink), operation);
                             }
-                            ListResult::Error => (),
+                            ListResult::Error => {
+                                ERROR!(
+                                    "/tmp/reset_daemon_log",
+                                    "Could not get sink info\n",
+                                    ErrorLevel::PartialBreakage
+                                );
+                            }
                             ListResult::End => (),
                         });
                     }
@@ -143,7 +153,13 @@ impl PulseServer {
                                     operation,
                                 );
                             }
-                            ListResult::Error => (),
+                            ListResult::Error => {
+                                ERROR!(
+                                    "/tmp/reset_daemon_log",
+                                    "Could not get source info\n",
+                                    ErrorLevel::PartialBreakage
+                                );
+                            }
                             ListResult::End => (),
                         });
                     }
@@ -160,7 +176,13 @@ impl PulseServer {
                                     operation,
                                 );
                             }
-                            ListResult::Error => (),
+                            ListResult::Error => {
+                                ERROR!(
+                                    "/tmp/reset_daemon_log",
+                                    "Could not get output stream info\n",
+                                    ErrorLevel::PartialBreakage
+                                );
+                            }
                             ListResult::End => (),
                         });
                     }
@@ -177,7 +199,13 @@ impl PulseServer {
                                     operation,
                                 );
                             }
-                            ListResult::Error => (),
+                            ListResult::Error => {
+                                ERROR!(
+                                    "/tmp/reset_daemon_log",
+                                    "Could not get input stream info\n",
+                                    ErrorLevel::PartialBreakage
+                                );
+                            }
                             ListResult::End => (),
                         });
                     }
@@ -277,6 +305,11 @@ impl PulseServer {
                         sink_ref.replace(item.into());
                     }
                     ListResult::Error => unsafe {
+                        ERROR!(
+                            "/tmp/reset_daemon_log",
+                            "Could not get sink info\n",
+                            ErrorLevel::PartialBreakage
+                        );
                         (*ml_ref.as_ptr()).signal(true);
                     },
                     ListResult::End => unsafe {
@@ -287,7 +320,14 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self.sender.send(AudioResponse::DefaultSink(sink.take()));
+        let res = self.sender.send(AudioResponse::DefaultSink(sink.take()));
+        if res.is_err() {
+            ERROR!(
+                "/tmp/reset_daemon_log",
+                "Could not get default sink\n",
+                ErrorLevel::PartialBreakage
+            );
+        }
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -296,13 +336,27 @@ impl PulseServer {
         let introspector = self.context.borrow().introspect();
         let source_name = self.no_lock_get_default_sink_name(&introspector);
         if source_name.borrow().is_empty() {
-            let _ = self.sender.send(AudioResponse::Error);
+            let res = self.sender.send(AudioResponse::Error);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get default sink name\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
             self.mainloop.borrow_mut().unlock();
             return;
         }
-        let _ = self
+        let res = self
             .sender
             .send(AudioResponse::DefaultSinkName(source_name.take()));
+        if res.is_err() {
+            ERROR!(
+                "/tmp/reset_daemon_log",
+                "Could not get default sink name\n",
+                ErrorLevel::PartialBreakage
+            );
+        }
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -333,13 +387,27 @@ impl PulseServer {
         let introspector = self.context.borrow().introspect();
         let source_name = self.no_lock_get_default_source_name(&introspector);
         if source_name.borrow().is_empty() {
-            let _ = self.sender.send(AudioResponse::Error);
+            let res = self.sender.send(AudioResponse::Error);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get default source name\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
             self.mainloop.borrow_mut().unlock();
             return;
         }
-        let _ = self
+        let res = self
             .sender
             .send(AudioResponse::DefaultSourceName(source_name.take()));
+        if res.is_err() {
+            ERROR!(
+                "/tmp/reset_daemon_log",
+                "Could not get default source name\n",
+                ErrorLevel::PartialBreakage
+            );
+        }
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -384,6 +452,11 @@ impl PulseServer {
                         source_ref.replace(item.into());
                     }
                     ListResult::Error => unsafe {
+                        ERROR!(
+                            "/tmp/reset_daemon_log",
+                            "Could not get default source\n",
+                            ErrorLevel::PartialBreakage
+                        );
                         (*ml_ref.as_ptr()).signal(true);
                     },
                     ListResult::End => unsafe {
@@ -394,9 +467,16 @@ impl PulseServer {
         while result.get_state() != pulse::operation::State::Done {
             self.mainloop.borrow_mut().wait();
         }
-        let _ = self
+        let res = self
             .sender
             .send(AudioResponse::DefaultSource(source.take()));
+        if res.is_err() {
+            ERROR!(
+                "/tmp/reset_daemon_log",
+                "Could not get default source\n",
+                ErrorLevel::PartialBreakage
+            );
+        }
         self.mainloop.borrow_mut().unlock();
     }
 
@@ -411,6 +491,11 @@ impl PulseServer {
                 sinks_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get sinks\n",
+                    ErrorLevel::PartialBreakage
+                );
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -435,6 +520,11 @@ impl PulseServer {
                 sources_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get sources\n",
+                    ErrorLevel::PartialBreakage
+                );
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -538,6 +628,11 @@ impl PulseServer {
                 sink_ref.replace(item.into());
             }
             ListResult::Error => unsafe {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not set default sink\n",
+                    ErrorLevel::PartialBreakage
+                );
                 (*ml_ref_response.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -571,6 +666,11 @@ impl PulseServer {
                     source_ref.replace(item.into());
                 }
                 ListResult::Error => unsafe {
+                    ERROR!(
+                        "/tmp/reset_daemon_log",
+                        "Could not set default source\n",
+                        ErrorLevel::PartialBreakage
+                    );
                     (*ml_ref_response.as_ptr()).signal(true);
                 },
                 ListResult::End => unsafe {
@@ -597,6 +697,11 @@ impl PulseServer {
                 input_stream.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get input streams\n",
+                    ErrorLevel::PartialBreakage
+                );
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -677,6 +782,11 @@ impl PulseServer {
                 output_stream_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get output streams\n",
+                    ErrorLevel::PartialBreakage
+                );
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -757,6 +867,11 @@ impl PulseServer {
                 cards_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get profile cards\n",
+                    ErrorLevel::PartialBreakage
+                );
                 (*ml_ref.as_ptr()).signal(false);
             },
             ListResult::End => unsafe {
@@ -797,7 +912,14 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
                 &"SinkAdded".into(),
             )
             .append1(sink);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -806,7 +928,14 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
                 &"SinkChanged".into(),
             )
             .append1(sink);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Removed => (),
     }
@@ -819,7 +948,14 @@ fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"SinkRemoved".into(),
     )
     .append1(index);
-    let _ = conn.send(msg);
+    let res = conn.send(msg);
+    if res.is_err() {
+        ERROR!(
+            "/tmp/reset_daemon_log",
+            "Could not get send message\n",
+            ErrorLevel::PartialBreakage
+        );
+    }
 }
 
 fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: Operation) {
@@ -831,7 +967,14 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
                 &"SourceAdded".into(),
             )
             .append1(source);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -840,7 +983,14 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
                 &"SourceChanged".into(),
             )
             .append1(source);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Removed => (),
     }
@@ -853,7 +1003,14 @@ fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"SourceRemoved".into(),
     )
     .append1(index);
-    let _ = conn.send(msg);
+    let res = conn.send(msg);
+    if res.is_err() {
+        ERROR!(
+            "/tmp/reset_daemon_log",
+            "Could not get send message\n",
+            ErrorLevel::PartialBreakage
+        );
+    }
 }
 
 fn handle_input_stream_events(
@@ -869,7 +1026,14 @@ fn handle_input_stream_events(
                 &"InputStreamAdded".into(),
             )
             .append1(input_stream);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -878,7 +1042,14 @@ fn handle_input_stream_events(
                 &"InputStreamChanged".into(),
             )
             .append1(input_stream);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Removed => (),
     }
@@ -891,7 +1062,14 @@ fn handle_input_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"InputStreamRemoved".into(),
     )
     .append1(index);
-    let _ = conn.send(msg);
+    let res = conn.send(msg);
+    if res.is_err() {
+        ERROR!(
+            "/tmp/reset_daemon_log",
+            "Could not get send message\n",
+            ErrorLevel::PartialBreakage
+        );
+    }
 }
 
 fn handle_output_stream_events(
@@ -907,7 +1085,14 @@ fn handle_output_stream_events(
                 &"OutputStreamAdded".into(),
             )
             .append1(output_stream);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Changed => {
             let msg = Message::signal(
@@ -916,7 +1101,14 @@ fn handle_output_stream_events(
                 &"OutputStreamChanged".into(),
             )
             .append1(output_stream);
-            let _ = conn.send(msg);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Could not get send message\n",
+                    ErrorLevel::PartialBreakage
+                );
+            }
         }
         Operation::Removed => (),
     }
@@ -929,5 +1121,12 @@ fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
         &"OutputStreamRemoved".into(),
     )
     .append1(index);
-    let _ = conn.send(msg);
+    let res = conn.send(msg);
+    if res.is_err() {
+        ERROR!(
+            "/tmp/reset_daemon_log",
+            "Could not get send message\n",
+            ErrorLevel::PartialBreakage
+        );
+    }
 }

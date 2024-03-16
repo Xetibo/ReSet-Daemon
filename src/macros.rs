@@ -58,6 +58,7 @@ macro_rules! BASE_TEST_INTERFACE {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_INTERFACE_BASE {
     () => {
         "org.freedesktop.NetworkManager"
@@ -71,6 +72,7 @@ macro_rules! NM_INTERFACE_BASE {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_INTERFACE {
     () => {
         "org.freedesktop.NetworkManager"
@@ -84,9 +86,10 @@ macro_rules! NM_INTERFACE {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_SETTINGS_INTERFACE {
     () => {
-        "org.freedesktop.NetworkManager.Settings.Connection"
+        "org.freedesktop.NetworkManager.Settings"
     };
 }
 
@@ -103,6 +106,7 @@ macro_rules! NM_INTERFACE_TEST {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_DEVICE_INTERFACE {
     () => {
         "org.freedesktop.NetworkManager.Device.Wireless"
@@ -116,6 +120,7 @@ macro_rules! NM_DEVICE_INTERFACE {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_ACCESS_POINT_INTERFACE {
     () => {
         "org.freedesktop.NetworkManager.AcessPoint"
@@ -129,6 +134,21 @@ macro_rules! NM_ACCESS_POINT_INTERFACE {
     };
 }
 
+#[cfg(not(test))]
+macro_rules! NM_CONNECTION_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.Settings.Connection"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_CONNECTION_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.Connection"
+    };
+}
+
+#[cfg(not(test))]
 macro_rules! NM_ACTIVE_CONNECTION_INTERFACE {
     () => {
         "org.freedesktop.NetworkManager.Connection.Active"
@@ -142,6 +162,21 @@ macro_rules! NM_ACTIVE_CONNECTION_INTERFACE {
     };
 }
 
+#[cfg(not(test))]
+macro_rules! BLUEZ_INTERFACE {
+    () => {
+        "org.bluez"
+    };
+}
+
+#[cfg(test)]
+macro_rules! BLUEZ_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Bluez"
+    };
+}
+
+#[cfg(not(test))]
 macro_rules! NM_PATH {
     () => {
         "/org/freedesktop/NetworkManager"
@@ -155,6 +190,7 @@ macro_rules! NM_PATH {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_SETTINGS_PATH {
     () => {
         "/org/freedesktop/NetworkManager/Settings"
@@ -168,6 +204,7 @@ macro_rules! NM_SETTINGS_PATH {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_DEVICES_PATH {
     () => {
         "/org/freedesktop/NetworkManager/Devices"
@@ -181,6 +218,7 @@ macro_rules! NM_DEVICES_PATH {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_ACCESS_POINT_PATH {
     () => {
         "/org/freedesktop/NetworkManager/AcessPoint/"
@@ -194,6 +232,7 @@ macro_rules! NM_ACCESS_POINT_PATH {
     };
 }
 
+#[cfg(not(test))]
 macro_rules! NM_ACTIVE_CONNECTION_PATH {
     () => {
         "/org/freedesktop/NetworkManager/ActiveConnection/"
@@ -207,6 +246,21 @@ macro_rules! NM_ACTIVE_CONNECTION_PATH {
     };
 }
 
+#[cfg(not(test))]
+macro_rules! BLUEZ_PATH {
+    () => {
+        "/org/bluez"
+    };
+}
+
+#[cfg(test)]
+macro_rules! BLUEZ_PATH {
+    () => {
+        "/org/Xetibo/ReSet/Test/Bluez"
+    };
+}
+
+#[cfg(not(test))]
 macro_rules! dbus_method {
     (
     $name:expr,
@@ -244,7 +298,8 @@ macro_rules! dbus_method {
     }};
 }
 
-macro_rules! dbus_property {
+#[cfg(not(test))]
+macro_rules! get_dbus_property {
     (
     $name:expr,
     $object:expr,
@@ -262,7 +317,7 @@ macro_rules! dbus_property {
 }
 
 #[cfg(test)]
-macro_rules! dbus_property {
+macro_rules! get_dbus_property {
     (
     $name:expr,
     $object:expr,
@@ -279,6 +334,43 @@ macro_rules! dbus_property {
     }};
 }
 
+#[cfg(not(test))]
+macro_rules! set_dbus_property {
+    (
+    $name:expr,
+    $object:expr,
+    $interface:expr,
+    $property:expr,
+    $value:expr,
+) => {{
+        let conn = Connection::new_system().unwrap();
+        let proxy = conn.with_proxy($name, $object, Duration::from_millis(1000));
+        use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
+
+        let result: Result<(), dbus::Error> = proxy.set($interface, $property, $value);
+        result
+    }};
+}
+
+#[cfg(test)]
+macro_rules! set_dbus_property {
+    (
+    $name:expr,
+    $object:expr,
+    $interface:expr,
+    $property:expr,
+    $value:expr,
+) => {{
+        let conn = Connection::new_session().unwrap();
+        let proxy = conn.with_proxy($name, $object, Duration::from_millis(1000));
+        use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
+
+        let result: Result<(), dbus::Error> = proxy.set($interface, $property, $value);
+        result
+    }};
+}
+
+#[allow(unused_macros)]
 macro_rules! dbus_connection {
     () => {
         Connection::new_system().unwrap()
@@ -290,36 +382,4 @@ macro_rules! dbus_connection {
     () => {
         Connection::new_session().unwrap()
     };
-}
-
-macro_rules! LOG {
-    ($message:expr) => {{}};
-}
-
-#[cfg(debug_assertions)]
-macro_rules! LOG {
-    ($message:expr) => {{
-        println!("LOG: {}", $message);
-    }};
-}
-
-macro_rules! ERROR {
-    ($message:expr, $level:expr ) => {{}};
-}
-
-#[cfg(debug_assertions)]
-macro_rules! ERROR {
-    ($message:expr, $level:expr ) => {{
-        match $level {
-            ErrorLevel::Recoverable => println!("Minor Error: {}", $message),
-            ErrorLevel::PartialBreakage => println!("Partial Error: {}", $message),
-            ErrorLevel::Critical => println!("Critical Error: {}", $message),
-        };
-    }};
-}
-
-pub enum ErrorLevel {
-    Recoverable,
-    PartialBreakage,
-    Critical,
 }

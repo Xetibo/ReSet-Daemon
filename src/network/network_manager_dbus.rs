@@ -1,11 +1,8 @@
-use std::{collections::HashMap, sync::atomic::Ordering, thread};
+use std::{collections::HashMap, sync::atomic::Ordering, thread, time::Duration};
 
-use dbus::{arg::PropMap, Path};
+use dbus::{arg::PropMap, blocking::Connection, Path};
 use dbus_crossroads::Crossroads;
-use re_set_lib::{
-    network::network_structures::{AccessPoint, WifiDevice},
-    utils::call_system_dbus_method,
-};
+use re_set_lib::network::network_structures::{AccessPoint, WifiDevice};
 
 use crate::{utils::get_wifi_status, DaemonData};
 
@@ -222,14 +219,15 @@ pub fn setup_wireless_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceT
             ("path",),
             ("result",),
             move |mut ctx, _, (path,): (Path<'static>,)| async move {
-                let res = call_system_dbus_method::<(), ()>(
-                    NM_INTERFACE!(),
+                let res = dbus_method!(
+                    NM_INTERFACE_BASE!(),
                     path,
                     "Delete",
                     NM_SETTINGS_INTERFACE!(),
                     (),
                     1000,
-                );
+                    (),
+            );
                 let result = res.is_ok();
                 ctx.reply(Ok((result,)))
             },
