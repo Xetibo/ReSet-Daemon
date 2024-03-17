@@ -18,6 +18,8 @@ use re_set_lib::audio::audio_structures::Sink;
 #[allow(unused_imports)]
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
 #[allow(unused_imports)]
+use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
+#[allow(unused_imports)]
 use re_set_lib::network::network_structures::AccessPoint;
 
 use std::{
@@ -71,15 +73,37 @@ fn setup() {
     };
 }
 
-// #[tokio::test]
-// async fn test_check() {
-//     setup();
-//     thread::sleep(Duration::from_millis(1000));
-//     println!("{}", DBUS_PATH!());
-//     let res = call_session_dbus_method::<(), ()>("Check", BASE, ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     assert!(res.is_ok());
-// }
+#[tokio::test]
+// tests fetching bluetooth devices
+async fn test_bluetooth_get_devices() {
+    setup();
+    while !READY.load(Ordering::SeqCst) {
+        hint::spin_loop();
+    }
+    thread::sleep(Duration::from_millis(1000));
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "StartBluetoothScan",
+        BLUETOOTH_INTERFACE!(),
+        (),
+        1000,
+        (),
+    );
+    assert!(res.is_ok());
+    thread::sleep(Duration::from_millis(1000));
+    let res = dbus_method!(
+        BASE_INTERFACE!(),
+        DBUS_PATH!(),
+        "GetBluetoothDevices",
+        BLUETOOTH_INTERFACE!(),
+        (),
+        1000,
+        (Vec<BluetoothDevice>,),
+    );
+    assert!(res.is_ok());
+    assert!(!res.unwrap().0.is_empty());
+}
 
 #[tokio::test]
 // tests the existance of the mock implementation
@@ -349,3 +373,10 @@ async fn test_get_output_streams() {
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
 }
+
+// this is usually commencted out as it is used to test the mock dbus itself
+// #[tokio::test]
+// async fn mock_runner() {
+//     setup();
+//     thread::sleep(Duration::from_millis(60 * 60 * 1000));
+// }

@@ -5,9 +5,9 @@ use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::variant::MockVariant;
 
-use crate::mock::{bluetooth::mock_bluetooth_interface, network::mock_network_manager};
+use crate::mock::{bluetooth::MockBluetooth, network::mock_network_manager};
 
-use super::{bluetooth::MockBluetoothData, network::MockNetworkManager};
+use crate::mock::{bluetooth::MockBluetoothData, network::MockNetworkManager};
 
 pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     let res = connection::new_session_sync();
@@ -35,7 +35,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     // let mut mock_implementations = mock_network_interface(&mut cross);
     let mut mock_implementations = Vec::new();
     let mock_network_manager = mock_network_manager(&mut cross, conn.clone());
-    mock_implementations.push(mock_bluetooth_interface(&mut cross));
+    let mock_bluetooth = MockBluetooth::new(&mut cross);
     mock_implementations.push(mock_network_manager.network_manager_base);
     mock_implementations.push(mock_network_manager.network_manager_settings);
     // mock_implementations.push(mock_network_manager.network_manager_active_connection);
@@ -44,15 +44,18 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     // mock_sound_interface(&mut cross),
     // load all plugin implementations
 
+    // cross.object_manager();
     cross.insert(
         DBUS_PATH_TEST!(),
         &mock_implementations,
         MockTestData {
             network_data: mock_network_manager,
-            bluetooth_data: MockBluetoothData::new(),
+            bluetooth_data: mock_bluetooth.data,
             plugin_data: HashMap::new(),
         },
     );
+    // needed for bluetooth
+    cross.insert("/", [&cross.object_manager()], ());
 
     conn.start_receive(
         MatchRule::new_method_call(),

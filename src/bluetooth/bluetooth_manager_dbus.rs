@@ -11,8 +11,8 @@ use re_set_lib::{
 use crate::DaemonData;
 
 use super::bluetooth_manager::{
-    get_bluetooth_adapter, get_connections, set_adapter_discoverable, set_adapter_enabled,
-    set_adapter_pairable,
+    get_all_bluetooth_adapters, get_all_bluetooth_devices, get_bluetooth_adapter, get_connections,
+    set_adapter_discoverable, set_adapter_enabled, set_adapter_pairable,
 };
 
 pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
@@ -63,18 +63,22 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 Ok(())
             },
         );
-        c.method(
-            "GetBluetoothAdapters",
-            (),
-            ("adapters",),
-            move |_, d: &mut DaemonData, ()| {
-                let mut adapters = Vec::new();
-                for path in d.b_interface.adapters.iter() {
-                    adapters.push(get_bluetooth_adapter(path));
-                }
-                Ok((adapters,))
-            },
-        );
+        // TODO: test if new version can be used instead
+        // c.method(
+        //     "GetBluetoothAdapters",
+        //     (),
+        //     ("adapters",),
+        //     move |_, d: &mut DaemonData, ()| {
+        //         let mut adapters = Vec::new();
+        //         for path in d.b_interface.adapters.iter() {
+        //             adapters.push(get_bluetooth_adapter(path));
+        //         }
+        //         Ok((adapters,))
+        //     },
+        // );
+        c.method("GetBluetoothAdapters", (), ("devices",), move |_, _, ()| {
+            Ok((get_all_bluetooth_adapters(),))
+        });
         c.method(
             "GetCurrentBluetoothAdapter",
             (),
@@ -121,6 +125,9 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 Ok((set_adapter_pairable(path, enabled),))
             },
         );
+        c.method("GetBluetoothDevices", (), ("devices",), move |_, _, ()| {
+            Ok((get_all_bluetooth_devices(),))
+        });
         c.method(
             "ConnectToBluetoothDevice",
             ("device",),
