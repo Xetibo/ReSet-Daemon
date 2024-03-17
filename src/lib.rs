@@ -4,7 +4,7 @@ mod macros;
 pub mod api;
 mod audio;
 mod bluetooth;
-mod mock;
+pub mod mock;
 mod network;
 mod tests;
 pub mod utils;
@@ -77,7 +77,7 @@ pub async fn run_daemon() {
     let wifi_enabled = res.is_ok();
     let res = dbus_method!(
         BLUEZ_INTERFACE!(),
-        Path::from(BLUEZ_PATH!()),
+        "/",
         "Introspect",
         "org.freedesktop.DBus.Introspectable",
         (),

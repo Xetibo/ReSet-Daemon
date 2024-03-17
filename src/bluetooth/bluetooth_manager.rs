@@ -72,7 +72,7 @@ fn get_objects(
 }
 
 pub fn convert_device(path: &Path<'static>, map: &MaskedPropMap) -> Option<BluetoothDevice> {
-    let map = map.get("org.bluez.Device1");
+    let map = map.get(BLUEZ_DEVICE_INTERFACE!());
     map?;
     let map = map.unwrap();
     bluetooth_device_from_map(path, map)
@@ -162,7 +162,7 @@ pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
         path.clone(),
         "GetAll",
         "org.freedesktop.DBus.Properties",
-        ("org.bluez.Adapter1",),
+        (BLUEZ_ADAPTER_INTERFACE!(),),
         1000,
         (PropMap,),
     );
@@ -176,7 +176,7 @@ pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
 
 pub fn get_connections() -> Vec<re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice> {
     let mut devices = Vec::new();
-    let res = get_objects("org.bluez", "/");
+    let res = get_objects(BLUEZ_INTERFACE!(), "/");
     if res.is_err() {
         return devices;
     }
@@ -219,7 +219,7 @@ impl BluetoothInterface {
         }
         let (res,) = res.unwrap();
         for (path, map) in res.iter() {
-            let map = map.get("org.bluez.Adapter1");
+            let map = map.get(BLUEZ_ADAPTER_INTERFACE!());
             if map.is_none() {
                 continue;
             }
@@ -337,7 +337,7 @@ impl BluetoothInterface {
             let res = conn.add_match(
                 bluetooth_device_changed,
                 move |ir: PropertiesPropertiesChanged, _, msg| {
-                    if ir.interface_name != "org.bluez.Device1" {
+                    if ir.interface_name != BLUEZ_DEVICE_INTERFACE!() {
                         // Here we only want to match on bluetooth device signals, the rest can be
                         // ignored.
                         return true;
@@ -384,9 +384,13 @@ impl BluetoothInterface {
                 ));
             }
             let other = Connection::new_system().unwrap();
-            let proxy = other.with_proxy("org.bluez", path.clone(), Duration::from_millis(1000));
+            let proxy = other.with_proxy(
+                BLUEZ_INTERFACE!(),
+                path.clone(),
+                Duration::from_millis(1000),
+            );
             let res: Result<(), dbus::Error> =
-                proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+                proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
             active_scan.store(true, Ordering::SeqCst);
             loop {
@@ -396,7 +400,7 @@ impl BluetoothInterface {
                     active_listener.store(false, Ordering::SeqCst);
                     stop_requested.store(false, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
-                        proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                        proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StopDiscovery", ());
                     if res.is_err() {
                         ERROR!(
                             "/tmp/reset_daemon_log",
@@ -408,7 +412,7 @@ impl BluetoothInterface {
                 }
                 if active_scan.load(Ordering::SeqCst) {
                     let res: Result<(), dbus::Error> =
-                        proxy.method_call("org.bluez.Adapter1", "StartDiscovery", ());
+                        proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StartDiscovery", ());
                     if res.is_err() {
                         ERROR!(
                             "/tmp/reset_daemon_log",
@@ -418,7 +422,7 @@ impl BluetoothInterface {
                     }
                 } else if !active_scan.load(Ordering::SeqCst) {
                     let res: Result<(), dbus::Error> =
-                        proxy.method_call("org.bluez.Adapter1", "StopDiscovery", ());
+                        proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StopDiscovery", ());
                     if res.is_err() {
                         ERROR!(
                             "/tmp/reset_daemon_log",
@@ -439,7 +443,7 @@ impl BluetoothInterface {
                 BLUEZ_INTERFACE!(),
                 device.clone(),
                 "Connect",
-                "org.bluez.Device1",
+                BLUEZ_DEVICE_INTERFACE!(),
                 (),
                 10000,
                 (),
@@ -463,7 +467,7 @@ impl BluetoothInterface {
                 BLUEZ_INTERFACE!(),
                 device.clone(),
                 "Pair",
-                "org.bluez.Device1",
+                BLUEZ_DEVICE_INTERFACE!(),
                 (),
                 10000,
                 (),
@@ -483,7 +487,7 @@ impl BluetoothInterface {
             BLUEZ_INTERFACE!(),
             device,
             "Disconnect",
-            "org.bluez.Device1",
+            BLUEZ_DEVICE_INTERFACE!(),
             (),
             1000,
             (),
@@ -498,7 +502,7 @@ impl BluetoothInterface {
             BLUEZ_INTERFACE!(),
             Path::from(BLUEZ_PATH!()),
             "RegisterAgent",
-            "org.bluez.AgentManager1",
+            BLUEZ_AGENT_INTERFACE!(),
             (Path::from(DBUS_PATH!()), "DisplayYesNo"),
             1000,
             (),
@@ -523,7 +527,7 @@ impl BluetoothInterface {
             BLUEZ_INTERFACE!(),
             Path::from(BLUEZ_PATH!()),
             "UnregisterAgent",
-            "org.bluez.AgentManager1",
+            BLUEZ_AGENT_INTERFACE!(),
             (Path::from(DBUS_PATH!()),),
             1000,
             (Path<'static>,),
@@ -546,13 +550,14 @@ impl BluetoothInterface {
                 "/tmp/reset_daemon_log",
                 "Failed to start bluetooth, already active\n"
             );
+            return;
         }
         scan_active.store(false, Ordering::SeqCst);
         let res = dbus_method!(
-            BLUETOOTH_INTERFACE!(),
+            BLUEZ_INTERFACE!(),
             self.current_adapter.clone(),
             "StartDiscovery",
-            "org.bluez.Adapter1",
+            BLUEZ_ADAPTER_INTERFACE!(),
             (),
             1000,
             (),
@@ -571,7 +576,7 @@ impl BluetoothInterface {
             BLUEZ_INTERFACE!(),
             self.current_adapter.clone(),
             "StopDiscovery",
-            "org.bluez.Adapter1",
+            BLUEZ_ADAPTER_INTERFACE!(),
             (),
             1000,
             (),
@@ -590,7 +595,7 @@ impl BluetoothInterface {
             BLUEZ_INTERFACE!(),
             self.current_adapter.clone(),
             "RemoveDevice",
-            "org.bluez.Adapter1",
+            BLUEZ_ADAPTER_INTERFACE!(),
             (path,),
             1000,
             (),
@@ -604,7 +609,7 @@ fn get_bluetooth_device_properties(path: &Path<'static>) -> PropMap {
         path,
         "GetAll",
         "org.freedesktop.DBus.Properties",
-        ("org.bluez.Device1",),
+        (BLUEZ_DEVICE_INTERFACE!(),),
         1000,
         (PropMap,),
     );
@@ -623,7 +628,7 @@ pub fn set_adapter_enabled(path: Path<'static>, enabled: bool) -> bool {
     let res = set_dbus_property!(
         BLUEZ_INTERFACE!(),
         path.clone(),
-        "org.bluez.Adapter1",
+        BLUEZ_ADAPTER_INTERFACE!(),
         "Powered",
         enabled,
     );
@@ -645,7 +650,7 @@ pub fn set_adapter_discoverable(path: Path<'static>, enabled: bool) -> bool {
     let res = set_dbus_property!(
         BLUEZ_INTERFACE!(),
         path.clone(),
-        "org.bluez.Adapter1",
+        BLUEZ_ADAPTER_INTERFACE!(),
         "Discoverable",
         enabled,
     );
@@ -667,7 +672,7 @@ pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
     let res = set_dbus_property!(
         BLUEZ_INTERFACE!(),
         path.clone(),
-        "org.bluez.Adapter1",
+        BLUEZ_ADAPTER_INTERFACE!(),
         "Pairable",
         enabled,
     );
@@ -683,6 +688,56 @@ pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
         return false;
     }
     true
+}
+
+pub fn get_all_bluetooth_adapters() -> Vec<BluetoothAdapter> {
+    let mut adapters = Vec::new();
+    let objects = get_all_objects();
+    for (path, map) in objects {
+        if path.contains("Bluez") && map.contains_key(BLUEZ_ADAPTER_INTERFACE!()) {
+            adapters.push(adapter_from_map(
+                &path,
+                map.get(BLUEZ_ADAPTER_INTERFACE!()).unwrap(),
+            ));
+        }
+    }
+    adapters
+}
+
+pub fn get_all_bluetooth_devices() -> Vec<BluetoothDevice> {
+    let mut devices = Vec::new();
+    let objects = get_all_objects();
+    for (path, map) in objects {
+        if path.contains("Bluez") && map.contains_key(BLUEZ_DEVICE_INTERFACE!()) {
+            devices.push(
+                bluetooth_device_from_map(&path, map.get(BLUEZ_DEVICE_INTERFACE!()).unwrap())
+                    .unwrap(),
+            );
+        }
+    }
+    devices
+}
+
+fn get_all_objects() -> HashMap<Path<'static>, HashMap<String, PropMap>> {
+    let res = dbus_method!(
+        BASE_TEST_INTERFACE!(),
+        "/",
+        // DBUS_PATH_TEST!(),
+        "GetManagedObjects",
+        "org.freedesktop.DBus.ObjectManager",
+        (),
+        1000,
+        (HashMap<Path<'static>, HashMap<String, PropMap>>,),
+    );
+    if res.is_err() {
+        ERROR!(
+            "/tmp/reset_daemon_log",
+            "Could not to get bluetooth objects",
+            ErrorLevel::PartialBreakage
+        );
+        return HashMap::new();
+    }
+    res.unwrap().0
 }
 
 // command needed to understand anything about bluetooth

@@ -5,7 +5,7 @@ use dbus_crossroads::Crossroads;
 use re_set_lib::network::connection::{PropMapConvert, WifiSecuritySettings, WifiSettings};
 use re_set_lib::{write_log_to_file, LOG};
 
-use super::mock_dbus::MockTestData;
+use crate::mock::mock_dbus::MockTestData;
 
 pub struct MockNetworkManager {
     pub network_manager_base: dbus_crossroads::IfaceToken<MockTestData>,
@@ -388,7 +388,6 @@ pub struct MockNetworkData {
 
 impl MockNetworkData {
     pub fn new() -> Self {
-        // TODO: add data for tests
         MockNetworkData {
             enabled: false,
             access_points: Vec::new(),
@@ -398,6 +397,12 @@ impl MockNetworkData {
             connections: Vec::new(),
             active_connections: Vec::new(),
         }
+    }
+}
+
+impl Default for MockNetworkData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -447,10 +452,7 @@ pub struct MockConnectionData {
 
 impl MockConnectionData {
     fn new(settings: WifiSettings, secrets: WifiSecuritySettings) -> Self {
-        Self {
-            settings,
-            secrets,
-        }
+        Self { settings, secrets }
     }
 }
 

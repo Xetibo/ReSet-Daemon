@@ -28,9 +28,15 @@ macro_rules! BLUETOOTH_INTERFACE {
     };
 }
 
-macro_rules! BLUETOOTH_TEST_INTERFACE {
+macro_rules! BLUETOOTH_TEST_ADAPTER_INTERFACE {
     () => {
-        "org.Xetibo.ReSet.Test.Bluetooth"
+        "org.Xetibo.ReSet.Test.Bluetooth.ADAPTER"
+    };
+}
+
+macro_rules! BLUETOOTH_TEST_DEVICE_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Bluetooth.DEVICE"
     };
 }
 
@@ -172,7 +178,49 @@ macro_rules! BLUEZ_INTERFACE {
 #[cfg(test)]
 macro_rules! BLUEZ_INTERFACE {
     () => {
-        "org.Xetibo.ReSet.Test.Bluez"
+        "org.Xetibo.ReSet.Test"
+    };
+}
+
+#[cfg(test)]
+macro_rules! BLUEZ_ADAPTER_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Bluez.Adapter"
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! BLUEZ_ADAPTER_INTERFACE {
+    () => {
+        "org.bluez.Adapter1"
+    };
+}
+
+#[cfg(test)]
+macro_rules! BLUEZ_DEVICE_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Bluez.Device"
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! BLUEZ_DEVICE_INTERFACE {
+    () => {
+        "org.bluez.Device1"
+    };
+}
+
+#[cfg(test)]
+macro_rules! BLUEZ_AGENT_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.Bluez.AgentManager"
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! BLUEZ_AGENT_INTERFACE {
+    () => {
+        "org.bluez.AgentManager1"
     };
 }
 
