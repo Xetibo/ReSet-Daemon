@@ -1,10 +1,8 @@
-use std::fs;
 use std::{collections::HashMap, future, sync::atomic::AtomicBool};
 
 use dbus::{channel::MatchingReceiver, message::MatchRule};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::utils::plugin::Plugin;
 use re_set_lib::utils::variant::Variant;
 
 use crate::mock::{bluetooth::MockBluetooth, network::mock_network_manager};
