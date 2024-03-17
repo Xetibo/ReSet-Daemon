@@ -209,6 +209,11 @@ pub mod API {
         /// Sets the pairability of a specific Bluetooth adapter.
         fn SetBluetoothAdapterPairability(path: Path<'static>, enabled: bool) -> bool;
         ///
+        /// Returns the currently available Bluetooth devices.
+        /// Only returns devices provided by bluetooth discovery.
+        /// Use StartBluetoothScan in order to enable temporary discovery.
+        fn GetBluetoothDevices() -> Vec<BluetoothDevice>;
+        ///
         /// Connects to a Bluetooth device given the DBus path.\
         /// Note that this requires an existing pairing.\
         /// Returns true on success and false on error.

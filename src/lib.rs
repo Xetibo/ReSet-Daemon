@@ -6,6 +6,7 @@ mod audio;
 mod bluetooth;
 pub mod mock;
 mod network;
+pub mod plugin;
 mod tests;
 pub mod utils;
 
@@ -15,7 +16,9 @@ use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::{write_log_to_file, LOG};
+use re_set_lib::utils::macros::ErrorLevel;
+use re_set_lib::utils::plugin::Plugin;
+use re_set_lib::{write_log_to_file, ERROR, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -113,6 +116,35 @@ pub async fn run_daemon() {
     features.push(setup_base(&mut cross, feature_strings));
 
     cross.insert(DBUS_PATH!(), &features, data);
+
+    {
+        // TODO: load plugins from folder
+        let mut plugins = Vec::new();
+        unsafe {
+            let lib =
+                libloading::Library::new("/home/dashie/gits/ReSet/ReSet-Daemon/libtest_plugin.so")
+                    .expect("Could not open plugin.");
+            let dbus_interface: Result<
+                libloading::Symbol<unsafe extern "C" fn() -> Plugin>,
+                libloading::Error,
+            > = lib.get(b"dbus_interface");
+            if let Ok(interface) = dbus_interface {
+                plugins.push((interface)());
+            } else {
+                ERROR!(
+                    "/tmp/reset_daemon_log",
+                    "Failed to load plugin",
+                    ErrorLevel::Critical
+                );
+            }
+        }
+        for plugin in plugins {
+            dbg!(&plugin.path);
+            dbg!(&plugin.interfaces);
+            // dbg!(&plugin.data);
+            // cross.insert(plugin.path, &plugin.interfaces, plugin.data)
+        }
+    }
 
     // register bluetooth agent before start
     // will be uncommented when agent is fully functional
