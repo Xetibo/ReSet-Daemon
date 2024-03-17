@@ -10,6 +10,8 @@ pub mod plugin;
 mod tests;
 pub mod utils;
 
+use std::fs::create_dir;
+use std::io::ErrorKind;
 use std::{fs, future, process::exit, time::Duration};
 
 use dbus::blocking::Connection;
@@ -18,7 +20,7 @@ use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::macros::ErrorLevel;
 use re_set_lib::utils::plugin::Plugin;
-use re_set_lib::{write_log_to_file, ERROR, LOG};
+use re_set_lib::{create_config, write_log_to_file, ERROR, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -47,6 +49,24 @@ use crate::{
 /// ```
 pub async fn run_daemon() {
     create_log_file();
+    let config = create_config("Xetibo", "ReSet").expect("Could not create config directory");
+    let plugin_dir = create_dir(config.join("plugins"));
+    let plugin_dir = if let Err(error) = plugin_dir {
+        if error.kind() != ErrorKind::AlreadyExists {
+            ERROR!(
+                "/tmp/reset_daemon_log",
+                "Failed to read plugin directory",
+                ErrorLevel::Critical
+            );
+            None
+        } else {
+            Some(config.join("plugins"))
+        }
+    } else {
+        Some(config.join("plugins"))
+    };
+
+    dbg!(config);
     LOG!("/tmp/reset_daemon_log", "Running in debug mode\n");
     let res = connection::new_session_sync();
     if res.is_err() {
@@ -117,27 +137,30 @@ pub async fn run_daemon() {
 
     cross.insert(DBUS_PATH!(), &features, data);
 
-    {
-        // TODO: load plugins from folder
+    if let Some(plugin_dir) = plugin_dir {
         let mut plugins = Vec::new();
-        unsafe {
-            let lib =
-                libloading::Library::new("/home/dashie/gits/ReSet/ReSet-Daemon/libtest_plugin.so")
-                    .expect("Could not open plugin.");
-            let dbus_interface: Result<
-                libloading::Symbol<unsafe extern "C" fn() -> Plugin>,
-                libloading::Error,
-            > = lib.get(b"dbus_interface");
-            if let Ok(interface) = dbus_interface {
-                plugins.push((interface)());
-            } else {
-                ERROR!(
-                    "/tmp/reset_daemon_log",
-                    "Failed to load plugin",
-                    ErrorLevel::Critical
-                );
+        let plugin_dir = plugin_dir.read_dir().expect("what");
+        plugin_dir.for_each(|plugin| {
+            if let Ok(file) = plugin {
+                unsafe {
+                    let lib =
+                        libloading::Library::new(file.path()).expect("Could not open plugin.");
+                    let dbus_interface: Result<
+                        libloading::Symbol<unsafe extern "C" fn() -> Plugin>,
+                        libloading::Error,
+                    > = lib.get(b"dbus_interface");
+                    if let Ok(interface) = dbus_interface {
+                        plugins.push((interface)());
+                    } else {
+                        ERROR!(
+                            "/tmp/reset_daemon_log",
+                            "Failed to load plugin",
+                            ErrorLevel::Critical
+                        );
+                    }
+                }
             }
-        }
+        });
         for plugin in plugins {
             dbg!(&plugin.path);
             dbg!(&plugin.interfaces);
