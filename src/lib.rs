@@ -64,21 +64,6 @@ static SETUP_LIBS: fn() = || {
                 }
             }
         });
-        // unsafe {
-        //     for plugin in PLUGINS.iter() {
-        //         println!("worked till startup");
-        //         (plugin.startup)();
-        //         println!("worked till data");
-        //         let data = (plugin.data)();
-        //         println!("worked till here");
-        //         dbg!(&data.path);
-        //         println!("worked till here");
-        //         dbg!(&data.interfaces);
-        //         println!("worked till here");
-        //         cross.insert(data.path, &data.interfaces, data.data);
-        //         println!("worked till here");
-        //     }
-        // }
     }
 };
 
@@ -107,14 +92,13 @@ static SETUP_PLUGINS: fn() -> Vec<PluginFunctions> = || -> Vec<PluginFunctions> 
             if let (Ok(dbus_interface), Ok(startup), Ok(shutdown), Ok(capabilities), Ok(tests)) =
                 (dbus_interface, startup, shutdown, capabilities, tests)
             {
-                println!("worked till here");
-                (startup)();
-                let functions =
-                    PluginFunctions::new(startup, shutdown, capabilities, dbus_interface, tests);
-                (functions.startup)();
-                (functions.data)();
-                plugins.push(functions);
-                println!("worked till here");
+                plugins.push(PluginFunctions::new(
+                    startup,
+                    shutdown,
+                    capabilities,
+                    dbus_interface,
+                    tests,
+                ));
             } else {
                 ERROR!(
                     "/tmp/reset_daemon_log",
