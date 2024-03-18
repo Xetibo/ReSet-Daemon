@@ -1,44 +1,28 @@
 // somehow clippy doesn't recognize the tests properly, which leads to wrongly placed "unused
 // imports"
-use crate::mock::mock_dbus::start_mock_implementation_server;
-#[allow(unused_imports)]
-use crate::{
-    run_daemon,
-    utils::{AUDIO, BASE},
-};
-#[allow(unused_imports)]
+use crate::{mock::mock_dbus::start_mock_implementation_server, PLUGINS};
+use crate::{run_daemon, utils::AUDIO};
 use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
     Path,
 };
 
-#[allow(unused_imports)]
 use re_set_lib::audio::audio_structures::Sink;
-#[allow(unused_imports)]
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
-#[allow(unused_imports)]
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
-#[allow(unused_imports)]
 use re_set_lib::network::network_structures::AccessPoint;
 
 use std::{
     hint,
-    sync::{
-        atomic::{AtomicBool, AtomicU16, Ordering},
-        Once,
-    },
+    sync::atomic::{AtomicBool, AtomicU16, Ordering},
 };
-#[allow(unused_imports)]
 use std::{thread, time::Duration};
 use tokio::runtime;
 
-#[allow(dead_code)]
-static START_DAEMON: Once = Once::new();
 static COUNTER: AtomicU16 = AtomicU16::new(0);
 static READY: AtomicBool = AtomicBool::new(false);
 
-#[allow(dead_code)]
 fn call_session_dbus_method<
     I: AppendAll + Sync + Send + 'static,
     O: ReadAll + Sync + Send + 'static,
@@ -223,6 +207,7 @@ async fn test_connect_to_new_access_point() {
         1000,
         (bool,),
     );
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
     assert!(res.unwrap().0);
 }
@@ -259,6 +244,7 @@ async fn test_connect_to_existing_connection() {
         1000,
         (bool,),
     );
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
     assert!(res.unwrap().0);
 }
@@ -293,6 +279,7 @@ async fn test_connect_to_new_access_point_wrong_password() {
         1000,
         (bool,),
     );
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
     assert!(!res.unwrap().0);
 }
@@ -372,6 +359,19 @@ async fn test_get_output_streams() {
     let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>("ListOutputStreams", AUDIO, ());
     COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
+}
+
+#[tokio::test]
+async fn test_plugins() {
+    setup();
+    thread::sleep(Duration::from_millis(2000));
+    unsafe {
+        for plugin in PLUGINS.iter() {
+            (plugin.tests)();
+        }
+    }
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+    // assert!(res.is_ok());
 }
 
 // this is usually commencted out as it is used to test the mock dbus itself

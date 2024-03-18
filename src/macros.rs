@@ -16,11 +16,11 @@ macro_rules! NETWORK_INTERFACE {
     };
 }
 
-macro_rules! NETWORK_TEST_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Network"
-    };
-}
+// macro_rules! NETWORK_TEST_INTERFACE {
+//     () => {
+//         "org.Xetibo.ReSet.Test.Network"
+//     };
+// }
 
 macro_rules! BLUETOOTH_INTERFACE {
     () => {
@@ -28,35 +28,35 @@ macro_rules! BLUETOOTH_INTERFACE {
     };
 }
 
-macro_rules! BLUETOOTH_TEST_ADAPTER_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Bluetooth.ADAPTER"
-    };
-}
-
-macro_rules! BLUETOOTH_TEST_DEVICE_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Bluetooth.DEVICE"
-    };
-}
-
-macro_rules! AUDIO_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Audio"
-    };
-}
-
-macro_rules! AUDIO_TEST_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Audio"
-    };
-}
-
-macro_rules! BASE_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Daemon"
-    };
-}
+// macro_rules! BLUETOOTH_TEST_ADAPTER_INTERFACE {
+//     () => {
+//         "org.Xetibo.ReSet.Test.Bluetooth.ADAPTER"
+//     };
+// }
+//
+// macro_rules! BLUETOOTH_TEST_DEVICE_INTERFACE {
+//     () => {
+//         "org.Xetibo.ReSet.Test.Bluetooth.DEVICE"
+//     };
+// }
+//
+// macro_rules! AUDIO_INTERFACE {
+//     () => {
+//         "org.Xetibo.ReSet.Audio"
+//     };
+// }
+//
+// macro_rules! AUDIO_TEST_INTERFACE {
+//     () => {
+//         "org.Xetibo.ReSet.Test.Audio"
+//     };
+// }
+//
+// macro_rules! BASE_INTERFACE {
+//     () => {
+//         "org.Xetibo.ReSet.Daemon"
+//     };
+// }
 
 macro_rules! BASE_TEST_INTERFACE {
     () => {
@@ -106,11 +106,11 @@ macro_rules! NM_SETTINGS_INTERFACE {
     };
 }
 
-macro_rules! NM_INTERFACE_TEST {
-    () => {
-        "org.Xetibo.ReSet.Network"
-    };
-}
+// macro_rules! NM_INTERFACE_TEST {
+//     () => {
+//         "org.Xetibo.ReSet.Network"
+//     };
+// }
 
 #[cfg(not(test))]
 macro_rules! NM_DEVICE_INTERFACE {

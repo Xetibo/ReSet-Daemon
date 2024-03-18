@@ -8,4 +8,9 @@ crate-type = ["dylib"]
 
 [dependencies]
 dbus = "0.9.7"
-re_set-lib = "2.4.0"
+re_set-lib = "2.4.2"
+dbus-crossroads = "0.5.2"
+dbus-tokio = "0.7.6"
+
+
+
