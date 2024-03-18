@@ -3,7 +3,7 @@ use std::{collections::HashMap, future, sync::atomic::AtomicBool};
 use dbus::{channel::MatchingReceiver, message::MatchRule};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::utils::variant::MockVariant;
+use re_set_lib::utils::variant::Variant;
 
 use crate::mock::{bluetooth::MockBluetooth, network::mock_network_manager};
 
@@ -43,6 +43,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     // mock_implementations.push(mock_network_manager.network_manager_base);
     // mock_sound_interface(&mut cross),
     // load all plugin implementations
+    // TODO: add plugins...
 
     // cross.object_manager();
     cross.insert(
@@ -74,7 +75,7 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
 pub struct MockTestData {
     pub network_data: MockNetworkManager,
     pub bluetooth_data: MockBluetoothData,
-    pub plugin_data: HashMap<String, MockVariant>,
+    pub plugin_data: HashMap<String, Variant>,
 }
 
 unsafe impl Send for MockTestData {}
