@@ -16,42 +16,13 @@ macro_rules! NETWORK_INTERFACE {
     };
 }
 
-macro_rules! NETWORK_TEST_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Network"
-    };
-}
-
 macro_rules! BLUETOOTH_INTERFACE {
     () => {
         "org.Xetibo.ReSet.Bluetooth"
     };
 }
 
-macro_rules! BLUETOOTH_TEST_ADAPTER_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Bluetooth.ADAPTER"
-    };
-}
-
-macro_rules! BLUETOOTH_TEST_DEVICE_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Bluetooth.DEVICE"
-    };
-}
-
-macro_rules! AUDIO_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Audio"
-    };
-}
-
-macro_rules! AUDIO_TEST_INTERFACE {
-    () => {
-        "org.Xetibo.ReSet.Test.Audio"
-    };
-}
-
+#[cfg(test)]
 macro_rules! BASE_INTERFACE {
     () => {
         "org.Xetibo.ReSet.Daemon"
@@ -106,6 +77,7 @@ macro_rules! NM_SETTINGS_INTERFACE {
     };
 }
 
+#[cfg(test)]
 macro_rules! NM_INTERFACE_TEST {
     () => {
         "org.Xetibo.ReSet.Network"

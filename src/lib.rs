@@ -7,108 +7,25 @@ mod bluetooth;
 pub mod mock;
 mod network;
 pub mod plugin;
+#[cfg(test)]
 mod tests;
 pub mod utils;
 
-use std::fs::create_dir;
-use std::io::ErrorKind;
 use std::{fs, future, process::exit, time::Duration};
 
 use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use once_cell::sync::Lazy;
-use re_set_lib::utils::macros::ErrorLevel;
-use re_set_lib::utils::plugin::{Plugin, PluginCapabilities};
-use re_set_lib::{create_config, write_log_to_file, ERROR, LOG};
+use re_set_lib::utils::plugin::{PluginCapabilities, PluginData};
+use re_set_lib::{write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
+use crate::plugin::utils::PLUGINS;
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
     bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
     network::network_manager_dbus::setup_wireless_manager, utils::DaemonData,
-};
-
-static mut PLUGINS: Lazy<Vec<PluginFunctions>> = Lazy::new(|| {
-    SETUP_LIBS();
-    SETUP_PLUGINS()
-});
-static mut LIBS: Vec<libloading::Library> = Vec::new();
-
-static SETUP_LIBS: fn() = || {
-    let config = create_config("Xetibo", "ReSet").expect("Could not create config directory");
-    let plugin_dir = create_dir(config.join("plugins"));
-    let plugin_dir = if let Err(error) = plugin_dir {
-        if error.kind() != ErrorKind::AlreadyExists {
-            ERROR!(
-                "/tmp/reset_daemon_log",
-                "Failed to read plugin directory",
-                ErrorLevel::Critical
-            );
-            None
-        } else {
-            Some(config.join("plugins"))
-        }
-    } else {
-        Some(config.join("plugins"))
-    };
-    if let Some(plugin_dir) = plugin_dir {
-        let plugin_dir = plugin_dir.read_dir().expect("what");
-        plugin_dir.for_each(|plugin| {
-            if let Ok(file) = plugin {
-                unsafe {
-                    LIBS.push(
-                        libloading::Library::new(file.path()).expect("Could not open plugin."),
-                    );
-                }
-            }
-        });
-    }
-};
-
-static SETUP_PLUGINS: fn() -> Vec<PluginFunctions> = || -> Vec<PluginFunctions> {
-    let mut plugins = Vec::new();
-    unsafe {
-        for lib in LIBS.iter() {
-            let dbus_interface: Result<
-                libloading::Symbol<unsafe extern "C" fn() -> Plugin>,
-                libloading::Error,
-            > = lib.get(b"dbus_interface");
-            let startup: Result<
-                libloading::Symbol<unsafe extern "C" fn() -> ()>,
-                libloading::Error,
-            > = lib.get(b"startup");
-            let shutdown: Result<
-                libloading::Symbol<unsafe extern "C" fn() -> ()>,
-                libloading::Error,
-            > = lib.get(b"shutdown");
-            let capabilities: Result<
-                libloading::Symbol<unsafe extern "C" fn() -> PluginCapabilities>,
-                libloading::Error,
-            > = lib.get(b"capabilities");
-            let tests: Result<libloading::Symbol<unsafe extern "C" fn() -> ()>, libloading::Error> =
-                lib.get(b"tests");
-            if let (Ok(dbus_interface), Ok(startup), Ok(shutdown), Ok(capabilities), Ok(tests)) =
-                (dbus_interface, startup, shutdown, capabilities, tests)
-            {
-                plugins.push(PluginFunctions::new(
-                    startup,
-                    shutdown,
-                    capabilities,
-                    dbus_interface,
-                    tests,
-                ));
-            } else {
-                ERROR!(
-                    "/tmp/reset_daemon_log",
-                    "Failed to load plugin",
-                    ErrorLevel::Critical
-                );
-            }
-        }
-    }
-    plugins
 };
 
 /// # Running the daemon as a library function
@@ -191,6 +108,11 @@ pub async fn run_daemon() {
     // TODO: how to check for audio?
     features.push(setup_audio_manager(&mut cross));
     feature_strings.push("Audio");
+    unsafe {
+        for plugin in PLUGINS.iter() {
+            feature_strings.extend(((plugin.capabilities)()).get_capabilities().iter());
+        }
+    }
 
     let data = DaemonData::create(_handle, conn.clone(), &feature_strings);
     if data.is_err() {
@@ -200,15 +122,16 @@ pub async fn run_daemon() {
 
     features.push(setup_base(&mut cross, feature_strings));
 
-    cross.insert(DBUS_PATH!(), &features, data);
-
     unsafe {
         for plugin in PLUGINS.iter() {
+            // allocate plugin specific things
             (plugin.startup)();
-            let data = (plugin.data)();
-            cross.insert(data.path, &data.interfaces, data.data);
+            // register and insert plugin interfaces
+            (plugin.data)(&mut cross);
         }
     }
+
+    cross.insert(DBUS_PATH!(), &features, data);
 
     // register bluetooth agent before start
     // will be uncommented when agent is fully functional
@@ -230,6 +153,22 @@ pub async fn run_daemon() {
 
     future::pending::<()>().await;
     unreachable!()
+}
+
+pub fn setup_test_dbus_interface(
+    cross: &mut Crossroads,
+) -> dbus_crossroads::IfaceToken<PluginData> {
+    cross.register("org.Xetibo.ReSet.TestPlugin", |c| {
+        c.method("Test", (), ("test",), move |_, d: &mut PluginData, ()| {
+            println!("Dbus function test called");
+            Ok((d
+                .get_data()
+                .get(&String::from("pingpang"))
+                .unwrap()
+                .to_value::<i32>()
+                .unwrap(),))
+        });
+    })
 }
 
 fn create_log_file() {
@@ -272,6 +211,11 @@ fn setup_base(
             data.b_interface.unregister_agent();
             data.handle.abort();
             let _ = data.audio_sender.send(AudioRequest::StopListener);
+            unsafe {
+                for plugin in PLUGINS.iter() {
+                    (plugin.shutdown)();
+                }
+            }
             exit(0);
             #[allow(unreachable_code)]
             Ok(())
@@ -284,7 +228,7 @@ pub struct PluginFunctions {
     pub startup: libloading::Symbol<'static, unsafe extern "C" fn()>,
     pub shutdown: libloading::Symbol<'static, unsafe extern "C" fn()>,
     pub capabilities: libloading::Symbol<'static, unsafe extern "C" fn() -> PluginCapabilities>,
-    pub data: libloading::Symbol<'static, unsafe extern "C" fn() -> Plugin>,
+    pub data: libloading::Symbol<'static, unsafe extern "C" fn(&mut Crossroads)>, //-> Plugin>,
     pub tests: libloading::Symbol<'static, unsafe extern "C" fn()>,
 }
 
@@ -294,7 +238,7 @@ impl PluginFunctions {
         startup: libloading::Symbol<'static, unsafe extern "C" fn()>,
         shutdown: libloading::Symbol<'static, unsafe extern "C" fn()>,
         capabilities: libloading::Symbol<'static, unsafe extern "C" fn() -> PluginCapabilities>,
-        data: libloading::Symbol<'static, unsafe extern "C" fn() -> Plugin>,
+        data: libloading::Symbol<'static, unsafe extern "C" fn(&mut Crossroads)>, // -> Plugin>,
         tests: libloading::Symbol<'static, unsafe extern "C" fn()>,
     ) -> Self {
         Self {
