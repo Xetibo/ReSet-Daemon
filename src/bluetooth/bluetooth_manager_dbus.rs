@@ -161,7 +161,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let res = d.b_interface.disconnect(device.clone());
                 if res.is_err() {
                     ERROR!(
-                        "/tmp/reset_daemon_log",
+                        
                         format!("Could not disconnect from device: {}", device),
                         ErrorLevel::PartialBreakage
                     );
@@ -178,7 +178,7 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let res = d.b_interface.remove_device_pairing(path.clone());
                 if res.is_err() {
                     ERROR!(
-                        "/tmp/reset_daemon_log",
+                        
                         format!("Could not remove device pairing: {}", path),
                         ErrorLevel::PartialBreakage
                     );

@@ -190,7 +190,7 @@ pub fn mock_network_manager_base(
                     active_connection
                 } else {
                     LOG!(
-                        "/tmp/reset_daemon_log",
+                        
                         "Tried to activate non-existing connection"
                     );
                     Path::from("/")
@@ -223,7 +223,7 @@ pub fn mock_network_manager_base(
                         .remove(index as usize);
                 } else {
                     LOG!(
-                        "/tmp/reset_daemon_log",
+                        
                         "Tried to deactivate non-existing connection"
                     );
                 }

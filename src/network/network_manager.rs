@@ -119,7 +119,7 @@ pub fn start_listener(
                 let res = connection.send(msg);
                 if res.is_err() {
                     ERROR!(
-                        "/tmp/reset_daemon_log",
+                        
                         "Could not send signal",
                         ErrorLevel::PartialBreakage
                     );
@@ -130,7 +130,7 @@ pub fn start_listener(
     );
     if res.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Signal Match on NetworkManager failed",
             ErrorLevel::PartialBreakage
         );
@@ -163,7 +163,7 @@ pub fn start_listener(
                     let res = active_access_point_changed_ref.send(msg);
                     if res.is_err() {
                         ERROR!(
-                            "/tmp/reset_daemon_log",
+                            
                             "Could not send signal",
                             ErrorLevel::PartialBreakage
                         );
@@ -183,7 +183,7 @@ pub fn start_listener(
                     let res = active_access_point_changed_ref.send(msg);
                     if res.is_err() {
                         ERROR!(
-                            "/tmp/reset_daemon_log",
+                            
                             "Could not send signal",
                             ErrorLevel::PartialBreakage
                         );
@@ -195,7 +195,7 @@ pub fn start_listener(
     );
     if res.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Signal Match on NetworkManager failed",
             ErrorLevel::PartialBreakage
         );
@@ -227,7 +227,7 @@ pub fn start_listener(
     );
     if res.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Signal Match on NetworkManager failed",
             ErrorLevel::PartialBreakage
         );
@@ -246,7 +246,7 @@ pub fn start_listener(
         let res = access_point_added_ref.send(msg);
         if res.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Could not send signal",
                 ErrorLevel::PartialBreakage
             );
@@ -269,7 +269,7 @@ pub fn start_listener(
         let res = access_point_removed_ref.send(msg);
         if res.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Could not send signal",
                 ErrorLevel::PartialBreakage
             );
@@ -278,7 +278,7 @@ pub fn start_listener(
     });
     if res.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Signal Match on NetworkManager failed",
             ErrorLevel::PartialBreakage
         );
@@ -319,7 +319,7 @@ pub fn get_wifi_devices() -> Vec<Arc<RwLock<Device>>> {
     );
     if result.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Failed to receive network devices from NetworkManager",
             ErrorLevel::PartialBreakage
         );
@@ -382,7 +382,7 @@ pub fn get_connection_settings(path: Path<'static>) -> Result<MaskedPropMap, dbu
     );
     if res.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Failed to receive settings from connection",
             ErrorLevel::PartialBreakage
         );
@@ -427,7 +427,7 @@ pub fn set_connection_settings(path: Path<'static>, settings: HashMap<String, Pr
     );
     if result.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Failed to set settings for connection",
             ErrorLevel::Recoverable
         );
@@ -475,7 +475,7 @@ pub fn get_connection_secrets(path: Path<'static>) {
     );
     if result.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Failed to get connection secrets.",
             ErrorLevel::Recoverable
         );
@@ -570,7 +570,7 @@ pub fn set_wifi_enabled(enabled: bool, data: &mut DaemonData) -> bool {
     );
     if result.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Failed to enable WiFi.",
             ErrorLevel::PartialBreakage
         );
@@ -603,7 +603,7 @@ pub fn get_stored_connections() -> Vec<(Path<'static>, Vec<u8>)> {
         let res = get_connection_settings(connection.clone());
         if res.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Failed to get connection settings.",
                 ErrorLevel::Recoverable
             );
@@ -633,7 +633,7 @@ pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), Con
     );
     if result.is_err() {
         ERROR!(
-            "/tmp/reset_daemon_log",
+            
             "Failed to disconnect from connection.",
             ErrorLevel::Recoverable
         );
@@ -669,7 +669,7 @@ impl Device {
         );
         if res.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Failed to request scan from WiFi device.",
                 ErrorLevel::Recoverable
             );
@@ -688,7 +688,7 @@ impl Device {
         );
         if result.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Failed to receive access points from WiFi device.",
                 ErrorLevel::PartialBreakage
             );
@@ -758,7 +758,7 @@ impl Device {
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Tried to connect to access point with invalid device.",
                 ErrorLevel::PartialBreakage
             );
@@ -781,7 +781,7 @@ impl Device {
         );
         if res.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Failed to activate connection.",
                 ErrorLevel::Recoverable
             );
@@ -802,7 +802,7 @@ impl Device {
             );
             if res.is_err() {
                 LOG!(
-                    "/tmp/reset_daemon_log",
+                    
                     format!("Wrong password entered for connection: {}.", path)
                 );
                 return Err(ConnectionError {
@@ -813,7 +813,7 @@ impl Device {
         }
         if result != 2 {
             LOG!(
-                "/tmp/reset_daemon_log",
+                
                 format!("Wrong password entered for connection: {}.", res.0)
             );
             return Err(ConnectionError {
@@ -834,7 +834,7 @@ impl Device {
     ) -> Result<(), ConnectionError> {
         if self.dbus_path.is_empty() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Tried to connect to access point with invalid device.",
                 ErrorLevel::PartialBreakage
             );
@@ -875,7 +875,7 @@ impl Device {
                 );
                 if res.is_err() {
                     LOG!(
-                        "/tmp/reset_daemon_log",
+                        
                         format!("Wrong password entered for connection: {}.", path)
                     );
                     return Err(ConnectionError {
@@ -886,7 +886,7 @@ impl Device {
             }
             if result != 2 {
                 LOG!(
-                    "/tmp/reset_daemon_log",
+                    
                     format!("Wrong password entered for connection: {}.", path)
                 );
                 return Err(ConnectionError {
@@ -898,7 +898,7 @@ impl Device {
             return Ok(());
         }
         LOG!(
-            "/tmp/reset_daemon_log",
+            
             format!("Failed to connect to {}.", access_point.dbus_path)
         );
         Err(ConnectionError {
@@ -921,7 +921,7 @@ impl Device {
         );
         if res.is_err() {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Tried to disconnect from access point.",
                 ErrorLevel::Recoverable
             );
@@ -936,7 +936,7 @@ impl Device {
                     let res = disconnect_from_access_point(connection);
                     if res.is_err() {
                         ERROR!(
-                            "/tmp/reset_daemon_log",
+                            
                             "Tried to disconnect from access point.",
                             ErrorLevel::Recoverable
                         );

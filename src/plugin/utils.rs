@@ -23,7 +23,7 @@ static SETUP_PLUGIN_DIR: fn() -> Option<PathBuf> = || -> Option<PathBuf> {
     if let Err(error) = plugin_dir {
         if error.kind() != ErrorKind::AlreadyExists {
             ERROR!(
-                "/tmp/reset_daemon_log",
+                
                 "Failed to read plugin directory",
                 ErrorLevel::Critical
             );
@@ -93,7 +93,7 @@ static SETUP_PLUGINS: fn() -> Vec<PluginFunctions> = || -> Vec<PluginFunctions> 
                 ));
             } else {
                 ERROR!(
-                    "/tmp/reset_daemon_log",
+                    
                     "Failed to load plugin",
                     ErrorLevel::Critical
                 );

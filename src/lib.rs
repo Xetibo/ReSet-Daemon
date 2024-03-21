@@ -48,7 +48,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon(Vec::new()));
+/// tokio::task::spawn(run_daemon(vec![String::from("binary name")]));
 /// // your other code here...
 /// ```
 pub async fn run_daemon(args: Vec<String>) {
@@ -57,19 +57,19 @@ pub async fn run_daemon(args: Vec<String>) {
         // more configuration possible in the future
         match flag {
             re_set_lib::utils::flags::Flag::ConfigDir(_) => {
-                LOG!("/tmp/reset_daemon_log", "Use a different config file");
+                LOG!("Use a different config file");
             }
             re_set_lib::utils::flags::Flag::PluginDir(_) => {
-                LOG!("/tmp/reset_daemon_log", "Use a different plugin dir");
+                LOG!("Use a different plugin dir");
             }
             re_set_lib::utils::flags::Flag::Other(_) => {
-                LOG!("/tmp/reset_daemon_log", "Custom flag");
+                LOG!("Custom flag");
             }
         }
     }
     create_log_file();
 
-    LOG!("/tmp/reset_daemon_log", "Running in debug mode");
+    LOG!("Running in debug mode");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -116,14 +116,14 @@ pub async fn run_daemon(args: Vec<String>) {
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
-        LOG!("/tmp/reset_daemon_log", "WiFi feature started");
+        LOG!("WiFi feature started");
     }
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
         // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
-        LOG!("/tmp/reset_daemon_log", "Bluetooth feature started");
+        LOG!("Bluetooth feature started");
     }
     // TODO: how to check for audio?
     features.push(setup_audio_manager(&mut cross));

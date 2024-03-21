@@ -160,7 +160,7 @@ impl DaemonData {
                     res.listen_to_messages();
                     return;
                 } else if let Err(error) = res {
-                    ERROR!("/tmp/reset_daemon_log", error.0, ErrorLevel::Critical);
+                    ERROR!( error.0, ErrorLevel::Critical);
                 }
                 running_ref.store(2, Ordering::SeqCst);
             });
