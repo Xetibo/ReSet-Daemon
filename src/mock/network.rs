@@ -91,25 +91,33 @@ pub fn mock_network_manager_base(
                     let mut i = 0;
                     for access_point in data.network_data.network_manager_data.access_points.iter()
                     {
+                        dbg!(&access_point);
+                        dbg!(&specific_object);
                         if &specific_object == access_point {
                             break;
                         }
                         i += 1;
                     }
+                    dbg!(i);
                     ok = if connection.contains_key("802-11-wireless-security") {
                         settings = Some(WifiSettings::from_propmap(&PropMap::new()));
                         let parsed_connection = WifiSecuritySettings::from_propmap(
                             connection.get("802-11-wireless-security").unwrap(),
                         );
                         secrets = Some(parsed_connection.clone());
-
-                        let password = data
-                            .network_data
-                            .network_manager_data
-                            .passwords
-                            .get(i)
-                            .unwrap();
-                        password == &parsed_connection.psk
+                        let result = if i >= data.network_data.network_manager_data.passwords.len()
+                        {
+                            false
+                        } else {
+                            let password = data
+                                .network_data
+                                .network_manager_data
+                                .passwords
+                                .get(i)
+                                .unwrap();
+                            password == &parsed_connection.psk
+                        };
+                        result
                     } else {
                         false
                     };
@@ -129,15 +137,15 @@ pub fn mock_network_manager_base(
                     NM_ACTIVE_CONNECTION_PATH!().to_string() + "/" + &connections.len().to_string(),
                 );
                 let state = if ok { 2 } else { 4 };
-                create_mock_active_connection(
-                    cross,
-                    mock_active_connection_interface,
-                    &active_connection,
-                    connection_path.clone(),
-                    specific_object,
-                    state,
-                );
                 if ok {
+                    create_mock_active_connection(
+                        cross,
+                        mock_active_connection_interface,
+                        &active_connection,
+                        connection_path.clone(),
+                        specific_object,
+                        state,
+                    );
                     create_mock_connection(
                         cross,
                         mock_connection_interface,
@@ -345,7 +353,7 @@ pub fn mock_network_manager_device(
                 .append1(Path::from(new_path));
                 conn_removed.send(msg).expect("Could not send signal");
                 let data: &mut MockDeviceData = cross.data_mut(ctx.path()).unwrap();
-                data.access_points.remove(0);
+                data.access_points.remove(data.access_points.len() - 1);
                 async move { ctx.reply(Ok(())) }
             },
         );

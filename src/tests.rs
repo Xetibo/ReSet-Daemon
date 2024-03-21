@@ -8,6 +8,8 @@ use dbus::{
     Path,
 };
 
+use serial_test::serial;
+
 use re_set_lib::audio::audio_structures::Sink;
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
@@ -128,6 +130,7 @@ async fn test_list_connections() {
 }
 
 #[tokio::test]
+#[serial]
 // tests adding and removing an access point
 async fn test_add_access_point_event() {
     setup();
@@ -178,10 +181,18 @@ async fn test_add_access_point_event() {
 }
 
 #[tokio::test]
+#[serial]
 // tests connecting to a new access point with a password
 async fn test_connect_to_new_access_point() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(1000));
+    connect_to_new_access_point();
+    thread::sleep(Duration::from_millis(1000));
+    connect_to_known_access_point();
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+}
+
+fn connect_to_new_access_point() {
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -207,16 +218,12 @@ async fn test_connect_to_new_access_point() {
         1000,
         (bool,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
+    dbg!(&res);
     assert!(res.unwrap().0);
 }
 
-#[tokio::test]
-// tests connecting to an existing connection
-async fn test_connect_to_existing_connection() {
-    setup();
-    thread::sleep(Duration::from_millis(3000));
+fn connect_to_known_access_point() {
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -244,8 +251,8 @@ async fn test_connect_to_existing_connection() {
         1000,
         (bool,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
+    dbg!(&res);
     assert!(res.unwrap().0);
 }
 
@@ -253,7 +260,7 @@ async fn test_connect_to_existing_connection() {
 // tests connecting to a new access point with a *wrong* password
 async fn test_connect_to_new_access_point_wrong_password() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(1000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
