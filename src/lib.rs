@@ -18,7 +18,7 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin::{PluginCapabilities, PluginData};
-use re_set_lib::{write_log_to_file, LOG};
+use re_set_lib::{parse_flags, write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::plugin::utils::PLUGINS;
@@ -28,6 +28,10 @@ use crate::{
     network::network_manager_dbus::setup_wireless_manager, utils::DaemonData,
 };
 
+/// Version of the current package.
+/// Use this to avoid version mismatch conflicts.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// # Running the daemon as a library function
 ///
 /// Used as a standalone binary:
@@ -36,20 +40,36 @@ use crate::{
 ///
 /// #[tokio::main]
 /// pub async fn main() {
-///     run_daemon().await;
+///     
+///     run_daemon(std::env::args().collect()).await;
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon());
+/// tokio::task::spawn(run_daemon(Vec::new()));
 /// // your other code here...
 /// ```
-pub async fn run_daemon() {
+pub async fn run_daemon(args: Vec<String>) {
+    let flags = parse_flags(&args);
+    for flag in flags.0.iter() {
+        // more configuration possible in the future
+        match flag {
+            re_set_lib::utils::flags::Flag::ConfigDir(_) => {
+                LOG!("/tmp/reset_daemon_log", "Use a different config file");
+            }
+            re_set_lib::utils::flags::Flag::PluginDir(_) => {
+                LOG!("/tmp/reset_daemon_log", "Use a different plugin dir");
+            }
+            re_set_lib::utils::flags::Flag::Other(_) => {
+                LOG!("/tmp/reset_daemon_log", "Custom flag");
+            }
+        }
+    }
     create_log_file();
 
-    LOG!("/tmp/reset_daemon_log", "Running in debug mode\n");
+    LOG!("/tmp/reset_daemon_log", "Running in debug mode");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -96,14 +116,14 @@ pub async fn run_daemon() {
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
-        LOG!("/tmp/reset_daemon_log", "WiFi feature started\n");
+        LOG!("/tmp/reset_daemon_log", "WiFi feature started");
     }
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
         // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
-        LOG!("/tmp/reset_daemon_log", "Bluetooth feature started\n");
+        LOG!("/tmp/reset_daemon_log", "Bluetooth feature started");
     }
     // TODO: how to check for audio?
     features.push(setup_audio_manager(&mut cross));
@@ -181,13 +201,12 @@ fn setup_base(
 ) -> dbus_crossroads::IfaceToken<DaemonData> {
     cross.register(BASE, |c| {
         c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
-            // later, this should be handled dymanically -> plugin check
             Ok((features.clone(),))
         });
         c.method("APIVersion", (), ("api-version",), move |_, _, ()| {
             // let the client handle the mismatch -> e.g. they decide if they want to keep using
             // the current daemon or not.
-            Ok(("1.0.1",))
+            Ok((VERSION,))
         });
         c.method(
             "RegisterClient",

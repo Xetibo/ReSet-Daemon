@@ -1,4 +1,4 @@
-use std::{fs::create_dir, io::ErrorKind};
+use std::{fs::create_dir, io::ErrorKind, path::PathBuf};
 
 use dbus_crossroads::Crossroads;
 use once_cell::sync::Lazy;
@@ -15,11 +15,12 @@ pub static mut PLUGINS: Lazy<Vec<PluginFunctions>> = Lazy::new(|| {
     SETUP_PLUGINS()
 });
 static mut LIBS: Vec<libloading::Library> = Vec::new();
+static mut PLUGIN_DIR: Lazy<PathBuf> = Lazy::new(|| PathBuf::from(""));
 
-static SETUP_LIBS: fn() = || {
+static SETUP_PLUGIN_DIR: fn() -> Option<PathBuf> = || -> Option<PathBuf> {
     let config = create_config("Xetibo", "ReSet").expect("Could not create config directory");
     let plugin_dir = create_dir(config.join("plugins"));
-    let plugin_dir = if let Err(error) = plugin_dir {
+    if let Err(error) = plugin_dir {
         if error.kind() != ErrorKind::AlreadyExists {
             ERROR!(
                 "/tmp/reset_daemon_log",
@@ -32,9 +33,12 @@ static SETUP_LIBS: fn() = || {
         }
     } else {
         Some(config.join("plugins"))
-    };
-    if let Some(plugin_dir) = plugin_dir {
-        let plugin_dir = plugin_dir.read_dir().expect("what");
+    }
+};
+
+static SETUP_LIBS: fn() = || {
+    let read_dir: fn(PathBuf) = |dir: PathBuf| {
+        let plugin_dir = dir.read_dir().expect("Could not read directory");
         plugin_dir.for_each(|plugin| {
             if let Ok(file) = plugin {
                 unsafe {
@@ -44,6 +48,14 @@ static SETUP_LIBS: fn() = || {
                 }
             }
         });
+    };
+    let plugin_dir = SETUP_PLUGIN_DIR();
+    unsafe {
+        if PLUGIN_DIR.is_dir() {
+            read_dir(PLUGIN_DIR.clone());
+        } else if let Some(plugin_dir) = plugin_dir {
+            read_dir(plugin_dir)
+        }
     }
 };
 

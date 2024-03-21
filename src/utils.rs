@@ -1,7 +1,8 @@
 use std::{
     collections::HashMap,
+    hint,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
         Arc, RwLock,
     },
     thread,
@@ -149,15 +150,33 @@ impl DaemonData {
         let audio_listener_ref = audio_listener_active.clone();
         let connection_ref = conn.clone();
         if features.contains(&"Audio") {
+            let running = Arc::new(AtomicU8::new(0));
+            let running_ref = running.clone();
             thread::spawn(move || {
                 let res = PulseServer::create(pulse_sender, pulse_receiver, connection_ref);
                 if let Ok(mut res) = res {
                     audio_listener_ref.store(true, Ordering::SeqCst);
+                    running_ref.store(1, Ordering::SeqCst);
                     res.listen_to_messages();
+                    return;
                 } else if let Err(error) = res {
                     ERROR!("/tmp/reset_daemon_log", error.0, ErrorLevel::Critical);
                 }
+                running_ref.store(2, Ordering::SeqCst);
             });
+            while running.load(Ordering::SeqCst) == 0 {
+                hint::spin_loop();
+            }
+            match running.load(Ordering::SeqCst) {
+                1 => (),
+                2 => {
+                    return Err(Error {
+                        message: "Could not create audio sender, aborting",
+                    })
+                }
+                // impossible condition
+                _ => (),
+            }
         }
 
         Ok(DaemonData {

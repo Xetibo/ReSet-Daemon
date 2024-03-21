@@ -91,14 +91,11 @@ pub fn mock_network_manager_base(
                     let mut i = 0;
                     for access_point in data.network_data.network_manager_data.access_points.iter()
                     {
-                        dbg!(&access_point);
-                        dbg!(&specific_object);
                         if &specific_object == access_point {
                             break;
                         }
                         i += 1;
                     }
-                    dbg!(i);
                     ok = if connection.contains_key("802-11-wireless-security") {
                         settings = Some(WifiSettings::from_propmap(&PropMap::new()));
                         let parsed_connection = WifiSecuritySettings::from_propmap(
@@ -169,7 +166,6 @@ pub fn mock_network_manager_base(
                 Path<'static>,
                 Path<'static>,
             )| {
-                println!("{}", &connection);
                 let interface;
                 let active_connections;
                 {
@@ -195,7 +191,7 @@ pub fn mock_network_manager_base(
                 } else {
                     LOG!(
                         "/tmp/reset_daemon_log",
-                        "Tried to activate non-existing connection\n"
+                        "Tried to activate non-existing connection"
                     );
                     Path::from("/")
                 };
@@ -228,7 +224,7 @@ pub fn mock_network_manager_base(
                 } else {
                     LOG!(
                         "/tmp/reset_daemon_log",
-                        "Tried to deactivate non-existing connection\n"
+                        "Tried to deactivate non-existing connection"
                     );
                 }
                 async move { ctx.reply(Ok(())) }
