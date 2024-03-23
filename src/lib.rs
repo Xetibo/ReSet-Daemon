@@ -17,11 +17,10 @@ use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::utils::plugin::{PluginCapabilities, PluginData};
+use re_set_lib::utils::plugin_setup::PLUGINS;
 use re_set_lib::{parse_flags, write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
-use crate::plugin::utils::PLUGINS;
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
     bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
@@ -62,7 +61,8 @@ pub async fn run_daemon(args: Vec<String>) {
             re_set_lib::utils::flags::Flag::PluginDir(_) => {
                 LOG!("Use a different plugin dir");
             }
-            re_set_lib::utils::flags::Flag::Other(_) => {
+            re_set_lib::utils::flags::Flag::Other(flag) => {
+                dbg!(&flag);
                 LOG!("Custom flag");
             }
         }
@@ -175,22 +175,6 @@ pub async fn run_daemon(args: Vec<String>) {
     unreachable!()
 }
 
-pub fn setup_test_dbus_interface(
-    cross: &mut Crossroads,
-) -> dbus_crossroads::IfaceToken<PluginData> {
-    cross.register("org.Xetibo.ReSet.TestPlugin", |c| {
-        c.method("Test", (), ("test",), move |_, d: &mut PluginData, ()| {
-            println!("Dbus function test called");
-            Ok((d
-                .get_data()
-                .get(&String::from("pingpang"))
-                .unwrap()
-                .to_value::<i32>()
-                .unwrap(),))
-        });
-    })
-}
-
 fn create_log_file() {
     fs::File::create("/tmp/reset_daemon_log").expect("Could not create log file.");
 }
@@ -241,34 +225,3 @@ fn setup_base(
         });
     })
 }
-
-#[allow(improper_ctypes_definitions)]
-pub struct PluginFunctions {
-    pub startup: libloading::Symbol<'static, unsafe extern "C" fn()>,
-    pub shutdown: libloading::Symbol<'static, unsafe extern "C" fn()>,
-    pub capabilities: libloading::Symbol<'static, unsafe extern "C" fn() -> PluginCapabilities>,
-    pub data: libloading::Symbol<'static, unsafe extern "C" fn(&mut Crossroads)>, //-> Plugin>,
-    pub tests: libloading::Symbol<'static, unsafe extern "C" fn()>,
-}
-
-#[allow(improper_ctypes_definitions)]
-impl PluginFunctions {
-    pub fn new(
-        startup: libloading::Symbol<'static, unsafe extern "C" fn()>,
-        shutdown: libloading::Symbol<'static, unsafe extern "C" fn()>,
-        capabilities: libloading::Symbol<'static, unsafe extern "C" fn() -> PluginCapabilities>,
-        data: libloading::Symbol<'static, unsafe extern "C" fn(&mut Crossroads)>, // -> Plugin>,
-        tests: libloading::Symbol<'static, unsafe extern "C" fn()>,
-    ) -> Self {
-        Self {
-            startup,
-            shutdown,
-            capabilities,
-            data,
-            tests,
-        }
-    }
-}
-
-unsafe impl Send for PluginFunctions {}
-unsafe impl Sync for PluginFunctions {}

@@ -12,6 +12,10 @@ extern "C" {
     #[allow(improper_ctypes)]
     pub fn capabilities() -> PluginCapabilities;
 
+    /// Reports the name of the plugin, used for duplication detection and plugin tests.
+    #[allow(improper_ctypes)]
+    pub fn name() -> String;
+
     /// Inserts your plugin interface into the dbus server.
     /// Provided as a parameter is the crossroads context, which you can use in order to insert your
     /// interfaces and objects

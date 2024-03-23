@@ -367,12 +367,16 @@ async fn test_get_output_streams() {
 }
 
 #[tokio::test]
+#[cfg(test)]
 async fn test_plugins() {
+    use re_set_lib::utils::plugin::plugin_tests;
     setup();
     thread::sleep(Duration::from_millis(2000));
     unsafe {
         for plugin in PLUGINS.iter() {
-            (plugin.tests)();
+            let name = (plugin.name)();
+            let tests = (plugin.tests)();
+            plugin_tests(name, tests);
         }
     }
     COUNTER.fetch_sub(1, Ordering::SeqCst);
