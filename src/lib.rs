@@ -11,13 +11,15 @@ pub mod plugin;
 mod tests;
 pub mod utils;
 
+use std::sync::{Arc, RwLock};
+use std::thread;
 use std::{fs, future, process::exit, time::Duration};
 
 use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::utils::plugin_setup::PLUGINS;
+use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS};
 use re_set_lib::{parse_flags, write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
@@ -39,7 +41,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// #[tokio::main]
 /// pub async fn main() {
-///     
 ///     run_daemon(std::env::args().collect()).await;
 /// }
 /// ```
@@ -129,8 +130,8 @@ pub async fn run_daemon(args: Vec<String>) {
     features.push(setup_audio_manager(&mut cross));
     feature_strings.push("Audio");
     unsafe {
-        for plugin in PLUGINS.iter() {
-            feature_strings.extend(((plugin.capabilities)()).get_capabilities().iter());
+        for plugin in BACKEND_PLUGINS.iter() {
+            feature_strings.extend(plugin.capabilities.iter());
         }
     }
 
@@ -141,14 +142,21 @@ pub async fn run_daemon(args: Vec<String>) {
     let data = data.unwrap();
 
     features.push(setup_base(&mut cross, feature_strings));
-
     unsafe {
-        for plugin in PLUGINS.iter() {
-            // allocate plugin specific things
-            (plugin.startup)();
-            // register and insert plugin interfaces
-            (plugin.data)(&mut cross);
-        }
+        thread::scope(|scope| {
+            let wrapper = Arc::new(RwLock::new(CrossWrapper::new(&mut cross)));
+            for plugin in BACKEND_PLUGINS.iter() {
+                let wrapper_loop = wrapper.clone();
+                scope.spawn(move || {
+                    // allocate plugin specific things
+                    (plugin.startup)();
+                    // register and insert plugin interfaces
+                    (plugin.data)(wrapper_loop);
+                    let name = (plugin.name)();
+                    LOG!(format!("Loaded plugin: {}", name));
+                });
+            }
+        });
     }
 
     cross.insert(DBUS_PATH!(), &features, data);
@@ -215,7 +223,7 @@ fn setup_base(
             data.handle.abort();
             let _ = data.audio_sender.send(AudioRequest::StopListener);
             unsafe {
-                for plugin in PLUGINS.iter() {
+                for plugin in BACKEND_PLUGINS.iter() {
                     (plugin.shutdown)();
                 }
             }

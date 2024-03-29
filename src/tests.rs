@@ -1,6 +1,6 @@
 // somehow clippy doesn't recognize the tests properly, which leads to wrongly placed "unused
 // imports"
-use crate::{mock::mock_dbus::start_mock_implementation_server, PLUGINS};
+use crate::{mock::mock_dbus::start_mock_implementation_server, BACKEND_PLUGINS};
 use crate::{run_daemon, utils::AUDIO};
 use dbus::{
     arg::{AppendAll, ReadAll},
@@ -373,14 +373,13 @@ async fn test_plugins() {
     setup();
     thread::sleep(Duration::from_millis(2000));
     unsafe {
-        for plugin in PLUGINS.iter() {
+        for plugin in BACKEND_PLUGINS.iter() {
             let name = (plugin.name)();
             let tests = (plugin.tests)();
             plugin_tests(name, tests);
         }
     }
     COUNTER.fetch_sub(1, Ordering::SeqCst);
-    // assert!(res.is_ok());
 }
 
 // this is usually commencted out as it is used to test the mock dbus itself
