@@ -4,7 +4,7 @@ version = "1.1.0"
 edition = "2021"
 description = "ReSet Daemon library and runner."
 repository = "https://github.com/Xetibo/ReSet-Daemon"
-license = "GPL-3.0-only"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 re_set-lib = "3.1.6"
