@@ -87,7 +87,7 @@ macro_rules! NM_INTERFACE_TEST {
 #[cfg(not(test))]
 macro_rules! NM_DEVICE_INTERFACE {
     () => {
-        "org.freedesktop.NetworkManager.Device.Wireless"
+        "org.freedesktop.NetworkManager.Device"
     };
 }
 
@@ -95,6 +95,20 @@ macro_rules! NM_DEVICE_INTERFACE {
 macro_rules! NM_DEVICE_INTERFACE {
     () => {
         "org.Xetibo.ReSet.Test.NetworkManager.Device"
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! NM_DEVICE_WIRELESS_INTERFACE {
+    () => {
+        "org.freedesktop.NetworkManager.Device.Wireless"
+    };
+}
+
+#[cfg(test)]
+macro_rules! NM_DEVICE_WIRELESS_INTERFACE {
+    () => {
+        "org.Xetibo.ReSet.Test.NetworkManager.Device.Wireless"
     };
 }
 
@@ -241,7 +255,7 @@ macro_rules! NM_DEVICES_PATH {
 #[cfg(not(test))]
 macro_rules! NM_ACCESS_POINT_PATH {
     () => {
-        "/org/freedesktop/NetworkManager/AcessPoint/"
+        "/org/freedesktop/NetworkManager/AccessPoint"
     };
 }
 

@@ -131,6 +131,7 @@ impl DaemonData {
     ) -> Result<Self, Error> {
         // TODO create check for pcs that don't offer wifi
         let mut n_devices = get_wifi_devices();
+        dbg!(&n_devices);
         let current_n_device = n_devices.pop().unwrap_or(Arc::new(RwLock::new(Device::new(
             Path::from("/"),
             String::from("empty"),

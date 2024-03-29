@@ -9,7 +9,7 @@ use std::{
 };
 
 use dbus::{
-    arg::{self, prop_cast, PropMap, RefArg, Variant},
+    arg::{self, prop_cast, PropMap},
     blocking::{stdintf::org_freedesktop_dbus::PropertiesPropertiesChanged, Connection},
     channel::Sender,
     message::SignalArgs,
@@ -26,7 +26,7 @@ use re_set_lib::{
     {write_log_to_file, ERROR, LOG},
 };
 
-use crate::utils::{convert_bluetooth_map_bool, FullMaskedPropMap, MaskedPropMap};
+use crate::utils::{convert_bluetooth_map_bool, MaskedPropMap};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -56,19 +56,24 @@ impl Default for BluetoothAgent {
     }
 }
 
-fn get_objects(
-    interface: &'static str,
-    path: &'static str,
-) -> Result<(FullMaskedPropMap,), dbus::Error> {
-    dbus_method!(
-        interface,
-        Path::from(path),
+fn get_objects() -> HashMap<Path<'static>, HashMap<String, PropMap>> {
+    let res = dbus_method!(
+        BLUEZ_INTERFACE!(),
+        "/",
         "GetManagedObjects",
         "org.freedesktop.DBus.ObjectManager",
         (),
         1000,
-        (HashMap<Path<'static>, HashMap<String, HashMap<String, Variant<Box<dyn RefArg>>>>>,),
-    )
+        (HashMap<Path<'static>, HashMap<String, PropMap>>,),
+    );
+    if res.is_err() {
+        ERROR!(
+            "Could not to get bluetooth objects",
+            ErrorLevel::PartialBreakage
+        );
+        return HashMap::new();
+    }
+    res.unwrap().0
 }
 
 pub fn convert_device(path: &Path<'static>, map: &MaskedPropMap) -> Option<BluetoothDevice> {
@@ -176,11 +181,7 @@ pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
 
 pub fn get_connections() -> Vec<re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice> {
     let mut devices = Vec::new();
-    let res = get_objects(BLUEZ_INTERFACE!(), "/");
-    if res.is_err() {
-        return devices;
-    }
-    let (res,) = res.unwrap();
+    let res = get_objects();
     for (path, map) in res.iter() {
         let device = convert_device(path, map);
         if let Some(device) = device {
@@ -208,15 +209,7 @@ impl BluetoothInterface {
 
     pub fn create(conn: Arc<SyncConnection>) -> Option<Self> {
         let mut adapters = Vec::new();
-        let res = get_objects(BLUEZ_INTERFACE!(), "/");
-        if res.is_err() {
-            ERROR!(
-                "Could not get bluetooth objects",
-                ErrorLevel::PartialBreakage
-            );
-            return None;
-        }
-        let (res,) = res.unwrap();
+        let res = get_objects();
         for (path, map) in res.iter() {
             let map = map.get(BLUEZ_ADAPTER_INTERFACE!());
             if map.is_none() {
@@ -642,7 +635,7 @@ pub fn set_adapter_pairable(path: Path<'static>, enabled: bool) -> bool {
 
 pub fn get_all_bluetooth_adapters() -> Vec<BluetoothAdapter> {
     let mut adapters = Vec::new();
-    let objects = get_all_objects();
+    let objects = get_objects();
     for (path, map) in objects {
         if path.contains("Bluez") && map.contains_key(BLUEZ_ADAPTER_INTERFACE!()) {
             adapters.push(adapter_from_map(
@@ -656,7 +649,7 @@ pub fn get_all_bluetooth_adapters() -> Vec<BluetoothAdapter> {
 
 pub fn get_all_bluetooth_devices() -> Vec<BluetoothDevice> {
     let mut devices = Vec::new();
-    let objects = get_all_objects();
+    let objects = get_objects();
     for (path, map) in objects {
         if path.contains("Bluez") && map.contains_key(BLUEZ_DEVICE_INTERFACE!()) {
             devices.push(
@@ -666,27 +659,6 @@ pub fn get_all_bluetooth_devices() -> Vec<BluetoothDevice> {
         }
     }
     devices
-}
-
-fn get_all_objects() -> HashMap<Path<'static>, HashMap<String, PropMap>> {
-    let res = dbus_method!(
-        BASE_TEST_INTERFACE!(),
-        "/",
-        // DBUS_PATH_TEST!(),
-        "GetManagedObjects",
-        "org.freedesktop.DBus.ObjectManager",
-        (),
-        1000,
-        (HashMap<Path<'static>, HashMap<String, PropMap>>,),
-    );
-    if res.is_err() {
-        ERROR!(
-            "Could not to get bluetooth objects",
-            ErrorLevel::PartialBreakage
-        );
-        return HashMap::new();
-    }
-    res.unwrap().0
 }
 
 // command needed to understand anything about bluetooth
