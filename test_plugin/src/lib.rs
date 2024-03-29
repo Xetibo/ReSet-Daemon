@@ -1,31 +1,46 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    sync::{Arc, RwLock, RwLockWriteGuard},
+    time::Duration,
+};
 
-use dbus::{blocking::Connection, Path};
-use dbus_crossroads::Crossroads;
-use re_set_lib::utils::{
-    plugin::{PluginCapabilities, PluginData},
-    variant::TVariant,
+use dbus::blocking::Connection;
+use dbus_crossroads::IfaceBuilder;
+use re_set_lib::{
+    plug_assert, plug_assert_eq,
+    utils::{
+        plugin::{PluginCapabilities, PluginImplementation, PluginTestError, PluginTestFunc},
+        plugin_setup::CrossWrapper,
+        variant::{Debug, TVariant, Variant},
+    },
 };
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
 pub extern "C" fn capabilities() -> PluginCapabilities {
     println!("capabilities called");
-    PluginCapabilities::new(vec!["test"])
+    PluginCapabilities::new(vec!["test"], PluginImplementation::Backend)
 }
 
 #[no_mangle]
-pub extern "C" fn dbus_interface(cross: &mut Crossroads) {
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn name() -> String {
+    println!("name called");
+    String::from("testplugin")
+}
+
+#[no_mangle]
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn dbus_interface(cross: Arc<RwLock<CrossWrapper>>) {
     println!("dbus interface called");
-    let mut interfaces = Vec::new();
-    let interface = setup_dbus_interface(cross);
-    interfaces.push(interface);
-    let mut data = HashMap::new();
-    data.insert(String::from("pingpang"), 10.into_variant());
-    cross.insert(
-        Path::from("/org/Xetibo/ReSet/TestPlugin"),
-        &interfaces,
-        PluginData::new(data),
+    let mut cross = cross.write().unwrap();
+    let interface = setup_dbus_interface(&mut cross);
+    cross.insert::<CustomPluginType>(
+        "test",
+        &[interface],
+        CustomPluginType {
+            name: "pingpang".to_string(),
+            age: 10,
+        },
     );
 }
 
@@ -40,30 +55,66 @@ pub extern "C" fn backend_shutdown() {
 }
 
 #[no_mangle]
-pub extern "C" fn backend_tests() {
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn backend_tests() -> Vec<PluginTestFunc> {
     println!("tests called");
+    vec![PluginTestFunc::new(test1, "testconnection")]
+}
+
+fn test1() -> Result<(), PluginTestError> {
     let conn = Connection::new_session().unwrap();
     let proxy = conn.with_proxy(
         "org.Xetibo.ReSet.Daemon",
         "/org/Xetibo/ReSet/TestPlugin",
         Duration::from_millis(1000),
     );
-    let res: Result<(i32,), dbus::Error> =
+    let res: Result<(String, u32), dbus::Error> =
         proxy.method_call("org.Xetibo.ReSet.TestPlugin", "Test", ());
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().0, 10);
+    plug_assert!(res.is_ok())?;
+    if res.is_err() {
+        return Err(PluginTestError::new("didn't receive proper answer"));
+    }
+
+    let value = res.unwrap();
+    plug_assert_eq!(value.0, "pingpang")?;
+    plug_assert_eq!(value.1, 10)?;
+    Ok(())
 }
 
-pub fn setup_dbus_interface(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<PluginData> {
-    cross.register("org.Xetibo.ReSet.TestPlugin", |c| {
-        c.method("Test", (), ("test",), move |_, d: &mut PluginData, ()| {
-            println!("Dbus function test called");
-            Ok((d
-                .get_data()
-                .get(&String::from("pingpang"))
-                .unwrap()
-                .to_value::<i32>()
-                .unwrap(),))
-        });
-    })
+// pub fn setup_dbus_interface(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<PluginData> {
+pub fn setup_dbus_interface(
+    cross: &mut RwLockWriteGuard<CrossWrapper>,
+) -> dbus_crossroads::IfaceToken<CustomPluginType> {
+    cross.register::<CustomPluginType>(
+        "org.Xetibo.ReSet.TestPlugin",
+        |c: &mut IfaceBuilder<CustomPluginType>| {
+            c.method(
+                "Test",
+                (),
+                ("name", "age"),
+                move |_, d: &mut CustomPluginType, ()| {
+                    println!("Dbus function test called");
+                    Ok((d.name.clone(), d.age))
+                },
+            );
+        },
+    )
+}
+
+#[derive(Debug, Clone)]
+pub struct CustomPluginType {
+    name: String,
+    age: u32,
+}
+
+impl Debug for CustomPluginType {}
+
+impl TVariant for CustomPluginType {
+    fn into_variant(self) -> re_set_lib::utils::variant::Variant {
+        Variant::new::<(String, u32)>((self.name.clone(), self.age))
+    }
+
+    fn value(&self) -> Box<dyn TVariant> {
+        Box::new((self.name.clone(), self.age))
+    }
 }

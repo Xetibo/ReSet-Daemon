@@ -1,12 +1,14 @@
 // somehow clippy doesn't recognize the tests properly, which leads to wrongly placed "unused
 // imports"
-use crate::{mock::mock_dbus::start_mock_implementation_server, PLUGINS};
+use crate::{mock::mock_dbus::start_mock_implementation_server, BACKEND_PLUGINS};
 use crate::{run_daemon, utils::AUDIO};
 use dbus::{
     arg::{AppendAll, ReadAll},
     blocking::Connection,
     Path,
 };
+
+use serial_test::serial;
 
 use re_set_lib::audio::audio_structures::Sink;
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
@@ -48,7 +50,7 @@ fn setup() {
                 hint::spin_loop();
             }
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
-            rt.spawn(run_daemon());
+            rt.spawn(run_daemon(vec![String::from("tests")]));
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }
@@ -128,6 +130,7 @@ async fn test_list_connections() {
 }
 
 #[tokio::test]
+#[serial]
 // tests adding and removing an access point
 async fn test_add_access_point_event() {
     setup();
@@ -178,10 +181,18 @@ async fn test_add_access_point_event() {
 }
 
 #[tokio::test]
+#[serial]
 // tests connecting to a new access point with a password
 async fn test_connect_to_new_access_point() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(1000));
+    connect_to_new_access_point();
+    thread::sleep(Duration::from_millis(1000));
+    connect_to_known_access_point();
+    COUNTER.fetch_sub(1, Ordering::SeqCst);
+}
+
+fn connect_to_new_access_point() {
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -207,16 +218,11 @@ async fn test_connect_to_new_access_point() {
         1000,
         (bool,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
     assert!(res.unwrap().0);
 }
 
-#[tokio::test]
-// tests connecting to an existing connection
-async fn test_connect_to_existing_connection() {
-    setup();
-    thread::sleep(Duration::from_millis(3000));
+fn connect_to_known_access_point() {
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -244,7 +250,6 @@ async fn test_connect_to_existing_connection() {
         1000,
         (bool,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
     assert!(res.is_ok());
     assert!(res.unwrap().0);
 }
@@ -253,7 +258,7 @@ async fn test_connect_to_existing_connection() {
 // tests connecting to a new access point with a *wrong* password
 async fn test_connect_to_new_access_point_wrong_password() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
+    thread::sleep(Duration::from_millis(1000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -362,16 +367,19 @@ async fn test_get_output_streams() {
 }
 
 #[tokio::test]
+#[cfg(test)]
 async fn test_plugins() {
+    use re_set_lib::utils::plugin::plugin_tests;
     setup();
     thread::sleep(Duration::from_millis(2000));
     unsafe {
-        for plugin in PLUGINS.iter() {
-            (plugin.tests)();
+        for plugin in BACKEND_PLUGINS.iter() {
+            let name = (plugin.name)();
+            let tests = (plugin.tests)();
+            plugin_tests(name, tests);
         }
     }
     COUNTER.fetch_sub(1, Ordering::SeqCst);
-    // assert!(res.is_ok());
 }
 
 // this is usually commencted out as it is used to test the mock dbus itself

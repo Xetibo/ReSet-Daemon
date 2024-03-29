@@ -109,6 +109,7 @@ fn create_mock_bluetooth_adapter(
     );
 }
 
+#[allow(dead_code)]
 pub struct MockBluetooth {
     pub adapter_interface: dbus_crossroads::IfaceToken<MockBluetoothAdapterData>,
     pub data: MockBluetoothData,

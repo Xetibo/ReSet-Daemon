@@ -19,3 +19,4 @@ Cargo.lock
 /target
 ./test_plugin/target/
 ./test_plugin/Cargo.lock
+.idea

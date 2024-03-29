@@ -102,14 +102,19 @@ pub fn mock_network_manager_base(
                             connection.get("802-11-wireless-security").unwrap(),
                         );
                         secrets = Some(parsed_connection.clone());
-
-                        let password = data
-                            .network_data
-                            .network_manager_data
-                            .passwords
-                            .get(i)
-                            .unwrap();
-                        password == &parsed_connection.psk
+                        let result = if i >= data.network_data.network_manager_data.passwords.len()
+                        {
+                            false
+                        } else {
+                            let password = data
+                                .network_data
+                                .network_manager_data
+                                .passwords
+                                .get(i)
+                                .unwrap();
+                            password == &parsed_connection.psk
+                        };
+                        result
                     } else {
                         false
                     };
@@ -129,15 +134,15 @@ pub fn mock_network_manager_base(
                     NM_ACTIVE_CONNECTION_PATH!().to_string() + "/" + &connections.len().to_string(),
                 );
                 let state = if ok { 2 } else { 4 };
-                create_mock_active_connection(
-                    cross,
-                    mock_active_connection_interface,
-                    &active_connection,
-                    connection_path.clone(),
-                    specific_object,
-                    state,
-                );
                 if ok {
+                    create_mock_active_connection(
+                        cross,
+                        mock_active_connection_interface,
+                        &active_connection,
+                        connection_path.clone(),
+                        specific_object,
+                        state,
+                    );
                     create_mock_connection(
                         cross,
                         mock_connection_interface,
@@ -161,7 +166,6 @@ pub fn mock_network_manager_base(
                 Path<'static>,
                 Path<'static>,
             )| {
-                println!("{}", &connection);
                 let interface;
                 let active_connections;
                 {
@@ -186,8 +190,8 @@ pub fn mock_network_manager_base(
                     active_connection
                 } else {
                     LOG!(
-                        "/tmp/reset_daemon_log",
-                        "Tried to activate non-existing connection\n"
+                        
+                        "Tried to activate non-existing connection"
                     );
                     Path::from("/")
                 };
@@ -219,8 +223,8 @@ pub fn mock_network_manager_base(
                         .remove(index as usize);
                 } else {
                     LOG!(
-                        "/tmp/reset_daemon_log",
-                        "Tried to deactivate non-existing connection\n"
+                        
+                        "Tried to deactivate non-existing connection"
                     );
                 }
                 async move { ctx.reply(Ok(())) }
@@ -345,7 +349,7 @@ pub fn mock_network_manager_device(
                 .append1(Path::from(new_path));
                 conn_removed.send(msg).expect("Could not send signal");
                 let data: &mut MockDeviceData = cross.data_mut(ctx.path()).unwrap();
-                data.access_points.remove(0);
+                data.access_points.remove(data.access_points.len() - 1);
                 async move { ctx.reply(Ok(())) }
             },
         );

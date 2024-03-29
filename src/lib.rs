@@ -11,22 +11,27 @@ pub mod plugin;
 mod tests;
 pub mod utils;
 
+use std::sync::{Arc, RwLock};
+use std::thread;
 use std::{fs, future, process::exit, time::Duration};
 
 use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::utils::plugin::{PluginCapabilities, PluginData};
-use re_set_lib::{write_log_to_file, LOG};
+use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS};
+use re_set_lib::{parse_flags, write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
-use crate::plugin::utils::PLUGINS;
 use crate::{
     audio::audio_manager_dbus::setup_audio_manager,
     bluetooth::bluetooth_manager_dbus::setup_bluetooth_manager,
     network::network_manager_dbus::setup_wireless_manager, utils::DaemonData,
 };
+
+/// Version of the current package.
+/// Use this to avoid version mismatch conflicts.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// # Running the daemon as a library function
 ///
@@ -36,20 +41,36 @@ use crate::{
 ///
 /// #[tokio::main]
 /// pub async fn main() {
-///     run_daemon().await;
+///     run_daemon(std::env::args().collect()).await;
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon());
+/// tokio::task::spawn(run_daemon(vec![String::from("binary name")]));
 /// // your other code here...
 /// ```
-pub async fn run_daemon() {
+pub async fn run_daemon(args: Vec<String>) {
+    let flags = parse_flags(&args);
+    for flag in flags.0.iter() {
+        // more configuration possible in the future
+        match flag {
+            re_set_lib::utils::flags::Flag::ConfigDir(_) => {
+                LOG!("Use a different config file");
+            }
+            re_set_lib::utils::flags::Flag::PluginDir(_) => {
+                LOG!("Use a different plugin dir");
+            }
+            re_set_lib::utils::flags::Flag::Other(flag) => {
+                dbg!(&flag);
+                LOG!("Custom flag");
+            }
+        }
+    }
     create_log_file();
 
-    LOG!("/tmp/reset_daemon_log", "Running in debug mode\n");
+    LOG!("Running in debug mode");
     let res = connection::new_session_sync();
     if res.is_err() {
         return;
@@ -96,21 +117,21 @@ pub async fn run_daemon() {
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
-        LOG!("/tmp/reset_daemon_log", "WiFi feature started\n");
+        LOG!("WiFi feature started");
     }
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
         // features.push(setup_bluetooth_agent(&mut cross));
         feature_strings.push("Bluetooth");
-        LOG!("/tmp/reset_daemon_log", "Bluetooth feature started\n");
+        LOG!("Bluetooth feature started");
     }
     // TODO: how to check for audio?
     features.push(setup_audio_manager(&mut cross));
     feature_strings.push("Audio");
     unsafe {
-        for plugin in PLUGINS.iter() {
-            feature_strings.extend(((plugin.capabilities)()).get_capabilities().iter());
+        for plugin in BACKEND_PLUGINS.iter() {
+            feature_strings.extend(plugin.capabilities.iter());
         }
     }
 
@@ -121,14 +142,21 @@ pub async fn run_daemon() {
     let data = data.unwrap();
 
     features.push(setup_base(&mut cross, feature_strings));
-
     unsafe {
-        for plugin in PLUGINS.iter() {
-            // allocate plugin specific things
-            (plugin.startup)();
-            // register and insert plugin interfaces
-            (plugin.data)(&mut cross);
-        }
+        thread::scope(|scope| {
+            let wrapper = Arc::new(RwLock::new(CrossWrapper::new(&mut cross)));
+            for plugin in BACKEND_PLUGINS.iter() {
+                let wrapper_loop = wrapper.clone();
+                scope.spawn(move || {
+                    // allocate plugin specific things
+                    (plugin.startup)();
+                    // register and insert plugin interfaces
+                    (plugin.data)(wrapper_loop);
+                    let name = (plugin.name)();
+                    LOG!(format!("Loaded plugin: {}", name));
+                });
+            }
+        });
     }
 
     cross.insert(DBUS_PATH!(), &features, data);
@@ -155,22 +183,6 @@ pub async fn run_daemon() {
     unreachable!()
 }
 
-pub fn setup_test_dbus_interface(
-    cross: &mut Crossroads,
-) -> dbus_crossroads::IfaceToken<PluginData> {
-    cross.register("org.Xetibo.ReSet.TestPlugin", |c| {
-        c.method("Test", (), ("test",), move |_, d: &mut PluginData, ()| {
-            println!("Dbus function test called");
-            Ok((d
-                .get_data()
-                .get(&String::from("pingpang"))
-                .unwrap()
-                .to_value::<i32>()
-                .unwrap(),))
-        });
-    })
-}
-
 fn create_log_file() {
     fs::File::create("/tmp/reset_daemon_log").expect("Could not create log file.");
 }
@@ -181,13 +193,12 @@ fn setup_base(
 ) -> dbus_crossroads::IfaceToken<DaemonData> {
     cross.register(BASE, |c| {
         c.method("GetCapabilities", (), ("capabilities",), move |_, _, ()| {
-            // later, this should be handled dymanically -> plugin check
             Ok((features.clone(),))
         });
         c.method("APIVersion", (), ("api-version",), move |_, _, ()| {
             // let the client handle the mismatch -> e.g. they decide if they want to keep using
             // the current daemon or not.
-            Ok(("1.0.1",))
+            Ok((VERSION,))
         });
         c.method(
             "RegisterClient",
@@ -212,7 +223,7 @@ fn setup_base(
             data.handle.abort();
             let _ = data.audio_sender.send(AudioRequest::StopListener);
             unsafe {
-                for plugin in PLUGINS.iter() {
+                for plugin in BACKEND_PLUGINS.iter() {
                     (plugin.shutdown)();
                 }
             }
@@ -222,34 +233,3 @@ fn setup_base(
         });
     })
 }
-
-#[allow(improper_ctypes_definitions)]
-pub struct PluginFunctions {
-    pub startup: libloading::Symbol<'static, unsafe extern "C" fn()>,
-    pub shutdown: libloading::Symbol<'static, unsafe extern "C" fn()>,
-    pub capabilities: libloading::Symbol<'static, unsafe extern "C" fn() -> PluginCapabilities>,
-    pub data: libloading::Symbol<'static, unsafe extern "C" fn(&mut Crossroads)>, //-> Plugin>,
-    pub tests: libloading::Symbol<'static, unsafe extern "C" fn()>,
-}
-
-#[allow(improper_ctypes_definitions)]
-impl PluginFunctions {
-    pub fn new(
-        startup: libloading::Symbol<'static, unsafe extern "C" fn()>,
-        shutdown: libloading::Symbol<'static, unsafe extern "C" fn()>,
-        capabilities: libloading::Symbol<'static, unsafe extern "C" fn() -> PluginCapabilities>,
-        data: libloading::Symbol<'static, unsafe extern "C" fn(&mut Crossroads)>, // -> Plugin>,
-        tests: libloading::Symbol<'static, unsafe extern "C" fn()>,
-    ) -> Self {
-        Self {
-            startup,
-            shutdown,
-            capabilities,
-            data,
-            tests,
-        }
-    }
-}
-
-unsafe impl Send for PluginFunctions {}
-unsafe impl Sync for PluginFunctions {}

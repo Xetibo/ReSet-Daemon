@@ -1,5 +1,5 @@
 use dbus_crossroads::Crossroads;
-use re_set_lib::utils::plugin::{Plugin, PluginCapabilities};
+use re_set_lib::utils::plugin::PluginCapabilities;
 
 extern "C" {
     /// The startup function is intended to be used to allocate any required resources.
@@ -12,10 +12,15 @@ extern "C" {
     #[allow(improper_ctypes)]
     pub fn capabilities() -> PluginCapabilities;
 
-    /// Inserts your plugin interface into the dbus server.
+    /// Reports the name of the plugin, used for duplication detection and plugin tests.
     #[allow(improper_ctypes)]
-    // pub fn dbus_interface(cross: &mut Crossroads) -> Plugin;
-    pub fn dbus_interface(cross: &mut Crossroads) -> Plugin;
+    pub fn name() -> String;
+
+    /// Inserts your plugin interface into the dbus server.
+    /// Provided as a parameter is the crossroads context, which you can use in order to insert your
+    /// interfaces and objects
+    #[allow(improper_ctypes)]
+    pub fn dbus_interface(cross: &mut Crossroads);
 
     /// Use this function to return any tests you would like to have run.
     /// This might be a bit confusing as this will force you to define your functions for testing

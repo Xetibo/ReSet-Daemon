@@ -7,7 +7,6 @@ use crate::{
 };
 
 pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToken<DaemonData> {
-    // TODO handle errors on the now not bool returning functions
     let token = cross.register(AUDIO, |c| {
         c.signal::<(Sink,), _>("SinkChanged", ("sink",));
         c.signal::<(Sink,), _>("SinkAdded", ("sink",));
