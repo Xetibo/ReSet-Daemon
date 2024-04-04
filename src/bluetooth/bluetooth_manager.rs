@@ -268,7 +268,6 @@ impl BluetoothInterface {
                     println!("got a bluetooth signal");
                     let device = convert_device(&ir.object, &ir.interfaces);
                     if let Some(device) = device {
-                        dbg!(&device);
                         let msg = Message::signal(
                             &Path::from(DBUS_PATH!()),
                             &BLUETOOTH_INTERFACE!().into(),
@@ -372,7 +371,6 @@ impl BluetoothInterface {
                     stop_requested.store(false, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
                         proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StopDiscovery", ());
-                    dbg!(&res);
                     if res.is_err() {
                         ERROR!("Failed to stop bluetooth discovery", ErrorLevel::Critical);
                     } else {
@@ -393,7 +391,6 @@ impl BluetoothInterface {
                     scan_request.store(0, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
                         proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StopDiscovery", ());
-                    dbg!(&res);
                     if res.is_err() {
                         ERROR!("Failed to stop bluetooth discovery", ErrorLevel::Critical);
                     } else {
