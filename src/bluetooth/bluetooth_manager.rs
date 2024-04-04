@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicI8, Ordering},
         Arc,
     },
     thread,
@@ -174,6 +174,7 @@ pub fn get_bluetooth_adapter(path: &Path<'static>) -> BluetoothAdapter {
     let map = if let Ok(res) = res {
         res.0
     } else {
+        println!("f");
         PropMap::new()
     };
     adapter_from_map(path, &map)
@@ -235,7 +236,8 @@ impl BluetoothInterface {
     pub fn start_bluetooth_listener(
         &self,
         active_listener: Arc<AtomicBool>,
-        active_scan: Arc<AtomicBool>,
+        scan_request: Arc<AtomicI8>,
+        scan_active: Arc<AtomicBool>,
         stop_requested: Arc<AtomicBool>,
     ) -> bool {
         let path = self.current_adapter.clone();
@@ -244,7 +246,6 @@ impl BluetoothInterface {
         let changed_ref = self.connection.clone();
 
         if active_listener.load(Ordering::SeqCst) {
-            active_scan.store(true, Ordering::SeqCst);
             return false;
         }
         thread::spawn(move || {
@@ -264,8 +265,10 @@ impl BluetoothInterface {
             let res = conn.add_match(
                 bluetooth_device_added,
                 move |ir: BluetoothDeviceAdded, _, _| {
+                    println!("got a bluetooth signal");
                     let device = convert_device(&ir.object, &ir.interfaces);
                     if let Some(device) = device {
+                        dbg!(&device);
                         let msg = Message::signal(
                             &Path::from(DBUS_PATH!()),
                             &BLUETOOTH_INTERFACE!().into(),
@@ -360,31 +363,41 @@ impl BluetoothInterface {
             let res: Result<(), dbus::Error> =
                 proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StartDiscovery", ());
             active_listener.store(true, Ordering::SeqCst);
-            active_scan.store(true, Ordering::SeqCst);
+            scan_active.store(true, Ordering::SeqCst);
             loop {
                 let _ = conn.process(Duration::from_millis(1000))?;
                 if stop_requested.load(Ordering::SeqCst) {
-                    active_scan.store(false, Ordering::SeqCst);
+                    scan_request.store(0, Ordering::SeqCst);
                     active_listener.store(false, Ordering::SeqCst);
                     stop_requested.store(false, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
                         proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StopDiscovery", ());
+                    dbg!(&res);
                     if res.is_err() {
-                        ERROR!("Failed to start bluetooth discovery", ErrorLevel::Critical);
+                        ERROR!("Failed to stop bluetooth discovery", ErrorLevel::Critical);
+                    } else {
+                        scan_active.store(false, Ordering::SeqCst);
                     }
                     break;
                 }
-                if active_scan.load(Ordering::SeqCst) {
+                if scan_request.load(Ordering::SeqCst) == 1 {
+                    scan_request.store(0, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
                         proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StartDiscovery", ());
                     if res.is_err() {
                         ERROR!("Failed to start bluetooth discovery", ErrorLevel::Critical);
+                    } else {
+                        scan_active.store(true, Ordering::SeqCst);
                     }
-                } else if !active_scan.load(Ordering::SeqCst) {
+                } else if scan_request.load(Ordering::SeqCst) == 2 {
+                    scan_request.store(0, Ordering::SeqCst);
                     let res: Result<(), dbus::Error> =
                         proxy.method_call(BLUEZ_ADAPTER_INTERFACE!(), "StopDiscovery", ());
+                    dbg!(&res);
                     if res.is_err() {
                         ERROR!("Failed to stop bluetooth discovery", ErrorLevel::Critical);
+                    } else {
+                        scan_active.store(false, Ordering::SeqCst);
                     }
                 }
             }
@@ -501,7 +514,6 @@ impl BluetoothInterface {
             LOG!("Failed to start bluetooth, already active");
             return;
         }
-        scan_active.store(false, Ordering::SeqCst);
         let res = dbus_method!(
             BLUEZ_INTERFACE!(),
             self.current_adapter.clone(),
@@ -516,10 +528,12 @@ impl BluetoothInterface {
                 "Failed to start bluetooth discovery",
                 ErrorLevel::PartialBreakage
             );
+        } else {
+            scan_active.store(true, Ordering::SeqCst);
         }
     }
 
-    pub fn stop_bluetooth_discovery(&self) {
+    pub fn stop_bluetooth_discovery(&self, scan_active: Arc<AtomicBool>) {
         let res = dbus_method!(
             BLUEZ_INTERFACE!(),
             self.current_adapter.clone(),
@@ -534,6 +548,8 @@ impl BluetoothInterface {
                 "Could not stop bluetooth discovery",
                 ErrorLevel::PartialBreakage
             );
+        } else {
+            scan_active.store(false, Ordering::SeqCst);
         }
     }
 

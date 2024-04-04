@@ -38,7 +38,7 @@ pub extern "C" fn dbus_interface(cross: Arc<RwLock<CrossWrapper>>) {
         "test",
         &[interface],
         CustomPluginType {
-            name: "pingpang".to_string(),
+            name: "test person".to_string(),
             age: 10,
         },
     );
