@@ -637,7 +637,7 @@ pub fn get_all_bluetooth_adapters() -> Vec<BluetoothAdapter> {
     let mut adapters = Vec::new();
     let objects = get_objects();
     for (path, map) in objects {
-        if path.contains("Bluez") && map.contains_key(BLUEZ_ADAPTER_INTERFACE!()) {
+        if path.contains("bluez") && map.contains_key(BLUEZ_ADAPTER_INTERFACE!()) {
             adapters.push(adapter_from_map(
                 &path,
                 map.get(BLUEZ_ADAPTER_INTERFACE!()).unwrap(),
@@ -651,7 +651,7 @@ pub fn get_all_bluetooth_devices() -> Vec<BluetoothDevice> {
     let mut devices = Vec::new();
     let objects = get_objects();
     for (path, map) in objects {
-        if path.contains("Bluez") && map.contains_key(BLUEZ_DEVICE_INTERFACE!()) {
+        if path.contains("bluez") && map.contains_key(BLUEZ_DEVICE_INTERFACE!()) {
             devices.push(
                 bluetooth_device_from_map(&path, map.get(BLUEZ_DEVICE_INTERFACE!()).unwrap())
                     .unwrap(),

@@ -117,7 +117,7 @@ macro_rules! NM_DEVICE_WIRELESS_INTERFACE {
 #[cfg(not(test))]
 macro_rules! NM_ACCESS_POINT_INTERFACE {
     () => {
-        "org.freedesktop.NetworkManager.AcessPoint"
+        "org.freedesktop.NetworkManager.AccessPoint"
     };
 }
 
