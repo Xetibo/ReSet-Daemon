@@ -600,7 +600,7 @@ pub fn disconnect_from_access_point(connection: Path<'static>) -> Result<(), Con
         NM_INTERFACE!(),
         (connection,),
         1000,
-        (Path<'static>,),
+        (),
     );
     if result.is_err() {
         ERROR!(
@@ -864,7 +864,7 @@ impl Device {
             Path::from(NM_PATH!()),
             NM_INTERFACE!(),
             "ActiveConnections",
-            (Vec<Path<'static>>,),
+            Vec<Path<'static>>,
         );
         if res.is_err() {
             ERROR!(
@@ -875,16 +875,12 @@ impl Device {
                 method: "disconnect from",
             });
         }
-        for connection in res.unwrap().0 {
+        for connection in res.unwrap() {
             let (devices, _) = get_associations_of_active_connection(connection.clone());
             for device in devices {
                 if device == self.dbus_path {
                     let res = disconnect_from_access_point(connection);
                     if res.is_err() {
-                        ERROR!(
-                            "Tried to disconnect from access point.",
-                            ErrorLevel::Recoverable
-                        );
                         return Err(ConnectionError {
                             method: "disconnect from",
                         });
