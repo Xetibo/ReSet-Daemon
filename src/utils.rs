@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     hint,
     sync::{
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicI8, AtomicU8, Ordering},
         Arc, RwLock,
     },
     thread,
@@ -114,6 +114,7 @@ pub struct DaemonData {
     pub network_stop_requested: Arc<AtomicBool>,
     pub bluetooth_listener_active: Arc<AtomicBool>,
     pub bluetooth_stop_requested: Arc<AtomicBool>,
+    pub bluetooth_scan_request: Arc<AtomicI8>,
     pub bluetooth_scan_active: Arc<AtomicBool>,
     pub clients: HashMap<String, usize>,
     pub connection: Arc<SyncConnection>,
@@ -131,7 +132,6 @@ impl DaemonData {
     ) -> Result<Self, Error> {
         // TODO create check for pcs that don't offer wifi
         let mut n_devices = get_wifi_devices();
-        dbg!(&n_devices);
         let current_n_device = n_devices.pop().unwrap_or(Arc::new(RwLock::new(Device::new(
             Path::from("/"),
             String::from("empty"),
@@ -161,7 +161,7 @@ impl DaemonData {
                     res.listen_to_messages();
                     return;
                 } else if let Err(error) = res {
-                    ERROR!( error.0, ErrorLevel::Critical);
+                    ERROR!(error.0, ErrorLevel::Critical);
                 }
                 running_ref.store(2, Ordering::SeqCst);
             });
@@ -192,6 +192,7 @@ impl DaemonData {
             audio_listener_active,
             bluetooth_listener_active: Arc::new(AtomicBool::new(false)),
             bluetooth_stop_requested: Arc::new(AtomicBool::new(false)),
+            bluetooth_scan_request: Arc::new(AtomicI8::new(0)),
             bluetooth_scan_active: Arc::new(AtomicBool::new(false)),
             connection: conn,
             handle,

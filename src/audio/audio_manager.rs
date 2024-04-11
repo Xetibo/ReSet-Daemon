@@ -131,11 +131,7 @@ impl PulseServer {
                                 handle_sink_events(&connection_sink, Sink::from(sink), operation);
                             }
                             ListResult::Error => {
-                                ERROR!(
-                                    
-                                    "Could not get sink info",
-                                    ErrorLevel::PartialBreakage
-                                );
+                                ERROR!("Could not get sink info", ErrorLevel::PartialBreakage);
                             }
                             ListResult::End => (),
                         });
@@ -154,11 +150,7 @@ impl PulseServer {
                                 );
                             }
                             ListResult::Error => {
-                                ERROR!(
-                                    
-                                    "Could not get source info",
-                                    ErrorLevel::PartialBreakage
-                                );
+                                ERROR!("Could not get source info", ErrorLevel::PartialBreakage);
                             }
                             ListResult::End => (),
                         });
@@ -178,7 +170,6 @@ impl PulseServer {
                             }
                             ListResult::Error => {
                                 ERROR!(
-                                    
                                     "Could not get output stream info",
                                     ErrorLevel::PartialBreakage
                                 );
@@ -201,7 +192,6 @@ impl PulseServer {
                             }
                             ListResult::Error => {
                                 ERROR!(
-                                    
                                     "Could not get input stream info",
                                     ErrorLevel::PartialBreakage
                                 );
@@ -305,11 +295,7 @@ impl PulseServer {
                         sink_ref.replace(item.into());
                     }
                     ListResult::Error => unsafe {
-                        ERROR!(
-                            
-                            "Could not get sink info",
-                            ErrorLevel::PartialBreakage
-                        );
+                        ERROR!("Could not get sink info", ErrorLevel::PartialBreakage);
                         (*ml_ref.as_ptr()).signal(true);
                     },
                     ListResult::End => unsafe {
@@ -322,11 +308,7 @@ impl PulseServer {
         }
         let res = self.sender.send(AudioResponse::DefaultSink(sink.take()));
         if res.is_err() {
-            ERROR!(
-                
-                "Could not get default sink",
-                ErrorLevel::PartialBreakage
-            );
+            ERROR!("Could not get default sink", ErrorLevel::PartialBreakage);
         }
         self.mainloop.borrow_mut().unlock();
     }
@@ -339,7 +321,6 @@ impl PulseServer {
             let res = self.sender.send(AudioResponse::Error);
             if res.is_err() {
                 ERROR!(
-                    
                     "Could not get default sink name",
                     ErrorLevel::PartialBreakage
                 );
@@ -352,7 +333,6 @@ impl PulseServer {
             .send(AudioResponse::DefaultSinkName(source_name.take()));
         if res.is_err() {
             ERROR!(
-                
                 "Could not get default sink name",
                 ErrorLevel::PartialBreakage
             );
@@ -390,7 +370,6 @@ impl PulseServer {
             let res = self.sender.send(AudioResponse::Error);
             if res.is_err() {
                 ERROR!(
-                    
                     "Could not get default source name",
                     ErrorLevel::PartialBreakage
                 );
@@ -403,7 +382,6 @@ impl PulseServer {
             .send(AudioResponse::DefaultSourceName(source_name.take()));
         if res.is_err() {
             ERROR!(
-                
                 "Could not get default source name",
                 ErrorLevel::PartialBreakage
             );
@@ -452,11 +430,7 @@ impl PulseServer {
                         source_ref.replace(item.into());
                     }
                     ListResult::Error => unsafe {
-                        ERROR!(
-                            
-                            "Could not get default source",
-                            ErrorLevel::PartialBreakage
-                        );
+                        ERROR!("Could not get default source", ErrorLevel::PartialBreakage);
                         (*ml_ref.as_ptr()).signal(true);
                     },
                     ListResult::End => unsafe {
@@ -471,11 +445,7 @@ impl PulseServer {
             .sender
             .send(AudioResponse::DefaultSource(source.take()));
         if res.is_err() {
-            ERROR!(
-                
-                "Could not get default source",
-                ErrorLevel::PartialBreakage
-            );
+            ERROR!("Could not get default source", ErrorLevel::PartialBreakage);
         }
         self.mainloop.borrow_mut().unlock();
     }
@@ -491,11 +461,7 @@ impl PulseServer {
                 sinks_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
-                ERROR!(
-                    
-                    "Could not get sinks",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get sinks", ErrorLevel::PartialBreakage);
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -520,11 +486,7 @@ impl PulseServer {
                 sources_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
-                ERROR!(
-                    
-                    "Could not get sources",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get sources", ErrorLevel::PartialBreakage);
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -628,11 +590,7 @@ impl PulseServer {
                 sink_ref.replace(item.into());
             }
             ListResult::Error => unsafe {
-                ERROR!(
-                    
-                    "Could not set default sink",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not set default sink", ErrorLevel::PartialBreakage);
                 (*ml_ref_response.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -666,11 +624,7 @@ impl PulseServer {
                     source_ref.replace(item.into());
                 }
                 ListResult::Error => unsafe {
-                    ERROR!(
-                        
-                        "Could not set default source",
-                        ErrorLevel::PartialBreakage
-                    );
+                    ERROR!("Could not set default source", ErrorLevel::PartialBreakage);
                     (*ml_ref_response.as_ptr()).signal(true);
                 },
                 ListResult::End => unsafe {
@@ -697,11 +651,7 @@ impl PulseServer {
                 input_stream.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
-                ERROR!(
-                    
-                    "Could not get input streams",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get input streams", ErrorLevel::PartialBreakage);
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -782,11 +732,7 @@ impl PulseServer {
                 output_stream_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
-                ERROR!(
-                    
-                    "Could not get output streams",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get output streams", ErrorLevel::PartialBreakage);
                 (*ml_ref.as_ptr()).signal(true);
             },
             ListResult::End => unsafe {
@@ -867,11 +813,7 @@ impl PulseServer {
                 cards_ref.borrow_mut().push(item.into());
             }
             ListResult::Error => unsafe {
-                ERROR!(
-                    
-                    "Could not get profile cards",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get profile cards", ErrorLevel::PartialBreakage);
                 (*ml_ref.as_ptr()).signal(false);
             },
             ListResult::End => unsafe {
@@ -914,11 +856,7 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
             .append1(sink);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Changed => {
@@ -930,11 +868,7 @@ fn handle_sink_events(conn: &Arc<SyncConnection>, sink: Sink, operation: Operati
             .append1(sink);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Removed => (),
@@ -950,11 +884,7 @@ fn handle_sink_removed(conn: &Arc<SyncConnection>, index: u32) {
     .append1(index);
     let res = conn.send(msg);
     if res.is_err() {
-        ERROR!(
-            
-            "Could not get send message",
-            ErrorLevel::PartialBreakage
-        );
+        ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
     }
 }
 
@@ -969,11 +899,7 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
             .append1(source);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Changed => {
@@ -985,11 +911,7 @@ fn handle_source_events(conn: &Arc<SyncConnection>, source: Source, operation: O
             .append1(source);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Removed => (),
@@ -1005,11 +927,7 @@ fn handle_source_removed(conn: &Arc<SyncConnection>, index: u32) {
     .append1(index);
     let res = conn.send(msg);
     if res.is_err() {
-        ERROR!(
-            
-            "Could not get send message",
-            ErrorLevel::PartialBreakage
-        );
+        ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
     }
 }
 
@@ -1028,11 +946,7 @@ fn handle_input_stream_events(
             .append1(input_stream);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Changed => {
@@ -1044,11 +958,7 @@ fn handle_input_stream_events(
             .append1(input_stream);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Removed => (),
@@ -1064,11 +974,7 @@ fn handle_input_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     .append1(index);
     let res = conn.send(msg);
     if res.is_err() {
-        ERROR!(
-            
-            "Could not get send message",
-            ErrorLevel::PartialBreakage
-        );
+        ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
     }
 }
 
@@ -1087,11 +993,7 @@ fn handle_output_stream_events(
             .append1(output_stream);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Changed => {
@@ -1103,11 +1005,7 @@ fn handle_output_stream_events(
             .append1(output_stream);
             let res = conn.send(msg);
             if res.is_err() {
-                ERROR!(
-                    
-                    "Could not get send message",
-                    ErrorLevel::PartialBreakage
-                );
+                ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
             }
         }
         Operation::Removed => (),
@@ -1123,10 +1021,6 @@ fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     .append1(index);
     let res = conn.send(msg);
     if res.is_err() {
-        ERROR!(
-            
-            "Could not get send message",
-            ErrorLevel::PartialBreakage
-        );
+        ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
     }
 }

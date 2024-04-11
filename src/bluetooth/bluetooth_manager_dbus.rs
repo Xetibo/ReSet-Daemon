@@ -27,14 +27,16 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.signal::<(), _>("PinCodeRequested", ());
         c.method_with_cr_async("StartBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
+            data.bluetooth_scan_request.store(1, Ordering::SeqCst);
             data.b_interface
                 .start_bluetooth_discovery(data.bluetooth_scan_active.clone());
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async("StopBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-            data.bluetooth_scan_active.store(false, Ordering::SeqCst);
-            data.b_interface.stop_bluetooth_discovery();
+            data.bluetooth_scan_request.store(2, Ordering::SeqCst);
+            data.b_interface
+                .stop_bluetooth_discovery(data.bluetooth_scan_active.clone());
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async(
@@ -43,13 +45,11 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
             (),
             move |mut ctx, cross, ()| {
                 let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
-                let active_listener = data.bluetooth_listener_active.clone();
-                let active_scan = data.bluetooth_scan_active.clone();
-                let stop_requested = data.bluetooth_stop_requested.clone();
                 data.b_interface.start_bluetooth_listener(
-                    active_listener,
-                    active_scan,
-                    stop_requested,
+                    data.bluetooth_listener_active.clone(),
+                    data.bluetooth_scan_request.clone(),
+                    data.bluetooth_scan_active.clone(),
+                    data.bluetooth_stop_requested.clone(),
                 );
                 async move { ctx.reply(Ok(())) }
             },
@@ -76,9 +76,12 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         //         Ok((adapters,))
         //     },
         // );
-        c.method("GetBluetoothAdapters", (), ("devices",), move |_, _, ()| {
-            Ok((get_all_bluetooth_adapters(),))
-        });
+        c.method(
+            "GetBluetoothAdapters",
+            (),
+            ("adapters",),
+            move |_, _, ()| Ok((get_all_bluetooth_adapters(),)),
+        );
         c.method(
             "GetCurrentBluetoothAdapter",
             (),
@@ -161,7 +164,6 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let res = d.b_interface.disconnect(device.clone());
                 if res.is_err() {
                     ERROR!(
-                        
                         format!("Could not disconnect from device: {}", device),
                         ErrorLevel::PartialBreakage
                     );
@@ -178,7 +180,6 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
                 let res = d.b_interface.remove_device_pairing(path.clone());
                 if res.is_err() {
                     ERROR!(
-                        
                         format!("Could not remove device pairing: {}", path),
                         ErrorLevel::PartialBreakage
                     );

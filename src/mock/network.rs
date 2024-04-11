@@ -189,10 +189,7 @@ pub fn mock_network_manager_base(
                     );
                     active_connection
                 } else {
-                    LOG!(
-                        
-                        "Tried to activate non-existing connection"
-                    );
+                    LOG!("Tried to activate non-existing connection");
                     Path::from("/")
                 };
                 async move { ctx.reply(Ok((active_connection,))) }
@@ -222,10 +219,7 @@ pub fn mock_network_manager_base(
                         .active_connections
                         .remove(index as usize);
                 } else {
-                    LOG!(
-                        
-                        "Tried to deactivate non-existing connection"
-                    );
+                    LOG!("Tried to deactivate non-existing connection");
                 }
                 async move { ctx.reply(Ok(())) }
             },
