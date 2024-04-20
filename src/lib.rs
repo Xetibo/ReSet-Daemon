@@ -11,7 +11,7 @@ pub mod plugin;
 mod tests;
 pub mod utils;
 
-use re_set_lib::utils::config::{CONFIG_STRING};
+use re_set_lib::utils::config::CONFIG_STRING;
 use std::process::Command;
 use std::sync::{Arc, RwLock};
 use std::thread;

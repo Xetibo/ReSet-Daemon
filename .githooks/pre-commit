@@ -1,2 +1,2 @@
 cargo fmt 
-cargo clippy --fix --allow-dirty
+cargo clippy --fix --allow-dirty --allow-staged
