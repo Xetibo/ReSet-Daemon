@@ -11,16 +11,22 @@ pub mod plugin;
 mod tests;
 pub mod utils;
 
+use once_cell::sync::Lazy;
+use re_set_lib::utils::config::{CONFIG, CONFIG_STRING};
+use re_set_lib::utils::macros::ErrorLevel;
+use std::io::Read;
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::{fs, future, process::exit, time::Duration};
+use toml::Table;
 
 use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS};
-use re_set_lib::{parse_flags, write_log_to_file, LOG};
+use re_set_lib::{parse_flags, write_log_to_file, ERROR, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -56,8 +62,11 @@ pub async fn run_daemon(args: Vec<String>) {
     for flag in flags.0.iter() {
         // more configuration possible in the future
         match flag {
-            re_set_lib::utils::flags::Flag::ConfigDir(_) => {
+            re_set_lib::utils::flags::Flag::ConfigDir(config) => {
                 LOG!("Use a different config file");
+                unsafe {
+                    *CONFIG_STRING = String::from(*config);
+                }
             }
             re_set_lib::utils::flags::Flag::PluginDir(_) => {
                 LOG!("Use a different plugin dir");
@@ -114,11 +123,13 @@ pub async fn run_daemon(args: Vec<String>) {
 
     let mut features = Vec::new();
     let mut feature_strings = Vec::new();
+
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
         LOG!("WiFi feature started");
     }
+
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
@@ -126,9 +137,14 @@ pub async fn run_daemon(args: Vec<String>) {
         feature_strings.push("Bluetooth");
         LOG!("Bluetooth feature started");
     }
-    // TODO: how to check for audio?
-    features.push(setup_audio_manager(&mut cross));
-    feature_strings.push("Audio");
+
+    // checks for a running daemon, if not found simply does not include audio settings
+    let pulseaudio = Command::new("pulseaudio").arg("--check").spawn();
+    if pulseaudio.is_ok() {
+        features.push(setup_audio_manager(&mut cross));
+        feature_strings.push("Audio");
+    }
+
     unsafe {
         for plugin in BACKEND_PLUGINS.iter() {
             feature_strings.extend(plugin.capabilities.iter());

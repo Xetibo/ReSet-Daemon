@@ -1,4 +1,3 @@
-
 macro_rules! DBUS_PATH {
     () => {
         "/org/Xetibo/ReSet/Daemon"
