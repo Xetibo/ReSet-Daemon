@@ -23,7 +23,7 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS};
-use re_set_lib::{parse_flags, write_log_to_file, LOG};
+use re_set_lib::{write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
