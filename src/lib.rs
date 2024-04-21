@@ -12,6 +12,7 @@ mod tests;
 pub mod utils;
 
 use re_set_lib::utils::config::CONFIG_STRING;
+use re_set_lib::utils::flags::FLAGS;
 use std::process::Command;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -43,25 +44,24 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// #[tokio::main]
 /// pub async fn main() {
-///     run_daemon(std::env::args().collect()).await;
+///     run_daemon().await;
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon(vec![String::from("binary name")]));
+/// tokio::task::spawn(run_daemon());
 /// // your other code here...
 /// ```
-pub async fn run_daemon(args: Vec<String>) {
-    let flags = parse_flags(&args);
-    for flag in flags.0.iter() {
+pub async fn run_daemon() {
+    for flag in FLAGS.0.iter() {
         // more configuration possible in the future
         match flag {
             re_set_lib::utils::flags::Flag::ConfigDir(config) => {
                 LOG!("Use a different config file");
                 unsafe {
-                    *CONFIG_STRING = String::from(*config);
+                    *CONFIG_STRING = String::from(config);
                 }
             }
             re_set_lib::utils::flags::Flag::PluginDir(_) => {
