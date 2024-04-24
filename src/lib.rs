@@ -11,6 +11,9 @@ pub mod plugin;
 mod tests;
 pub mod utils;
 
+use re_set_lib::utils::config::CONFIG_STRING;
+use re_set_lib::utils::flags::FLAGS;
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::{fs, future, process::exit, time::Duration};
@@ -20,7 +23,7 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS};
-use re_set_lib::{parse_flags, write_log_to_file, LOG};
+use re_set_lib::{write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -41,23 +44,25 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// #[tokio::main]
 /// pub async fn main() {
-///     run_daemon(std::env::args().collect()).await;
+///     run_daemon().await;
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon(vec![String::from("binary name")]));
+/// tokio::task::spawn(run_daemon());
 /// // your other code here...
 /// ```
-pub async fn run_daemon(args: Vec<String>) {
-    let flags = parse_flags(&args);
-    for flag in flags.0.iter() {
+pub async fn run_daemon() {
+    for flag in FLAGS.0.iter() {
         // more configuration possible in the future
         match flag {
-            re_set_lib::utils::flags::Flag::ConfigDir(_) => {
+            re_set_lib::utils::flags::Flag::ConfigDir(config) => {
                 LOG!("Use a different config file");
+                unsafe {
+                    *CONFIG_STRING = String::from(config);
+                }
             }
             re_set_lib::utils::flags::Flag::PluginDir(_) => {
                 LOG!("Use a different plugin dir");
@@ -114,11 +119,13 @@ pub async fn run_daemon(args: Vec<String>) {
 
     let mut features = Vec::new();
     let mut feature_strings = Vec::new();
+
     if wifi_enabled {
         features.push(setup_wireless_manager(&mut cross));
         feature_strings.push("WiFi");
         LOG!("WiFi feature started");
     }
+
     if bluetooth_enabled {
         features.push(setup_bluetooth_manager(&mut cross));
         // the agent is currently not implemented
@@ -126,9 +133,14 @@ pub async fn run_daemon(args: Vec<String>) {
         feature_strings.push("Bluetooth");
         LOG!("Bluetooth feature started");
     }
-    // TODO: how to check for audio?
-    features.push(setup_audio_manager(&mut cross));
-    feature_strings.push("Audio");
+
+    // checks for a running daemon, if not found simply does not include audio settings
+    let pulseaudio = Command::new("pulseaudio").arg("--check").spawn();
+    if pulseaudio.is_ok() {
+        features.push(setup_audio_manager(&mut cross));
+        feature_strings.push("Audio");
+    }
+
     unsafe {
         for plugin in BACKEND_PLUGINS.iter() {
             feature_strings.extend(plugin.capabilities.iter());
