@@ -13,7 +13,7 @@ pub mod utils;
 
 use re_set_lib::utils::config::CONFIG_STRING;
 use re_set_lib::utils::flags::FLAGS;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::{fs, future, process::exit, time::Duration};
@@ -135,8 +135,17 @@ pub async fn run_daemon() {
     }
 
     // checks for a running daemon, if not found simply does not include audio settings
-    let pulseaudio = Command::new("pulseaudio").arg("--check").spawn();
-    if pulseaudio.is_ok() {
+    let pulseaudio = Command::new("pulseaudio")
+        .arg("--check")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn();
+    let pipewire_pulse = Command::new("pipewire-pulse")
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .spawn();
+    if pulseaudio.is_ok() || pipewire_pulse.is_ok() {
         features.push(setup_audio_manager(&mut cross));
         feature_strings.push("Audio");
     }
