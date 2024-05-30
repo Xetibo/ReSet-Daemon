@@ -13,6 +13,7 @@ pub mod utils;
 
 use re_set_lib::utils::config::CONFIG_STRING;
 use re_set_lib::utils::flags::FLAGS;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -22,7 +23,7 @@ use dbus::blocking::Connection;
 use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
-use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS};
+use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS, PLUGIN_DIR};
 use re_set_lib::{write_log_to_file, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
@@ -64,8 +65,11 @@ pub async fn run_daemon() {
                     *CONFIG_STRING = String::from(config);
                 }
             }
-            re_set_lib::utils::flags::Flag::PluginDir(_) => {
-                LOG!("Use a different plugin dir");
+            re_set_lib::utils::flags::Flag::PluginDir(path) => {
+                LOG!("Use a different plugin directory");
+                unsafe {
+                    *PLUGIN_DIR = PathBuf::from(path);
+                }
             }
             re_set_lib::utils::flags::Flag::Other(flag) => {
                 dbg!(&flag);
@@ -102,7 +106,7 @@ pub async fn run_daemon() {
         "Introspect",
         "org.freedesktop.DBus.Introspectable",
         (),
-        1,
+        100,
         (),
     );
     let wifi_enabled = res.is_ok();
@@ -112,7 +116,7 @@ pub async fn run_daemon() {
         "Introspect",
         "org.freedesktop.DBus.Introspectable",
         (),
-        1,
+        100,
         (),
     );
     let bluetooth_enabled = res.is_ok();

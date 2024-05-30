@@ -1,5 +1,3 @@
-// somehow clippy doesn't recognize the tests properly, which leads to wrongly placed "unused
-// imports"
 use crate::{mock::mock_dbus::start_mock_implementation_server, BACKEND_PLUGINS};
 use crate::{run_daemon, utils::AUDIO};
 use dbus::{
