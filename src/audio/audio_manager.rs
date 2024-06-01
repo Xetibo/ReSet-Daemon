@@ -18,10 +18,9 @@ use pulse::{
     proplist::Proplist,
 };
 use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
-use re_set_lib::{
-    utils::macros::ErrorLevel,
-    {write_log_to_file, ERROR},
-};
+use re_set_lib::ERROR;
+#[cfg(debug_assertions)]
+use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
 
 use crate::utils::AUDIO;
 use crate::{AudioRequest, AudioResponse};
@@ -33,6 +32,7 @@ pub struct PulseServer {
     receiver: Receiver<AudioRequest>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct PulseError(pub &'static str);
 

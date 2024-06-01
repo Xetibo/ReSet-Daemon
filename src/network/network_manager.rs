@@ -21,9 +21,10 @@ use re_set_lib::{
         network_signals::{AccessPointAdded, AccessPointRemoved},
         network_structures::{AccessPoint, ConnectionError, DeviceType, WifiDevice},
     },
-    utils::macros::ErrorLevel,
-    {write_log_to_file, ERROR, LOG},
+    {ERROR, LOG},
 };
+#[cfg(debug_assertions)]
+use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
 
 use crate::utils::{DaemonData, MaskedPropMap};
 

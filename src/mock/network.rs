@@ -3,7 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 use dbus::{arg::PropMap, channel::Sender, nonblock::SyncConnection, Message, Path};
 use dbus_crossroads::Crossroads;
 use re_set_lib::network::connection::{PropMapConvert, WifiSecuritySettings, WifiSettings};
-use re_set_lib::{write_log_to_file, LOG};
+#[cfg(debug_assertions)]
+use re_set_lib::write_log_to_file;
+use re_set_lib::LOG;
 
 use crate::mock::mock_dbus::MockTestData;
 

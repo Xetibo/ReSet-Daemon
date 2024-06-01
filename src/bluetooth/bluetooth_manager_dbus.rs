@@ -3,10 +3,9 @@ use std::sync::atomic::Ordering;
 use dbus::Path;
 use dbus_crossroads::Crossroads;
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
-use re_set_lib::{
-    utils::macros::ErrorLevel,
-    {write_log_to_file, ERROR},
-};
+use re_set_lib::ERROR;
+#[cfg(debug_assertions)]
+use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
 
 use crate::DaemonData;
 

@@ -12,7 +12,6 @@ pub mod utils;
 
 use re_set_lib::utils::config::CONFIG_STRING;
 use re_set_lib::utils::flags::FLAGS;
-use re_set_lib::utils::macros::ErrorLevel;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -23,7 +22,9 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS, PLUGIN_DIR};
-use re_set_lib::{write_log_to_file, ERROR, LOG};
+use re_set_lib::{ERROR, LOG};
+#[cfg(debug_assertions)]
+use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -181,8 +182,8 @@ pub async fn run_daemon() {
                     (plugin.startup)();
                     // register and insert plugin interfaces
                     (plugin.data)(wrapper_loop);
-                    let name = (plugin.name)();
-                    LOG!(format!("Loaded plugin: {}", name));
+                    let _name = (plugin.name)();
+                    LOG!(format!("Loaded plugin: {}", _name));
                 });
             }
         });

@@ -18,9 +18,12 @@ use dbus::{
 use re_set_lib::{
     audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source},
     network::network_structures::Error,
-    utils::{dbus_utils::get_system_dbus_property, macros::ErrorLevel},
-    write_log_to_file, ERROR,
+    utils::dbus_utils::get_system_dbus_property,
+    ERROR,
 };
+#[cfg(debug_assertions)]
+use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
+
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -154,9 +157,9 @@ impl DaemonData {
                 audio_listener_ref.store(true, Ordering::SeqCst);
                 running_ref.store(1, Ordering::SeqCst);
                 res.listen_to_messages();
-            } else if let Err(error) = res {
+            } else if let Err(_error) = res {
                 running_ref.store(2, Ordering::SeqCst);
-                ERROR!(format!("{}", error.0), ErrorLevel::PartialBreakage);
+                ERROR!(format!("{}", _error.0), ErrorLevel::PartialBreakage);
             }
         });
         while running.load(Ordering::SeqCst) == 0 {

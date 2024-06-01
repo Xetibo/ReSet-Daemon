@@ -22,9 +22,10 @@ use re_set_lib::{
         bluetooth_signals::{BluetoothDeviceAdded, BluetoothDeviceRemoved},
         bluetooth_structures::{BluetoothAdapter, BluetoothDevice},
     },
-    utils::macros::ErrorLevel,
-    {write_log_to_file, ERROR, LOG},
+    {ERROR, LOG},
 };
+#[cfg(debug_assertions)]
+use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
 
 use crate::utils::{convert_bluetooth_map_bool, MaskedPropMap};
 
