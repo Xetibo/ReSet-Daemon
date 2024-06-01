@@ -1,4 +1,3 @@
-#![feature(trait_upcasting)]
 #[macro_use]
 mod macros;
 pub mod api;
@@ -13,8 +12,8 @@ pub mod utils;
 
 use re_set_lib::utils::config::CONFIG_STRING;
 use re_set_lib::utils::flags::FLAGS;
+use re_set_lib::utils::macros::ErrorLevel;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::{fs, future, process::exit, time::Duration};
@@ -24,7 +23,7 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS, PLUGIN_DIR};
-use re_set_lib::{write_log_to_file, LOG};
+use re_set_lib::{write_log_to_file, ERROR, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -138,21 +137,8 @@ pub async fn run_daemon() {
         LOG!("Bluetooth feature started");
     }
 
-    // checks for a running daemon, if not found simply does not include audio settings
-    let pulseaudio = Command::new("pulseaudio")
-        .arg("--check")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .spawn();
-    let pipewire_pulse = Command::new("pipewire-pulse")
-        .arg("--version")
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .spawn();
-    if pulseaudio.is_ok() || pipewire_pulse.is_ok() {
-        features.push(setup_audio_manager(&mut cross));
-        feature_strings.push("Audio");
-    }
+    features.push(setup_audio_manager(&mut cross));
+    feature_strings.push("Audio");
 
     unsafe {
         for plugin in BACKEND_PLUGINS.iter() {
@@ -160,11 +146,29 @@ pub async fn run_daemon() {
         }
     }
 
-    let data = DaemonData::create(_handle, conn.clone(), &feature_strings);
+    let data = DaemonData::create(_handle, conn.clone());
     if data.is_err() {
+        ERROR!(
+            format!("{}", data.as_ref().err().unwrap().message),
+            ErrorLevel::Critical
+        );
         return;
     }
     let data = data.unwrap();
+
+    if data
+        .audio_listener_active
+        .load(std::sync::atomic::Ordering::SeqCst)
+        == false
+    {
+        let mut index = -1;
+        for (i, feature) in feature_strings.iter().enumerate() {
+            if *feature == "Audio" {
+                index = i as i32;
+            }
+        }
+        feature_strings.remove(index as usize);
+    }
 
     features.push(setup_base(&mut cross, feature_strings));
     unsafe {

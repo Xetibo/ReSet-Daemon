@@ -125,11 +125,7 @@ unsafe impl Send for DaemonData {}
 unsafe impl Sync for DaemonData {}
 
 impl DaemonData {
-    pub fn create(
-        handle: JoinHandle<()>,
-        conn: Arc<SyncConnection>,
-        features: &[&'static str],
-    ) -> Result<Self, Error> {
+    pub fn create(handle: JoinHandle<()>, conn: Arc<SyncConnection>) -> Result<Self, Error> {
         // TODO create check for pcs that don't offer wifi
         let mut n_devices = get_wifi_devices();
         let current_n_device = n_devices.pop().unwrap_or(Arc::new(RwLock::new(Device::new(
@@ -150,34 +146,32 @@ impl DaemonData {
         let audio_listener_active = Arc::new(AtomicBool::new(false));
         let audio_listener_ref = audio_listener_active.clone();
         let connection_ref = conn.clone();
-        if features.contains(&"Audio") {
-            let running = Arc::new(AtomicU8::new(0));
-            let running_ref = running.clone();
-            thread::spawn(move || {
-                let res = PulseServer::create(pulse_sender, pulse_receiver, connection_ref);
-                if let Ok(mut res) = res {
-                    audio_listener_ref.store(true, Ordering::SeqCst);
-                    running_ref.store(1, Ordering::SeqCst);
-                    res.listen_to_messages();
-                    return;
-                } else if let Err(error) = res {
-                    ERROR!(error.0, ErrorLevel::Critical);
-                }
+        let running = Arc::new(AtomicU8::new(0));
+        let running_ref = running.clone();
+        thread::spawn(move || {
+            let res = PulseServer::create(pulse_sender, pulse_receiver, connection_ref);
+            if let Ok(mut res) = res {
+                audio_listener_ref.store(true, Ordering::SeqCst);
+                running_ref.store(1, Ordering::SeqCst);
+                res.listen_to_messages();
+            } else if let Err(error) = res {
                 running_ref.store(2, Ordering::SeqCst);
-            });
-            while running.load(Ordering::SeqCst) == 0 {
-                hint::spin_loop();
+                ERROR!(format!("{}", error.0), ErrorLevel::PartialBreakage);
             }
-            match running.load(Ordering::SeqCst) {
-                1 => (),
-                2 => {
-                    return Err(Error {
-                        message: "Could not create audio sender, aborting",
-                    })
-                }
-                // impossible condition
-                _ => (),
+        });
+        while running.load(Ordering::SeqCst) == 0 {
+            hint::spin_loop();
+        }
+        match running.load(Ordering::SeqCst) {
+            1 => (),
+            2 => {
+                ERROR!(
+                    "Could not create audio sender, aborting",
+                    ErrorLevel::PartialBreakage
+                );
             }
+            // impossible condition
+            _ => (),
         }
 
         Ok(DaemonData {
