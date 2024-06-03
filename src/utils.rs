@@ -205,10 +205,16 @@ pub fn get_wifi_status() -> bool {
         "org.freedesktop.NetworkManager",
         "WirelessEnabled",
     );
-    if res.is_err() {
-        return false;
+    match res {
+        Ok(result) => result,
+        Err(error) => {
+            ERROR!(
+                format!("Could not get WiFi status: {}", error),
+                ErrorLevel::PartialBreakage
+            );
+            false
+        }
     }
-    res.unwrap()
 }
 
 pub fn convert_bluetooth_map_bool(map_key: Option<&Variant<Box<dyn RefArg>>>) -> bool {

@@ -108,7 +108,7 @@ macro_rules! NM_DEVICE_WIRELESS_INTERFACE {
 #[cfg(test)]
 macro_rules! NM_DEVICE_WIRELESS_INTERFACE {
     () => {
-        "org.Xetibo.ReSet.Test.NetworkManager.Device.Wireless"
+        "org.Xetibo.ReSet.Test.NetworkManager.Device"
     };
 }
 
@@ -291,6 +291,20 @@ macro_rules! BLUEZ_PATH {
 macro_rules! BLUEZ_PATH {
     () => {
         "/org/Xetibo/ReSet/Test/Bluez"
+    };
+}
+
+#[cfg(not(test))]
+macro_rules! BLUEZ_CONTAINS_PATH {
+    () => {
+        "bluez"
+    };
+}
+
+#[cfg(test)]
+macro_rules! BLUEZ_CONTAINS_PATH {
+    () => {
+        "Xetibo"
     };
 }
 

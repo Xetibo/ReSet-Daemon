@@ -36,7 +36,9 @@
             packages = with pkgs; [
               # (rust-bin.selectLatestNightlyWith
               # (toolchain: toolchain.default))
-              rust-bin.nightly."2024-05-10".default
+              rust-bin.nightly."2024-05-08".minimal
+              rust-analyzer
+              clippy
             ];
             buildInputs = with pkgs; [
               gtk4

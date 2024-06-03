@@ -72,7 +72,6 @@ pub async fn run_daemon() {
                 }
             }
             re_set_lib::utils::flags::Flag::Other(flag) => {
-                dbg!(&flag);
                 LOG!("Custom flag");
             }
         }
