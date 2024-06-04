@@ -75,8 +75,9 @@ pub async fn run_daemon(ready: Option<AtomicBool>) {
                     *PLUGIN_DIR = PathBuf::from(path);
                 }
             }
-            re_set_lib::utils::flags::Flag::Other(flag) => {
+            re_set_lib::utils::flags::Flag::Other(_) => {
                 LOG!("Custom flag");
+                // currently no other flags are supported or used, but might be used in plugins
             }
         }
     }
