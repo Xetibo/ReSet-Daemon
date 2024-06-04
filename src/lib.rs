@@ -194,6 +194,7 @@ pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
         });
     }
 
+        println!("here");
     cross.insert(DBUS_PATH!(), &features, data);
 
     // register bluetooth agent before start
