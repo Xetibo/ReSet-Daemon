@@ -52,14 +52,15 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
+/// use std::sync::Arc;
 /// use std::sync::atomic::AtomicBool;
 /// use reset_daemon::run_daemon;
-/// let ready = Some(AtomicBool::new(false));
-/// tokio::task::spawn(run_daemon(ready));
+/// let ready = Arc::new(AtomicBool::new(false));
+/// tokio::task::spawn(run_daemon(Some(ready.clone())));
 /// // wait for daemon to be ready
 /// // your other code here...
 /// ```
-pub async fn run_daemon(ready: Option<AtomicBool>) {
+pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
     for flag in FLAGS.0.iter() {
         // more configuration possible in the future
         match flag {
