@@ -50,7 +50,7 @@ fn setup() {
                 hint::spin_loop();
             }
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
-            rt.spawn(run_daemon());
+            rt.spawn(run_daemon(None));
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }

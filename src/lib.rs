@@ -13,6 +13,7 @@ pub mod utils;
 use re_set_lib::utils::config::CONFIG_STRING;
 use re_set_lib::utils::flags::FLAGS;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::{fs, future, process::exit, time::Duration};
@@ -22,9 +23,9 @@ use dbus::{channel::MatchingReceiver, message::MatchRule, Path};
 use dbus_crossroads::Crossroads;
 use dbus_tokio::connection;
 use re_set_lib::utils::plugin_setup::{CrossWrapper, BACKEND_PLUGINS, PLUGIN_DIR};
-use re_set_lib::{ERROR, LOG};
 #[cfg(debug_assertions)]
 use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
+use re_set_lib::{ERROR, LOG};
 use utils::{AudioRequest, AudioResponse, BASE};
 
 use crate::{
@@ -45,17 +46,20 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 ///
 /// #[tokio::main]
 /// pub async fn main() {
-///     run_daemon().await;
+///     run_daemon(None).await;
 /// }
 /// ```
 ///
 /// The daemon will run to infinity, so it might be a good idea to put it into a different thread.
 /// ```no_run
+/// use std::sync::atomic::AtomicBool;
 /// use reset_daemon::run_daemon;
-/// tokio::task::spawn(run_daemon());
+/// let ready = Some(AtomicBool::new(false));
+/// tokio::task::spawn(run_daemon(ready));
+/// // wait for daemon to be ready
 /// // your other code here...
 /// ```
-pub async fn run_daemon() {
+pub async fn run_daemon(ready: Option<AtomicBool>) {
     for flag in FLAGS.0.iter() {
         // more configuration possible in the future
         match flag {
@@ -207,7 +211,9 @@ pub async fn run_daemon() {
             true
         }),
     );
-
+    if let Some(ready) = ready {
+        ready.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
     future::pending::<()>().await;
     unreachable!()
 }
