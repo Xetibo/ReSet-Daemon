@@ -205,6 +205,10 @@ pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
     //         data.b_interface.register_agent();
     //     }
     // }
+    //
+    if let Some(ready) = ready {
+        ready.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
 
     conn.start_receive(
         MatchRule::new_method_call(),
@@ -213,9 +217,7 @@ pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
             true
         }),
     );
-    if let Some(ready) = ready {
-        ready.store(true, std::sync::atomic::Ordering::SeqCst);
-    }
+
     future::pending::<()>().await;
     unreachable!()
 }
