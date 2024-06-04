@@ -207,6 +207,7 @@ pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
     // }
     //
     if let Some(ready) = ready {
+        println!("now");
         ready.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
