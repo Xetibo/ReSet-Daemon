@@ -1,5 +1,3 @@
-// somehow clippy doesn't recognize the tests properly, which leads to wrongly placed "unused
-// imports"
 use crate::{mock::mock_dbus::start_mock_implementation_server, BACKEND_PLUGINS};
 use crate::{run_daemon, utils::AUDIO};
 use dbus::{
@@ -8,6 +6,7 @@ use dbus::{
     Path,
 };
 
+use once_cell::sync::Lazy;
 use serial_test::serial;
 
 use re_set_lib::audio::audio_structures::Sink;
@@ -15,6 +14,7 @@ use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Source};
 use re_set_lib::bluetooth::bluetooth_structures::BluetoothDevice;
 use re_set_lib::network::network_structures::AccessPoint;
 
+use std::sync::Arc;
 use std::{
     hint,
     sync::atomic::{AtomicBool, AtomicU16, Ordering},
@@ -24,6 +24,8 @@ use tokio::runtime;
 
 static COUNTER: AtomicU16 = AtomicU16::new(0);
 static READY: AtomicBool = AtomicBool::new(false);
+static DAEMON_READY: Lazy<Option<Arc<AtomicBool>>> =
+    Lazy::new(|| Some(Arc::new(AtomicBool::new(false))));
 
 fn call_session_dbus_method<
     I: AppendAll + Sync + Send + 'static,
@@ -40,7 +42,7 @@ fn call_session_dbus_method<
     result
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 fn setup() {
     if COUNTER.fetch_add(1, Ordering::SeqCst) < 1 {
         thread::spawn(|| {
@@ -50,23 +52,25 @@ fn setup() {
                 hint::spin_loop();
             }
             let rt = runtime::Runtime::new().expect("Failed to create runtime");
-            rt.spawn(run_daemon(None));
+            rt.spawn(run_daemon(DAEMON_READY.clone()));
             while COUNTER.load(Ordering::SeqCst) != 0 {
                 hint::spin_loop();
             }
             rt.shutdown_background();
         });
     };
+    while !READY.load(Ordering::SeqCst) {
+        hint::spin_loop();
+    }
+    while !DAEMON_READY.clone().unwrap().load(Ordering::SeqCst) {
+        hint::spin_loop();
+    }
 }
 
 #[tokio::test]
 // tests fetching bluetooth devices
 async fn test_bluetooth_get_devices() {
     setup();
-    while !READY.load(Ordering::SeqCst) {
-        hint::spin_loop();
-    }
-    thread::sleep(Duration::from_millis(1000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -76,10 +80,9 @@ async fn test_bluetooth_get_devices() {
         1000,
         (),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
-    thread::sleep(Duration::from_millis(1000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -89,8 +92,8 @@ async fn test_bluetooth_get_devices() {
         1000,
         (Vec<BluetoothDevice>,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert!(!res.unwrap().0.is_empty());
 }
@@ -99,9 +102,6 @@ async fn test_bluetooth_get_devices() {
 // tests the existance of the mock implementation
 async fn test_mock_connection() {
     setup();
-    while !READY.load(Ordering::SeqCst) {
-        hint::spin_loop();
-    }
     let conn = Connection::new_session();
     let conn = conn.unwrap();
     let proxy = conn.with_proxy(
@@ -110,9 +110,8 @@ async fn test_mock_connection() {
         Duration::from_millis(2000),
     );
     let res: Result<(), dbus::Error> = proxy.method_call(NM_INTERFACE!(), "Test", ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
@@ -120,7 +119,6 @@ async fn test_mock_connection() {
 // tests receiving a list of connections through both the mock implementation and the ReSet Daemon
 async fn test_list_connections() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -131,8 +129,8 @@ async fn test_list_connections() {
         (Vec<AccessPoint>,),
     );
     COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert!(!res.unwrap().0.is_empty());
 }
@@ -142,7 +140,6 @@ async fn test_list_connections() {
 // tests adding and removing an access point
 async fn test_add_access_point_event() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     dbus_method!(
         BASE_TEST_INTERFACE!(),
         NM_DEVICES_PATH!().to_string() + "/2",
@@ -162,8 +159,8 @@ async fn test_add_access_point_event() {
         1000,
         (Vec<AccessPoint>,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert_eq!(res.unwrap().0.len(), 2);
     dbus_method!(
@@ -186,8 +183,8 @@ async fn test_add_access_point_event() {
         (Vec<AccessPoint>,),
     );
     COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert_eq!(res.unwrap().0.len(), 1);
 }
@@ -197,11 +194,8 @@ async fn test_add_access_point_event() {
 // tests connecting to a new access point with a password
 async fn test_connect_to_new_access_point() {
     setup();
-    thread::sleep(Duration::from_millis(1000));
     connect_to_new_access_point();
-    thread::sleep(Duration::from_millis(1000));
     connect_to_known_access_point();
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
 }
 
 fn connect_to_new_access_point() {
@@ -214,8 +208,8 @@ fn connect_to_new_access_point() {
         1000,
         (Vec<AccessPoint>,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     let access_point = res
         .expect("Failed to get access points")
@@ -232,8 +226,8 @@ fn connect_to_new_access_point() {
         1000,
         (bool,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert!(res.unwrap().0);
 }
@@ -248,8 +242,8 @@ fn connect_to_known_access_point() {
         1000,
         (Vec<AccessPoint>,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     let mut access_point = res
         .expect("Failed to get access points")
@@ -268,8 +262,8 @@ fn connect_to_known_access_point() {
         1000,
         (bool,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert!(res.unwrap().0);
 }
@@ -278,7 +272,6 @@ fn connect_to_known_access_point() {
 // tests connecting to a new access point with a *wrong* password
 async fn test_connect_to_new_access_point_wrong_password() {
     setup();
-    thread::sleep(Duration::from_millis(1000));
     let res = dbus_method!(
         BASE_INTERFACE!(),
         DBUS_PATH!(),
@@ -288,8 +281,8 @@ async fn test_connect_to_new_access_point_wrong_password() {
         1000,
         (Vec<AccessPoint>,),
     );
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     let access_point = res
         .expect("Failed to get access points")
@@ -306,9 +299,8 @@ async fn test_connect_to_new_access_point_wrong_password() {
         1000,
         (bool,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
     assert!(!res.unwrap().0);
 }
@@ -319,7 +311,7 @@ async fn test_connect_to_new_access_point_wrong_password() {
 //     thread::sleep(Duration::from_millis(1000));
 //     let res = call_session_dbus_method::<(), ()>("StartNetworkListener", NETWORK_INTERFACE!(), ());
 //     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     if let Err(error) = res { panic!("connection failed: {}", error); }
+//     if let Err(_error) = res { panic!("connection failed: {}", (_error)); }
 // }
 //
 // #[tokio::test]
@@ -332,82 +324,72 @@ async fn test_connect_to_new_access_point_wrong_password() {
 //         (5,),
 //     );
 //     COUNTER.fetch_sub(1, Ordering::SeqCst);
-//     if let Err(error) = res { panic!("connection failed: {}", error); }
+//     if let Err(_error) = res { panic!("connection failed: {}", (_error)); }
 // }
 //
 
 #[tokio::test]
+#[serial]
 async fn test_get_sinks() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = call_session_dbus_method::<(), (Vec<Sink>,)>("ListSinks", AUDIO, ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get_default_sink() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = call_session_dbus_method::<(), (Sink,)>("GetDefaultSink", AUDIO, ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get_default_source() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = call_session_dbus_method::<(), (Source,)>("GetDefaultSource", AUDIO, ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get_sources() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = call_session_dbus_method::<(), (Vec<Source>,)>("ListSources", AUDIO, ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
 #[tokio::test]
 async fn test_get_input_streams() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = call_session_dbus_method::<(), (Vec<InputStream>,)>("ListInputStreams", AUDIO, ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
 #[tokio::test]
 async fn test_get_output_streams() {
     setup();
-    thread::sleep(Duration::from_millis(2000));
     let res = call_session_dbus_method::<(), (Vec<OutputStream>,)>("ListOutputStreams", AUDIO, ());
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
-    if let Err(error) = res {
-        panic!("connection failed: {}", error);
+    if let Err(_error) = res {
+        panic!("connection failed: {}", (_error));
     }
 }
 
 #[tokio::test]
-#[cfg(test)]
 async fn test_plugins() {
     use re_set_lib::utils::plugin::plugin_tests;
     setup();
-    thread::sleep(Duration::from_millis(2000));
     unsafe {
         for plugin in BACKEND_PLUGINS.iter() {
             let name = (plugin.name)();
@@ -415,7 +397,6 @@ async fn test_plugins() {
             plugin_tests(name, tests);
         }
     }
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
 }
 
 // this is usually commencted out as it is used to test the mock dbus itself

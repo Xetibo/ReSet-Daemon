@@ -34,9 +34,8 @@
           devShells.default = pkgs.mkShell {
             inputsFrom = builtins.attrValues self'.packages;
             packages = with pkgs; [
-              # (rust-bin.selectLatestNightlyWith
-              # (toolchain: toolchain.default))
-              rust-bin.nightly."2024-05-08".minimal
+              (rust-bin.selectLatestNightlyWith
+                (toolchain: toolchain.default))
               rust-analyzer
               clippy
             ];

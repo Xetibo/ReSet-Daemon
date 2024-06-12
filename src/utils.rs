@@ -207,9 +207,9 @@ pub fn get_wifi_status() -> bool {
     );
     match res {
         Ok(result) => result,
-        Err(error) => {
+        Err(_error) => {
             ERROR!(
-                format!("Could not get WiFi status: {}", error),
+                format!("Could not get WiFi status: {}", _error),
                 ErrorLevel::PartialBreakage
             );
             false
