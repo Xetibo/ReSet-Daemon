@@ -1,13 +1,13 @@
 [package]
 name = "reset_daemon"
-version = "2.1.3"
+version = "2.2.0"
 edition = "2021"
 description = "ReSet Daemon library and runner."
 repository = "https://github.com/Xetibo/ReSet-Daemon"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-re_set-lib = "5.2.4"
+re_set-lib = "5.2.5"
 dbus = "0.9.7"
 dbus-crossroads = "0.5.2"
 dbus-tokio = "0.7.6"

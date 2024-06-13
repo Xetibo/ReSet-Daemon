@@ -311,7 +311,7 @@ pub fn mock_network_manager_device(
             (),
             (),
             move |mut ctx, cross, ()| {
-                let new_path = "/org/Xebito/ReSet/Test/AccessPoint/100";
+                let new_path = "/org/Xetibo/ReSet/Test/AccessPoint/100";
                 let interface: dbus_crossroads::IfaceToken<MockAccessPointData>;
                 {
                     let data: &mut MockDeviceData = cross.data_mut(ctx.path()).unwrap();
@@ -335,7 +335,7 @@ pub fn mock_network_manager_device(
             (),
             (),
             move |mut ctx, cross, ()| {
-                let new_path = "/org/Xebito/ReSet/Test/AccessPoint/100";
+                let new_path = "/org/Xetibo/ReSet/Test/AccessPoint/100";
                 cross.remove::<MockDeviceData>(&Path::from(new_path));
                 let msg = Message::signal(
                     &ctx.path().clone(),

@@ -43,7 +43,6 @@ pub async fn start_mock_implementation_server(ready: &AtomicBool) {
     // mock_implementations.push(mock_network_manager.network_manager_base);
     // mock_sound_interface(&mut cross),
     // load all plugin implementations
-    // TODO: add plugins...
 
     // cross.object_manager();
     cross.insert(

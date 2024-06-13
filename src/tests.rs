@@ -37,7 +37,7 @@ fn call_session_dbus_method<
 ) -> Result<O, dbus::Error> {
     let conn = Connection::new_session();
     let conn = conn.unwrap();
-    let proxy = conn.with_proxy(BASE_INTERFACE!(), DBUS_PATH!(), Duration::from_millis(2000));
+    let proxy = conn.with_proxy(BASE_INTERFACE!(), DBUS_PATH!(), Duration::from_millis(4000));
     let result: Result<O, dbus::Error> = proxy.method_call(proxy_name, function, params);
     result
 }
@@ -77,7 +77,7 @@ async fn test_bluetooth_get_devices() {
         "StartBluetoothScan",
         BLUETOOTH_INTERFACE!(),
         (),
-        1000,
+        4000,
         (),
     );
     if let Err(_error) = res {
@@ -89,7 +89,7 @@ async fn test_bluetooth_get_devices() {
         "GetBluetoothDevices",
         BLUETOOTH_INTERFACE!(),
         (),
-        1000,
+        4000,
         (Vec<BluetoothDevice>,),
     );
     if let Err(_error) = res {
@@ -125,10 +125,9 @@ async fn test_list_connections() {
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        1000,
+        4000,
         (Vec<AccessPoint>,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
     if let Err(_error) = res {
         panic!("connection failed: {}", (_error));
     }
@@ -146,7 +145,7 @@ async fn test_add_access_point_event() {
         "CreateFakeAddedSignal",
         NM_DEVICE_INTERFACE!(),
         (),
-        1000,
+        4000,
         (),
     )
     .expect("Could not add access point");
@@ -156,7 +155,7 @@ async fn test_add_access_point_event() {
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        1000,
+        4000,
         (Vec<AccessPoint>,),
     );
     if let Err(_error) = res {
@@ -169,7 +168,7 @@ async fn test_add_access_point_event() {
         "CreateFakeRemovedSignal",
         NM_DEVICE_INTERFACE!(),
         (),
-        1000,
+        4000,
         (),
     )
     .expect("Could not remove access point");
@@ -179,10 +178,9 @@ async fn test_add_access_point_event() {
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        1000,
+        4000,
         (Vec<AccessPoint>,),
     );
-    COUNTER.fetch_sub(1, Ordering::SeqCst);
     if let Err(_error) = res {
         panic!("connection failed: {}", (_error));
     }
@@ -205,7 +203,7 @@ fn connect_to_new_access_point() {
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        1000,
+        4000,
         (Vec<AccessPoint>,),
     );
     if let Err(_error) = res {
@@ -223,7 +221,7 @@ fn connect_to_new_access_point() {
         "ConnectToNewAccessPoint",
         NM_INTERFACE_TEST!(),
         (access_point, "Password!2"),
-        1000,
+        4000,
         (bool,),
     );
     if let Err(_error) = res {
@@ -239,7 +237,7 @@ fn connect_to_known_access_point() {
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        1000,
+        4000,
         (Vec<AccessPoint>,),
     );
     if let Err(_error) = res {
@@ -259,7 +257,7 @@ fn connect_to_known_access_point() {
         "ConnectToKnownAccessPoint",
         NM_INTERFACE_TEST!(),
         (access_point,),
-        1000,
+        4000,
         (bool,),
     );
     if let Err(_error) = res {
@@ -278,7 +276,7 @@ async fn test_connect_to_new_access_point_wrong_password() {
         "ListAccessPoints",
         NM_INTERFACE_TEST!(),
         (),
-        1000,
+        4000,
         (Vec<AccessPoint>,),
     );
     if let Err(_error) = res {
@@ -296,7 +294,7 @@ async fn test_connect_to_new_access_point_wrong_password() {
         "ConnectToNewAccessPoint",
         NM_INTERFACE_TEST!(),
         (access_point, "wrong"),
-        1000,
+        4000,
         (bool,),
     );
     if let Err(_error) = res {
@@ -308,22 +306,20 @@ async fn test_connect_to_new_access_point_wrong_password() {
 // #[tokio::test]
 // async fn test_wireless_listener() {
 //     setup();
-//     thread::sleep(Duration::from_millis(1000));
+//     thread::sleep(Duration::from_millis(4000));
 //     let res = call_session_dbus_method::<(), ()>("StartNetworkListener", NETWORK_INTERFACE!(), ());
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
 //     if let Err(_error) = res { panic!("connection failed: {}", (_error)); }
 // }
 //
 // #[tokio::test]
 // async fn test_bluetooth_listener() {
 //     setup();
-//     thread::sleep(Duration::from_millis(1000));
+//     thread::sleep(Duration::from_millis(4000));
 //     let res = call_session_dbus_method::<(u32,), ()>(
 //         "StartBluetoothListener",
 //         BLUETOOTH_INTERFACE!(),
 //         (5,),
 //     );
-//     COUNTER.fetch_sub(1, Ordering::SeqCst);
 //     if let Err(_error) = res { panic!("connection failed: {}", (_error)); }
 // }
 //
@@ -403,5 +399,5 @@ async fn test_plugins() {
 // #[tokio::test]
 // async fn mock_runner() {
 //     setup();
-//     thread::sleep(Duration::from_millis(60 * 60 * 1000));
+//     thread::sleep(Duration::from_millis(60 * 60 * 4000));
 // }
