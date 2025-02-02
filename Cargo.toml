@@ -7,17 +7,18 @@ repository = "https://github.com/Xetibo/ReSet-Daemon"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-re_set-lib = "5.2.5"
+#re_set-lib = "5.2.5"
+re_set-lib = { git = "https://github.com/Xetibo/ReSet-Lib", branch = "dashie-2" }
 dbus = "0.9.7"
 dbus-crossroads = "0.5.2"
 dbus-tokio = "0.7.6"
 tokio = { version = "1.33.0", features = [
-  "rt",
-  "time",
-  "net",
-  "macros",
-  "rt-multi-thread",
-  "sync",
+	"rt",
+	"time",
+	"net",
+	"macros",
+	"rt-multi-thread",
+	"sync",
 ] }
 pulse = { version = "2.0", package = "libpulse-binding" }
 crossbeam = "0.8.4"

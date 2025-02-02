@@ -61,6 +61,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// // your other code here...
 /// ```
 pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
+    #[allow(clippy::borrow_interior_mutable_const)]
     for flag in FLAGS.0.iter() {
         // more configuration possible in the future
         match flag {
@@ -166,10 +167,9 @@ pub async fn run_daemon(ready: Option<Arc<AtomicBool>>) {
     }
     let data = data.unwrap();
 
-    if data
+    if !data
         .audio_listener_active
         .load(std::sync::atomic::Ordering::SeqCst)
-        == false
     {
         let mut index = -1;
         for (i, feature) in feature_strings.iter().enumerate() {
