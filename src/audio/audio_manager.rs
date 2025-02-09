@@ -17,7 +17,7 @@ use pulse::{
     mainloop::threaded::Mainloop,
     proplist::Proplist,
 };
-use re_set_lib::audio::audio_structures::{InputStream, OutputStream, Sink, Source};
+use re_set_lib::audio::audio_structures::{Card, InputStream, OutputStream, Sink, Source};
 use re_set_lib::ERROR;
 #[cfg(debug_assertions)]
 use re_set_lib::{utils::macros::ErrorLevel, write_log_to_file};
@@ -118,6 +118,7 @@ impl PulseServer {
                 let connection_source = connection_ref.clone();
                 let connection_input_stream = connection_ref.clone();
                 let connection_output_stream = connection_ref.clone();
+                let connection_card = connection_ref.clone();
                 let operation = operation.unwrap();
                 let facility = facility.unwrap();
                 match facility {
@@ -195,6 +196,21 @@ impl PulseServer {
                                     "Could not get input stream info",
                                     ErrorLevel::PartialBreakage
                                 );
+                            }
+                            ListResult::End => (),
+                        });
+                    }
+                    pulse::context::subscribe::Facility::Card => {
+                        if operation == Operation::Removed {
+                            handle_card_removed(&connection, index);
+                            return;
+                        }
+                        introspector.get_card_info_by_index(index, move |result| match result {
+                            ListResult::Item(card) => {
+                                handle_card_events(&connection_card, Card::from(card), operation);
+                            }
+                            ListResult::Error => {
+                                ERROR!("Could not get card info", ErrorLevel::PartialBreakage);
                             }
                             ListResult::End => (),
                         });
@@ -1021,6 +1037,49 @@ fn handle_output_stream_removed(conn: &Arc<SyncConnection>, index: u32) {
     .append1(index);
     let res = conn.send(msg);
     if res.is_err() {
-        ERROR!("Could not get send message", ErrorLevel::PartialBreakage);
+        ERROR!("Could not send message", ErrorLevel::PartialBreakage);
+    }
+}
+
+fn handle_card_events(conn: &Arc<SyncConnection>, card: Card, operation: Operation) {
+    match operation {
+        Operation::New => {
+            let msg = Message::signal(
+                &Path::from(DBUS_PATH!()),
+                &AUDIO.into(),
+                &"CardAdded".into(),
+            )
+            .append1(card);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!("Could not send message", ErrorLevel::PartialBreakage);
+            }
+        }
+        Operation::Changed => {
+            let msg = Message::signal(
+                &Path::from(DBUS_PATH!()),
+                &AUDIO.into(),
+                &"CardChanged".into(),
+            )
+            .append1(card);
+            let res = conn.send(msg);
+            if res.is_err() {
+                ERROR!("Could not send message", ErrorLevel::PartialBreakage);
+            }
+        }
+        Operation::Removed => (),
+    }
+}
+
+fn handle_card_removed(conn: &Arc<SyncConnection>, index: u32) {
+    let msg = Message::signal(
+        &Path::from(DBUS_PATH!()),
+        &AUDIO.into(),
+        &"CardRemoved".into(),
+    )
+    .append1(index);
+    let res = conn.send(msg);
+    if res.is_err() {
+        ERROR!("Could not send message", ErrorLevel::PartialBreakage);
     }
 }

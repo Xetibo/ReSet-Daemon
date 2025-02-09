@@ -36,8 +36,8 @@
             inputsFrom = builtins.attrValues self'.packages;
             packages = with pkgs; [
               (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))
-              rust-analyzer
-              clippy
+              #rust-analyzer
+              #clippy
             ];
             buildInputs = with pkgs; [
               gtk4
