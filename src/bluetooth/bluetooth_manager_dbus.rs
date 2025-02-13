@@ -27,15 +27,19 @@ pub fn setup_bluetooth_manager(cross: &mut Crossroads) -> dbus_crossroads::Iface
         c.method_with_cr_async("StartBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             data.bluetooth_scan_request.store(1, Ordering::SeqCst);
-            data.b_interface
-                .start_bluetooth_discovery(data.bluetooth_scan_active.clone());
+            if !data.bluetooth_listener_active.load(Ordering::SeqCst) {
+                data.b_interface
+                    .start_bluetooth_discovery(data.bluetooth_scan_active.clone());
+            }
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async("StopBluetoothScan", (), (), move |mut ctx, cross, ()| {
             let data: &mut DaemonData = cross.data_mut(ctx.path()).unwrap();
             data.bluetooth_scan_request.store(2, Ordering::SeqCst);
-            data.b_interface
-                .stop_bluetooth_discovery(data.bluetooth_scan_active.clone());
+            if !data.bluetooth_listener_active.load(Ordering::SeqCst) {
+                data.b_interface
+                    .stop_bluetooth_discovery(data.bluetooth_scan_active.clone());
+            }
             async move { ctx.reply(Ok(())) }
         });
         c.method_with_cr_async(
