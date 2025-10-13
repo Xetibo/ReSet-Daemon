@@ -20,6 +20,9 @@ pub fn setup_audio_manager(cross: &mut Crossroads) -> dbus_crossroads::IfaceToke
         c.signal::<(OutputStream,), _>("OutputStreamChanged", ("output_stream",));
         c.signal::<(OutputStream,), _>("OutputStreamAdded", ("output_stream",));
         c.signal::<(u32,), _>("OutputStreamRemoved", ("output_stream",));
+        c.signal::<(Card,), _>("CardChanged", ("card",));
+        c.signal::<(Card,), _>("CardAdded", ("card",));
+        c.signal::<(u32,), _>("CardRemoved", ("card",));
         c.method_with_cr_async(
             "GetDefaultSink",
             (),
