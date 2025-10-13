@@ -10,34 +10,34 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = inputs @ { self, flake-parts, ... }:
+  outputs =
+    inputs@{ self, flake-parts, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
 
       perSystem =
-        { config
-        , self'
-        , inputs'
-        , pkgs
-        , system
-        , ...
+        {
+          self',
+          pkgs,
+          system,
+          ...
         }:
         {
           _module.args.pkgs = import self.inputs.nixpkgs {
             inherit system;
             overlays = [
-              (import
-                inputs.rust-overlay
-              )
+              (import inputs.rust-overlay)
             ];
           };
           devShells.default = pkgs.mkShell {
             inputsFrom = builtins.attrValues self'.packages;
             packages = with pkgs; [
-              (rust-bin.selectLatestNightlyWith
-                (toolchain: toolchain.default))
-              rust-analyzer
-              clippy
+              (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))
+              #rust-analyzer
+              #clippy
             ];
             buildInputs = with pkgs; [
               gtk4
